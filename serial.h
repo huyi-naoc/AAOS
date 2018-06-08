@@ -4,7 +4,6 @@
 int serial_read(void *_self, void *data, size_t size, size_t *read_size);
 int serial_write(void *_self, const void *data, size_t size);
 int serial_process(void *_self, uint32_t command, ...);
-int serial_raw(void *_self, void *command, size_t command_size, void *result, size_t result_size);
 int serial_init(void *_self);
 
 //int serial_aws_temperature(void *_self, unsigned int channel, void *temperature, unsigned int options);
