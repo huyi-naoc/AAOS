@@ -1,6 +1,9 @@
 #ifndef serial_r_h
 #define serial_r_h
 
+#include "object_r.h"
+#include "virtual_r.h"
+
 struct Serial {
     const struct Object _;
     const void *_vtab;
@@ -33,6 +36,13 @@ struct SerialClass {
     struct Method path_of;
     struct Method init; 
     struct Method process; 
+    struct Method feed_dog;
+};
+
+struct SerialVirtualTable {
+    struct VirtualTable _;
+    struct Method init;
+    struct Method process;
     struct Method feed_dog;
 };
 
