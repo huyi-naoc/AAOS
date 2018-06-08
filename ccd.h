@@ -14,3 +14,4 @@ int ccd_storage(void *_self, unsigned int options);
 int ccd_power_on(void *_self);
 int ccd_power_off(void *_self);
 int ccd_init(void *_self);
+int ccd_raw(void *_self, void *command, size_t command_size, void *result, size_t result_size);
