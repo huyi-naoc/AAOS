@@ -10,6 +10,7 @@
 #define ascom_r_h
 
 #include "object_r.h"
+#define _ASCOM_PRIORITY_ 102
 
 struct ASCOM {
     struct Object _;

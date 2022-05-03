@@ -362,6 +362,26 @@ ASCOM(void)
     return _ASCOM;
 }
 
+#ifdef _USE_COMPILER_ATTRIBUTION_
+static void __destructor__(void) __attribute__ ((destructor(_ASCOM_PRIORITY_)));
+
+static void
+__destructor__(void)
+{
+    Ascom_destroy();
+    AscomClass_destroy();
+}
+
+static void __constructor__(void) __attribute__ ((constructor(_ASCOM_PRIORITY_)));
+
+static void
+__constructor__(void)
+{
+    AscomClass_initialize();
+    Ascom_initialize();
+}
+#endif
+
 #include <cjson/cJSON.h>
 
 int
