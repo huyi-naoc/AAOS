@@ -1,3 +1,6 @@
+.deps/
+.libs/
+
 aclocal.m4
 autom4te.cache/
 compile
@@ -13,6 +16,10 @@ m4/
 missing
 Makefile
 Makefile.in
+src/aws
+src/awsd
+src/serial
+src/seriald
 stamp-h1
 
 *.la
