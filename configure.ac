@@ -4,7 +4,8 @@
 AC_PREREQ([2.71])
 AC_INIT([aaos], [0.1], [huyi.naoc@gmail.com])
 AC_CONFIG_MACRO_DIRS([m4])
-LT_PREREQ([2.2])
+AC_CANONICAL_HOST
+LT_PREREQ([2.4])
 LT_INIT([dlopen])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([config.h.in])
