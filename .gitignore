@@ -1,3 +1,8 @@
+aclocal.m4
+autom4te.cache
+compile
+
+
 ./src/*
 !./src/*.c
 !./src/*.h
@@ -23,4 +28,3 @@ configure*
 !configure.ac
 depcomp
 aclocal.m4
-autom4te.cache
