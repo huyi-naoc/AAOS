@@ -35,6 +35,7 @@ if test "x${OS}" = xLinux; then
     AC_CHECK_LIB([udev], [main])
 fi
 
+LIBS="$LIBS -pthread"
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h syslog.h termios.h unistd.h])
 
