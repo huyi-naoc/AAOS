@@ -5,13 +5,13 @@
 #define HAVE_ATEXIT 1
 
 /* Define to 1 if you have the <cjson/cJSON.h> header file. */
-/* #undef HAVE_CJSON_CJSON_H */
+#define HAVE_CJSON_CJSON_H 1
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #define HAVE_CLOCK_GETTIME 1
 
 /* Define to 1 if you have the <curl/curl.h> header file. */
-/* #undef HAVE_CURL_CURL_H */
+#define HAVE_CURL_CURL_H 1
 
 /* Define to 1 if you have the declaration of `strerror_r', and to 0 if you
    don't. */
@@ -229,7 +229,7 @@
 /* #undef _UINT8_T */
 
 /* use cjson and curl library */
-/* #undef __USE_ASCOM__ */
+#define __USE_ASCOM__ /**/
 
 /* use GSL library */
 #define __USE_GSL__ /**/
