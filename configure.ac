@@ -38,7 +38,7 @@ fi
 
 LIBS="$LIBS -pthread"
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h syslog.h termios.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h pthread.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h syslog.h termios.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
