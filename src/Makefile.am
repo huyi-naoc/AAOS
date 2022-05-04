@@ -1,4 +1,4 @@
-bin_PROGRAMS = aws awsd serial seriald
+bin_PROGRAMS = aws awsd serial seriald telescope telescoped
 
 aws_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
 aws_LDADD = ../cores/libaaoscore.la  ../drivers/libaaosdriver.la
@@ -15,3 +15,11 @@ serial_SOURCES = serial_client.c
 seriald_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
 seriald_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
 seriald_SOURCES = serial_server.c
+
+telescope_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
+telescope_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
+telescope_SOURCES = serial_client.c
+
+telescoped_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
+telescoped_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
+telescoped_SOURCES = telescope_server.c

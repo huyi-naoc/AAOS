@@ -20,6 +20,8 @@ src/aws
 src/awsd
 src/serial
 src/seriald
+src/telescope
+src/telescoped
 stamp-h1
 
 *.la
