@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.71])
+AC_PREREQ([2.6])
 AC_INIT([aaos], [0.1], [huyi.naoc@gmail.com])
 AC_CONFIG_MACRO_DIRS([m4])
 AC_CANONICAL_HOST
