@@ -1,4 +1,4 @@
-# AAOS
+# AAOS - Introduction
 
 Automatic Astronomical Observatory Operating System
 
@@ -7,7 +7,7 @@ Automatic Astronomical Observatory Operating System
 The following packages are needed to build the software
 
 * autotools (autoconf, automake, libtool)
-* doxygen (for creating the documentation)
+* doxygen (for creating the documentation, not started yet)
 * tar
 * libconfig >= 1.5 (for daemon servers)
 * libcjson >= 1.7 (optional, if your want ASCOM device support)
@@ -15,8 +15,6 @@ The following packages are needed to build the software
 * libgsl >= 2.5 (optional, for cubic spline interpolation)
 * libsofa_c (optional, external IAU fundamental astronomy library for celetial coordinates transformation)  
 * libudev >= 245 (optional, only available for Linux hosts)
-
-# License
 
 # License
 
