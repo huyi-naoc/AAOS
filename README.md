@@ -8,7 +8,9 @@ The following packages are needed to build the software
 
 * autotools (autoconf, automake, libtool)
 * doxygen (for creating the documentation, not started yet)
+* pandoc (for creating the manpages, not started yet)
 * tar
+* libcfitsio >= 3.4
 * libconfig >= 1.5 (for daemon servers)
 * libcjson >= 1.7 (optional, if your want ASCOM device support)
 * libcurl >= 7.6 (optional, if your want ASCOM device support)
