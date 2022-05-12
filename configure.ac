@@ -5,7 +5,7 @@ AC_PREREQ([2.6])
 AC_INIT([aaos], [0.1], [huyi.naoc@gmail.com])
 AC_CONFIG_MACRO_DIRS([m4])
 AC_CANONICAL_HOST
-LT_PREREQ([2.4])
+LT_PREREQ([2.2])
 LT_INIT([dlopen])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([config.h.in])
@@ -17,12 +17,24 @@ AC_PROG_INSTALL
 #AC_PROG_RANLIB
 AM_PROG_CC_C_O
 
-OS=`uname -s`
-if test "x${OS}" = xLinux; then
-    AC_DEFINE([LINUX], , [Linux operating system])
-elif test "x${OS}" = xDarwin; then
-    AC_DEFINE([MACOSX], , [Macintosh operating system])
-fi
+#OS=`uname -s`
+#if test "x${OS}" = xLinux; then
+#    AC_DEFINE([LINUX], , [Linux operating system])
+#elif test "x${OS}" = xDarwin; then
+#    AC_DEFINE([MACOSX], , [Macintosh operating system])
+#fi
+
+case ${host_os} in
+    linux*)
+        AC_DEFINE([LINUX], , [Linux operating system])
+        AC_CHECK_LIB([udev], [main])
+        ;;
+    darwin*)
+        AC_DEFINE([MACOSX], , [Macintosh operating system])
+        ;;
+    *)
+        ;;
+esac
 
 # Checks for libraries.
 # FIXME: Replace `main' with a function in `-lcfitsio':
@@ -32,9 +44,9 @@ AC_CHECK_LIB([config], [main])
 # FIXME: Replace `main' with a function in `-lm':
 AC_CHECK_LIB([m], [main])
 # FIXME: Replace `main' with a function in `-ludev':
-if test "x${OS}" = xLinux; then
-    AC_CHECK_LIB([udev], [main])
-fi
+#if test "x${OS}" = xLinux; then
+#    AC_CHECK_LIB([udev], [main])
+#fi
 
 LIBS="$LIBS -pthread"
 # Checks for header files.
@@ -119,6 +131,14 @@ if test x"${sofa}" = xyes; then
         AC_MSG_ERROR([sofa.h and sofam.h are required for --enable-sofa])
     fi
 fi
+
+AC_ARG_ENABLE([docs], [--enable-docs enable docs], [docs=${enableval}], [docs=no])
+
+if test x"${docs}" = xyes; then
+    AC_CHECK_PROGS([PANDOC], [pandoc])
+fi
+AM_CONDITIONAL([WITH_PANDOC], [ test -n "$PANDOC" ])
+
 #AM_COND_IF(
 #    [GSL],
 #    [AC_SEARCH_LIBS([gsl_interp_accel_alloc], [gsl], [have_gsl=yes])
@@ -229,6 +249,7 @@ fi
 
 AC_CONFIG_FILES([Makefile
 		 cores/Makefile
+                 docs/Makefile
 		 drivers/Makefile
                  src/Makefile])
 AC_OUTPUT
