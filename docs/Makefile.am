@@ -1,6 +1,7 @@
 EXTRA_DIST =\
 	    serial.1.md\
 	    telescope.1.md\
+	    telescope_get_index_by_name.3.md\
 	    telescope_get_move_speed.3.md\
 	    telescope_get_slew_speed.3.md\
 	    telescope_get_track_rate.3.md\
@@ -40,6 +41,7 @@ EXTRA_DIST += ${man1_MANS}
 STAMPS += man1.stamp
 
 man3_MANS =\
+	   $(top_builddir)/man/man3/telescope_get_index_by_name.3\
 	   $(top_builddir)/man/man3/telescope_get_move_speed.3\
 	   $(top_builddir)/man/man3/telescope_get_slew_speed.3\
 	   $(top_builddir)/man/man3/telescope_get_track_rate.3\
@@ -62,6 +64,7 @@ $(man3_MANS): man3.stamp
 man3.stamp:
 	mkdir -p $(top_builddir)/man/man3
 	PANDOC=$(PANDOC)
+	$(PANDOC) -s -f markdown -t man telescope_get_index_by_name.3.md -o $(top_builddir)/man/man3/telescope_get_index_by_name.3
 	$(PANDOC) -s -f markdown -t man telescope_get_move_speed.3.md -o $(top_builddir)/man/man3/telescope_get_move_speed.3
 	$(PANDOC) -s -f markdown -t man telescope_get_slew_speed.3.md -o $(top_builddir)/man/man3/telescope_get_slew_speed.3
 	$(PANDOC) -s -f markdown -t man telescope_get_track_rate.3.md -o $(top_builddir)/man/man3/telescope_get_track_rate.3
@@ -78,7 +81,6 @@ man3.stamp:
 	$(PANDOC) -s -f markdown -t man telescope_set_track_rate.3.md -o $(top_builddir)/man/man3/telescope_set_track_rate.3
 	$(PANDOC) -s -f markdown -t man telescope_slew.3.md -o $(top_builddir)/man/man3/telescope_slew.3
 	$(PANDOC) -s -f markdown -t man telescope_status.3.md -o $(top_builddir)/man/man3/telescope_status.3
-	echo > man3.stamp
 
 EXTRA_DIST += ${man3_MANS}
 STAMPS += man3.stamp

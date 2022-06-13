@@ -3,11 +3,12 @@
 
 AC_PREREQ([2.6])
 AC_INIT([aaos], [0.1], [huyi.naoc@gmail.com])
-AC_CONFIG_MACRO_DIRS([m4])
+AM_INIT_AUTOMAKE
 AC_CANONICAL_HOST
 LT_PREREQ([2.2])
 LT_INIT([dlopen])
-AM_INIT_AUTOMAKE
+
+AC_CONFIG_MACRO_DIRS([m4])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
 
