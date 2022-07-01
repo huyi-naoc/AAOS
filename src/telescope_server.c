@@ -19,6 +19,7 @@ extern size_t n_telescope;
 static void *d;
 static void *server;
 static const char *conf_path = "/usr/local/aaos/etc/telescopes.cfg";
+static bool daemon_flag = true;
 static config_t cfg;
 
 static struct option longopts[] = {
@@ -160,10 +161,13 @@ main(int argc, char *argv[])
 {
     int ch, ret;
     
-    while ((ch = getopt_long(argc, argv, "c:v", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "c:Dv", longopts, NULL)) != -1) {
         switch (ch) {
             case 'c':
                 conf_path = optarg;
+                break;
+            case 'D':
+                daemon_flag = false;
                 break;
             default:
                 usage();
@@ -187,7 +191,7 @@ main(int argc, char *argv[])
     }
     
     read_daemon();
-        
+    
     
     if (argc == 0) {
         daemon_start(d);
@@ -205,7 +209,6 @@ main(int argc, char *argv[])
             daemon_reload(d);
             init();
         } else if (strcmp(argv[0], "stop") == 0) {
-        printf("%p\n", d);
             daemon_stop(d);
         } else {
             fprintf(stderr, "Unknow argument.\n");

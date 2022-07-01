@@ -103,6 +103,9 @@ main(int argc, char *argv[])
     
     unsigned int unit = SPEED_UNIT_NATURE;
     unsigned int format = COORDINATE_FORMAT_STRING;
+                    
+    snprintf(address, ADDRSIZE, "localhost");
+    snprintf(port, PORTSIZE, "13000");
     
     while ((ch = getopt_long(argc, argv, "f:hi:n:t:Nu:", longopts, NULL)) != -1) {
         switch (ch) {
@@ -147,7 +150,7 @@ main(int argc, char *argv[])
                     }
                 } else {
                     snprintf(address, ADDRSIZE, "localhost");
-                    snprintf(port, PORTSIZE, "5001");
+                    snprintf(port, PORTSIZE, "13000");
                 }
                 break;
             case 'u':

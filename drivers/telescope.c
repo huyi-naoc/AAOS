@@ -1203,7 +1203,7 @@ VirtualTelescope_get_current_postion(struct VirtualTelescope *self)
 {
     unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
     double current_time = get_current_time();
-    
+       
     double ra_arrive_time, dec_arrive_time, time_diff;
     switch (state) {
         case TELESCOPE_STATE_PARKED:
@@ -1292,9 +1292,9 @@ VirtualTelescope_get_current_postion(struct VirtualTelescope *self)
             break;
     }
     
-    double jul_d = jd(current_time);
+    //double jul_d = jd(current_time);
 
-    radec2altaz(jul_d, self->_.ra, self->_.dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., &self->_.alt, &self->_.az, NULL);
+    //radec2altaz(jul_d, self->_.ra, self->_.dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., &self->_.alt, &self->_.az, NULL);
 }
 
 static void *
@@ -1316,7 +1316,7 @@ VirtualTelescope_status(void *_self, char *status_buffer, size_t status_buffer_s
     FILE *fp;
     
     VirtualTelescope_get_current_postion(_self);
-    
+       
     if ((fp = fmemopen(status_buffer, status_buffer_size, "w")) == NULL) {
     }
     

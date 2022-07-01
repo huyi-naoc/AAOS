@@ -65,7 +65,7 @@ static regex_t preg_dms_4;
 static const char *pattern_dms_4 = "^[+-]?90(\\.0*)?[dD\\*]?$|^[+-]?90[:dD\\*](0{1,2}(\\.0*)?|\\.0+)[mM]?$|^[+-]?90[:dD\\*]0{1,2}[:mM](0{1,2}(\\.0*)?|\\.0+)[sS]?$";
 
 static regex_t preg_fmt;
-static const char *pattern_fmt = "^%[+-]*[0-9]*\\.[0-9]*[HhMmSsDd]";
+static const char *pattern_fmt = "^%[+-]?[0-9]*\\.[0-9]*[HhMmSsDd]";
 
 void
 astro_init(void)
@@ -282,7 +282,7 @@ deg2hms(double deg, char *hms, size_t size, const char *fmt)
     imm = floor(dmm);
     dss = (dmm - imm) * 60.;
     iss = floor(dss);
-    
+
     while (*idx != '\0') {
         switch (*idx) {
             case '%':
@@ -346,10 +346,13 @@ deg2hms(double deg, char *hms, size_t size, const char *fmt)
                                     fprintf(stderr, "illegal format.\n");
                                     free(buf);
                                     fclose(fp);
+                                    return NULL;
                                     break;
                             }
                             idx += pmatch.rm_eo - pmatch.rm_so - 1;
                         } else {
+                            char errbuf[256];
+                            regerror(ret, &preg_fmt, errbuf, 256);
                             fprintf(stderr, "illegal format.\n");
                             free(buf);
                             fclose(fp);
@@ -1515,6 +1518,9 @@ __destructor__(void)
     regfree(&preg_fmt);
 #ifdef __USE_SOFA__
 #ifdef __USE_GSL__
+    if (mjd == NULL) {
+        return;
+    }
     free(mjd);
     free(pm_x_a);
     free(pm_y_a);
@@ -1547,9 +1553,8 @@ __constructor__(void)
     char buf[256], field[32];
     
     if ((fp = fopen("finals2000A.all", "r")) == NULL) {
-        exit(EXIT_FAILURE);
+        return;
     }
-    
     
     while (fgets(buf, 256, fp) != NULL) {
         nlines++;

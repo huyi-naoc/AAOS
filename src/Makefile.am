@@ -18,7 +18,7 @@ seriald_SOURCES = serial_server.c
 
 telescope_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
 telescope_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
-telescope_SOURCES = serial_client.c
+telescope_SOURCES = telescope_client.c
 
 telescoped_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
 telescoped_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la

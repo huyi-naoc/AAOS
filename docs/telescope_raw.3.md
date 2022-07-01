@@ -1,4 +1,4 @@
-% telescope_raw(3) | Library Functions Manual
+% detector\_expose(3) | Library Functions Manual
 %
 % May 2022
 

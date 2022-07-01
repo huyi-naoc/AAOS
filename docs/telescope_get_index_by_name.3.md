@@ -1,11 +1,11 @@
-% telescope_init(3) | Library Functions Manual
+% telescope\_get\_index\_by\_name(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_init - initialize the telescope
+telescope\_get\_index\_by\_name - get the index of the telescope
 
 SYNOPSIS
 ========
