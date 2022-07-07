@@ -103,16 +103,13 @@ main(int argc, char *argv[])
     
     unsigned int unit = SPEED_UNIT_NATURE;
     unsigned int format = COORDINATE_FORMAT_STRING;
-                    
-    snprintf(address, ADDRSIZE, "localhost");
-    snprintf(port, PORTSIZE, "13000");
     
     while ((ch = getopt_long(argc, argv, "f:hi:n:t:Nu:", longopts, NULL)) != -1) {
         switch (ch) {
             case 'f':
                 if (strcmp(optarg, "degree") == 0) {
                     format = COORDINATE_FORMAT_DEGREE;
-                } else if (strcmp(optarg, "ntstring") == 0) {
+                } else if (strcmp(optarg, "string") == 0) {
                     format = COORDINATE_FORMAT_STRING;
                 } else {
                     fprintf(stderr, "Wrong format.\n");
@@ -150,7 +147,7 @@ main(int argc, char *argv[])
                     }
                 } else {
                     snprintf(address, ADDRSIZE, "localhost");
-                    snprintf(port, PORTSIZE, "13000");
+                    snprintf(port, PORTSIZE, "5001");
                 }
                 break;
             case 'u':
@@ -433,6 +430,38 @@ main(int argc, char *argv[])
                 }
                 continue;
             }
+            if (strcmp(command, "inspect") == 0) {
+                ret = telescope_inspect(telescope);
+                switch (ret) {
+                    case AAOS_OK:
+                        printf("Telescope is OK\n");
+                        break;
+                    case AAOS_ENOTSUP:
+                        printf("Inspect command is not supported.\n");
+                        break;
+                    default:
+                        printf("Telescope malfunctions.\n");
+                        break;
+                }
+                continue;
+            }
+            if (strcmp(command, "register") == 0) {
+                double timeout;
+                fscanf(stdin, "%lf", &timeout);
+                ret = telescope_register(telescope, timeout);
+                switch (ret) {
+                    case AAOS_OK:
+                        printf("Telescope is OK now.\n");
+                        break;
+                    case AAOS_ETIMEDOUT:
+                        printf("Telescope malfunctions until timed out.\n");
+                        break;
+                    default:
+                        printf("Telescope malfunctions.\n");
+                        break;
+                }
+                continue;
+            }
         }
     }
     
@@ -478,6 +507,47 @@ main(int argc, char *argv[])
             ret = telescope_go_home(telescope);
             argc--;
             argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "inspect") == 0) {
+            ret = telescope_inspect(telescope);
+            switch (ret) {
+                case AAOS_OK:
+                    printf("Telescope is OK\n");
+                    break;
+                case AAOS_ENOTSUP:
+                    printf("Inspect command is not supported.\n");
+                    break;
+                default:
+                    printf("Telescope malfunctions.\n");
+                    break;
+            }
+            argc--;
+            argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "register") == 0) {
+            if (argc < 2) {
+                fprintf(stderr, "Too few parameters for \"register\" command.\n");
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+            }
+            
+            double timeout = atof(argv[1]);
+            ret = telescope_register(telescope, timeout);
+            switch (ret) {
+                case AAOS_OK:
+                    printf("Telescope is OK now.\n");
+                    break;
+                case AAOS_ETIMEDOUT:
+                    printf("Telescope malfunctions until timed out.\n");
+                    break;
+                default:
+                    printf("Telescope malfunctions.\n");
+                    break;
+            }
+            argc -= 2;
+            argv += 2;
             continue;
         }
         if (strcmp(argv[0], "move") == 0) {
