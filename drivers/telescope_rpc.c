@@ -763,6 +763,62 @@ Telescope_set_option(void *_self, uint16_t option)
     return rpc_call(self);
 }
 
+int
+telescope_inspect(void *_self)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->inspect.method) {
+        return ((int (*)(void *)) class->inspect.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_inspect, "inspect", _self);
+        return result;
+    }
+}
+
+static int
+Telescope_inspect(void *_self)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_INSPECT);
+    
+    return rpc_call(self);
+}
+
+int
+telescope_register(void *_self, double timeout)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->reg.method) {
+        return ((int (*)(void *, double)) class->reg.method)(_self, timeout);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_register, "register", _self, timeout);
+        return result;
+    }
+}
+
+static int
+Telescope_register(void *_self, double timeout)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    int ret;
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_REGISTER);
+    protobuf_set(self, PACKET_DF0, timeout);
+    
+    if ((ret = rpc_call(self)) != AAOS_OK) {
+        return ret;
+    }
+
+    return AAOS_OK;
+}
+
 /*
  * Virtual functions
  */
@@ -1493,6 +1549,50 @@ Telescope_execute_set_option(struct Telescope *self)
 }
 
 static int
+Telescope_execute_inspect(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    void *telescope;
+
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    ret = __telescope_inspect(telescope);
+    
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
+Telescope_execute_register(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    void *telescope;
+    double timeout;
+    
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+
+    protobuf_get(self, PACKET_DF0, &timeout);
+    
+    ret = __telescope_wait(telescope, timeout);
+    
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
 Telescope_execute_default(struct Telescope *self)
 {
     return AAOS_EBADCMD;
@@ -1580,6 +1680,12 @@ Telescope_execute(void *_self)
             break;
         case TELESCOPE_COMMAND_SET_OPTION:
             ret = Telescope_execute_set_option(self);
+            break;
+        case TELESCOPE_COMMAND_INSPECT:
+            ret = Telescope_execute_inspect(self);
+            break;
+        case TELESCOPE_COMMAND_REGISTER:
+            ret = Telescope_execute_register(self);
             break;
         default:
             return Telescope_execute_default(self);
@@ -1812,6 +1918,22 @@ TelescopeClass_ctor(void *_self, va_list *app)
             self->go_home.method = method;
             continue;
         }
+        if (selector == (Method) telescope_inspect) {
+            if (tag) {
+                self->inspect.tag = tag;
+                self->inspect.selector = selector;
+            }
+            self->inspect.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_register) {
+            if (tag) {
+                self->reg.tag = tag;
+                self->reg.selector = selector;
+            }
+            self->reg.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -1890,6 +2012,8 @@ Telescope_initialize(void)
                      telescope_set_track_rate, "set_track_rate", Telescope_set_track_rate,
                      telescope_get_track_rate, "get_track_rate", Telescope_get_track_rate,
                      telescope_set_option, "set_option", Telescope_set_option,
+                     telescope_inspect, "inspect", Telescope_inspect,
+                     telescope_register, "register", Telescope_register,
                      (void *) 0);
     
 #ifndef _USE_COMPILER_ATTRIBUTION_

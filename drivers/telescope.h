@@ -39,6 +39,8 @@ int __telescope_get_slew_speed(void *_self, double *slew_speed_x, double *slew_s
 int __telescope_set_track_rate(void *_self, double track_rate_x, double track_rate_y);
 int __telescope_get_track_rate(void *_self, double *track_rate_x, double *track_rate_y);
 int __telescope_set_option(void *_self, uint16_t option);
+int __telescope_inspect(void *_self);
+int __telescope_wait(void *_self, double timeout);
 
 const char *__telescope_get_name(const void *_self);
 
@@ -46,7 +48,6 @@ extern const void *__Telescope(void);
 extern const void *__TelescopeClass(void);
 extern const void *__TelescopeVirtualTable(void);
 extern const void *__TelescopeVirtualTableClass(void);
-
 
 extern const void *VirtualTelescope(void);
 extern const void *VirtualTelescopeClass(void);

@@ -92,6 +92,9 @@ struct __TelescopeClass {
     struct Method get_move_speed;
     struct Method set_track_rate;
     struct Method get_track_rate;
+    
+    struct Method inspect;
+    struct Method wait;
 };
 
 struct __TelescopeVirtualTable {
@@ -117,6 +120,10 @@ struct __TelescopeVirtualTable {
     struct Method get_move_speed;
     struct Method set_track_rate;
     struct Method get_track_rate;
+    
+    struct Method inspect;
+    struct Method wait;
+    
 };
 
 struct VirtualTelescope {
@@ -133,7 +140,9 @@ struct APMount {
     char *serial_server_address;
     char *serial_server_port;
     char *serial_name;
+    char *serial_name2;
     void *serial_rpc;
+    
 };
 
 struct APMountClass {

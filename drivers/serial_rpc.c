@@ -227,6 +227,10 @@ serial_get_index_by_name(void *_self, const char *name)
 {
     const struct SerialClass *class = (const struct SerialClass *) classOf(_self);
     
+    if (name == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
     if (isOf(class, SerialClass()) && class->get_index_by_name.method) {
         return ((int (*)(void *, const char *)) class->get_index_by_name.method)(_self, name);
     } else {

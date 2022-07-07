@@ -194,6 +194,22 @@ __TelescopeVirtualTable_ctor(void *_self, va_list *app)
             self->get_track_rate.method = method;
             continue;
         }
+        if (selector == (Method) __telescope_inspect) {
+            if (tag) {
+                self->inspect.tag = tag;
+                self->inspect.selector = selector;
+            }
+            self->inspect.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_wait) {
+            if (tag) {
+                self->wait.tag = tag;
+                self->wait.selector = selector;
+            }
+            self->wait.method = method;
+            continue;
+        }
     }
     
     return _self;
@@ -341,6 +357,70 @@ __Telescope_get_name(const void *_self)
     struct __Telescope *self = cast(__Telescope(), _self);
     
     return self->name;
+}
+
+int
+__telescope_inspect(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->inspect.method) {
+        return ((int (*)(void *)) class->inspect.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_inspect, "inspect", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_inspect(const void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_wait(void *_self, double timeout)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->wait.method) {
+        return ((int (*)(void *, double)) class->wait.method)(_self, timeout);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_wait, "wait", _self, timeout);
+        return result;
+    }
+}
+
+static int
+__Telescope_wait(void *_self, double timeout)
+{
+    struct __Telescope *self = cast(__Telescope(), _self);
+    
+    int ret = 0;
+    struct timespec tp;
+    
+    tp.tv_sec = floor(timeout);
+    tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000;
+    
+    Pthread_mutex_lock(&self->t_state.mtx);
+    while (self->t_state.state & TELESCOPE_STATE_MALFUNCTION) {
+        if (timeout > 0) {
+            ret = Pthread_cond_timedwait(&self->t_state.cond, &self->t_state.mtx, &tp);
+        } else {
+            ret  = Pthread_cond_wait(&self->t_state.cond, &self->t_state.mtx);
+        }
+    }
+    Pthread_mutex_unlock(&self->t_state.mtx);
+    
+    if (ret == 0) {
+        return AAOS_OK;
+    } else if (ret == ETIMEDOUT) {
+        return AAOS_ETIMEDOUT;
+    } else {
+        return AAOS_ERROR;
+    }
 }
 
 /*
@@ -763,6 +843,11 @@ __Telescope_forward(const void *_self, void *result, Method selector, const char
         double *track_rate_x = va_arg(*app, double *);
         double *track_rate_y = va_arg(*app, double *);
         *((int *) result) = ((int (*)(void *, double *, double *)) method)(obj, track_rate_x, track_rate_y);
+    } else if (selector == (Method) __telescope_inspect) {
+        *((int *) result) = ((int (*)(void *)) method)(obj);
+    } else if (selector == (Method) __telescope_inspect) {
+        double timeout = va_arg(*app, double);
+        *((int *) result) = ((int (*)(void *, double)) method)(obj, timeout);
     } else {
         assert(0);
     }
@@ -778,12 +863,14 @@ __Telescope_puto(const void *_self, FILE *fp)
     struct __Telescope *self = cast(__Telescope(), _self);
     
     int state;
-    double ra, dec;
+    double ra, dec, az, alt;
     
     Pthread_mutex_lock(&self->t_state.mtx);
     state = self->t_state.state;
     ra = self->ra;
     dec = self->dec;
+    az = self->az;
+    alt = self->alt;
     Pthread_mutex_unlock(&self->t_state.mtx);
     
     if (self->name) {
@@ -829,7 +916,11 @@ __Telescope_puto(const void *_self, FILE *fp)
     deg2hms(ra, buf, BUFSIZE, "%HH%MM%04.1SS");
     fprintf(fp, "RA         \t: %s\n", buf);
     deg2dms(dec, buf, BUFSIZE, "%DD%MM%04.1SS");
-    fprintf(fp, "DEC        \t: %s", buf);
+    fprintf(fp, "DEC        \t: %s\n", buf);
+    lon_deg2dms(az, buf, BUFSIZE, "%DD%MM%04.1SS");
+    fprintf(fp, "AZ         \t: %s\n", buf);
+    lat_deg2dms(alt, buf, BUFSIZE, "%DD%MM%04.1SS");
+    fprintf(fp, "ALT        \t: %s", buf);
     return AAOS_OK;
 }
 
@@ -1101,6 +1192,22 @@ __TelescopeClass_ctor(void *_self, va_list *app)
             self->set_option.method = method;
             continue;
         }
+        if (selector == (Method) __telescope_inspect) {
+            if (tag) {
+                self->inspect.tag = tag;
+                self->inspect.selector = selector;
+            }
+            self->inspect.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_wait) {
+            if (tag) {
+                self->wait.tag = tag;
+                self->wait.selector = selector;
+            }
+            self->wait.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -1163,6 +1270,8 @@ __Telescope_initialize(void)
                        __telescope_get_name, "get_name", __Telescope_get_name,
                        __telescope_set_option, "set_option", __Telescope_set_option,
                        __telescope_raw, "raw", __Telescope_raw,
+                       __telescope_inspect, "inspect", __Telescope_inspect,
+                       __telescope_wait, "wait", __Telescope_wait,
                        (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(__Telescope_destroy);
@@ -1203,7 +1312,7 @@ VirtualTelescope_get_current_postion(struct VirtualTelescope *self)
 {
     unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
     double current_time = get_current_time();
-       
+    
     double ra_arrive_time, dec_arrive_time, time_diff;
     switch (state) {
         case TELESCOPE_STATE_PARKED:
@@ -1292,9 +1401,10 @@ VirtualTelescope_get_current_postion(struct VirtualTelescope *self)
             break;
     }
     
-    //double jul_d = jd(current_time);
+    double jul_d = jd(current_time);
 
-    //radec2altaz(jul_d, self->_.ra, self->_.dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., &self->_.alt, &self->_.az, NULL);
+    radec2altaz(jul_d, self->_.ra, self->_.dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., &self->_.alt, &self->_.az, NULL);
+    
 }
 
 static void *
@@ -1316,7 +1426,7 @@ VirtualTelescope_status(void *_self, char *status_buffer, size_t status_buffer_s
     FILE *fp;
     
     VirtualTelescope_get_current_postion(_self);
-       
+    
     if ((fp = fmemopen(status_buffer, status_buffer_size, "w")) == NULL) {
     }
     
@@ -1385,6 +1495,12 @@ VirtualTelescope_init(void *_self)
     
     self->_.ra = 0.0000001;
     self->_.dec = 90.;
+    
+    
+    double current_time = get_current_time();
+    double jul_d = jd(current_time);
+
+    radec2altaz(jul_d, self->_.ra, self->_.dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., &self->_.alt, &self->_.az, NULL);
     
     self->_.track_rate_x = SIDEREAL_TRACKING_SPEED;
     self->_.track_rate_y = 0.;
@@ -4293,6 +4409,95 @@ APMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_siz
     return ret;
 }
 
+static int
+APMount_inspect(void *_self)
+{
+    struct APMount *self = cast(APMount(), _self);
+    int ret;
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    unsigned int flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+
+    switch (state) {
+        case TELESCOPE_STATE_POWERED_OFF:
+            ret = AAOS_EPWROFF;
+            break;
+        default:
+            if (self->serial_rpc != NULL) {
+                if (serial_get_index_by_name(self->serial_rpc, self->serial_name) != AAOS_OK) {
+                    if (serial_get_index_by_name(self->serial_rpc, self->serial_name2) != AAOS_OK) {
+                        ret = AAOS_ERROR;
+                    } else {
+                        if (serial_inspect(self->serial_rpc) != AAOS_OK) {
+                            ret = AAOS_ERROR;
+                        } else {
+                            ret = AAOS_OK;
+                        }
+                    }
+                } else {
+                    if (serial_inspect(self->serial_rpc) != AAOS_OK) {
+                        if (serial_get_index_by_name(self->serial_rpc, self->serial_name2) != AAOS_OK) {
+                            ret = AAOS_ERROR;
+                        } else {
+                            if (serial_inspect(self->serial_rpc) != AAOS_OK) {
+                                ret = AAOS_ERROR;
+                            } else {
+                                ret = AAOS_OK;
+                            }
+                        }
+                    } else {
+                        ret = AAOS_OK;
+                    }
+                }
+            } else {
+                void *client = new(SerialClient(), self->serial_server_address, self->serial_server_port);
+    
+                if (rpc_client_connect(client, &self->serial_rpc) != AAOS_OK) {
+                    ret = AAOS_ERROR;
+                } else {
+                    if (serial_get_index_by_name(self->serial_rpc, self->serial_name) != AAOS_OK) {
+                        if (serial_get_index_by_name(self->serial_rpc, self->serial_name2) != AAOS_OK) {
+                            ret = AAOS_ERROR;
+                        } else {
+                            if (serial_inspect(self->serial_rpc) != AAOS_OK) {
+                                ret = AAOS_ERROR;
+                            } else {
+                                ret = AAOS_OK;
+                            }
+                        }
+                    } else {
+                        if (serial_inspect(self->serial_rpc) != AAOS_OK) {
+                            if (serial_get_index_by_name(self->serial_rpc, self->serial_name2) != AAOS_OK) {
+                                ret = AAOS_ERROR;
+                            } else {
+                                if (serial_inspect(self->serial_rpc) != AAOS_OK) {
+                                    ret = AAOS_ERROR;
+                                } else {
+                                    ret = AAOS_OK;
+                                }
+                            }
+                        } else {
+                            ret = AAOS_OK;
+                        }
+                    }
+                }
+                delete(client);
+            }
+            break;
+    }
+    if (flag && ret == AAOS_OK) {
+        self->_.t_state.state = state;
+        Pthread_cond_broadcast(&self->_.t_state.cond);
+    }
+    if (ret != AAOS_OK) {
+        self->_.t_state.state = state | TELESCOPE_STATE_MALFUNCTION;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return ret;
+}
+
 static const void *ap_mount_virtual_table(void);
 
 static void *
@@ -4317,7 +4522,12 @@ APMount_ctor(void *_self, va_list *app)
         self->serial_name = (char *) Malloc(strlen(value) + 1);
         snprintf(self->serial_name, strlen(value) + 1, "%s", value);
     }
-    
+    value = va_arg(*app, const char *);
+    if (value) {
+        self->serial_name2 = (char *) Malloc(strlen(value) + 1);
+        snprintf(self->serial_name2, strlen(value) + 1, "%s", value);
+    }
+
     int ret;
     void *client = new(SerialClient(), self->serial_server_address, self->serial_server_port);
     
@@ -4325,13 +4535,22 @@ APMount_ctor(void *_self, va_list *app)
         self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
         goto error;
     }
+    
     if ((ret = serial_get_index_by_name(self->serial_rpc, self->serial_name)) != AAOS_OK) {
-        goto error;
+        if (self->serial_name2 != NULL) {
+            if ((ret = serial_get_index_by_name(self->serial_rpc, self->serial_name2)) != AAOS_OK) {
+                goto error;
+            }
+        } else {
+            goto error;
+        }
     }
-    self->_.move_speed = 600. * SIDEREAL_TRACKING_SPEED;
-    self->_.slew_speed_x = 1200. * SIDEREAL_TRACKING_SPEED;
+    
 error:
     delete(client);
+    
+    self->_.move_speed = 600. * SIDEREAL_TRACKING_SPEED;
+    self->_.slew_speed_x = 1200. * SIDEREAL_TRACKING_SPEED;
     self->_._vtab = ap_mount_virtual_table();
     
     return (void *) self;
@@ -4344,6 +4563,7 @@ APMount_dtor(void *_self)
     struct APMount *self = cast(APMount(), _self);
     
     delete(self->serial_rpc);
+    free(self->serial_name2);
     free(self->serial_name);
     free(self->serial_server_port);
     free(self->serial_server_address);
@@ -4357,6 +4577,7 @@ APMountClass_ctor(void *_self, va_list *app)
     struct APMountClass *self = super_ctor(APMountClass(), _self, app);
     
     self->_.raw.method = (Method) 0;
+    self->_.inspect.method = (Method) 0;
     
     return self;
 }
@@ -4455,6 +4676,7 @@ ap_mount_virtual_table_initialize(void)
                                   __telescope_set_track_rate, "set_track_rate", APMount_set_track_rate,
                                   __telescope_get_track_rate, "get_track_rate", APMount_get_track_rate,
                                   __telescope_raw, "raw", APMount_raw,
+                                  __telescope_inspect, "inspect", APMount_inspect,
                                   (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(ap_mount_virtual_table_destroy);
@@ -4473,12 +4695,9 @@ ap_mount_virtual_table(void)
 }
 
 #ifdef __USE_ASCOM__
-
 /*
  * see https://ascom-standards.org/api for ASCOM's Alpaca API,
  */
-
-/*
 #include "ascom.h"
 #include <cjson/cJSON.h>
 
@@ -6171,7 +6390,7 @@ ascom_mount_virtual_table(void)
     
     return _ascom_mount_virtual_table;
 }
- */
+
 
 #endif
 

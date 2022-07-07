@@ -44,6 +44,8 @@ struct TelescopeClass {
     struct Method get_move_speed;
     struct Method set_track_rate;
     struct Method get_track_rate;
+    struct Method inspect;
+    struct Method reg;
     
 };
 

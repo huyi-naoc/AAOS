@@ -16,8 +16,6 @@
 #include <stdlib.h>
 
 #include <regex.h>
-
-
 #include "astro.h"
 
 #ifdef __USE_SOFA__
@@ -65,7 +63,7 @@ static regex_t preg_dms_4;
 static const char *pattern_dms_4 = "^[+-]?90(\\.0*)?[dD\\*]?$|^[+-]?90[:dD\\*](0{1,2}(\\.0*)?|\\.0+)[mM]?$|^[+-]?90[:dD\\*]0{1,2}[:mM](0{1,2}(\\.0*)?|\\.0+)[sS]?$";
 
 static regex_t preg_fmt;
-static const char *pattern_fmt = "^%[+-]?[0-9]*\\.[0-9]*[HhMmSsDd]";
+static const char *pattern_fmt = "^%[+-]*[0-9]*\\.[0-9]*[HhMmSsDd]";
 
 void
 astro_init(void)
@@ -282,7 +280,7 @@ deg2hms(double deg, char *hms, size_t size, const char *fmt)
     imm = floor(dmm);
     dss = (dmm - imm) * 60.;
     iss = floor(dss);
-
+    
     while (*idx != '\0') {
         switch (*idx) {
             case '%':
@@ -346,13 +344,10 @@ deg2hms(double deg, char *hms, size_t size, const char *fmt)
                                     fprintf(stderr, "illegal format.\n");
                                     free(buf);
                                     fclose(fp);
-                                    return NULL;
                                     break;
                             }
                             idx += pmatch.rm_eo - pmatch.rm_so - 1;
                         } else {
-                            char errbuf[256];
-                            regerror(ret, &preg_fmt, errbuf, 256);
                             fprintf(stderr, "illegal format.\n");
                             free(buf);
                             fclose(fp);
@@ -562,6 +557,7 @@ deg2dms(double deg, char *dms, size_t size, const char *fmt)
 {
     int sign = 1;
     if (deg < -90. || deg > 90.) {
+        printf("%lf\n", deg);
         fprintf(stderr, "input out of range.\n");
         return NULL;
     }
@@ -1419,7 +1415,16 @@ radec2altaz(double jd, double ra, double dec, double lon, double lat, double alt
     iauASTROM astrom;
     
     iauApci13(jd, 0, &astrom, &eo);
-    iauAtco13(ra * DD2R, dec * DD2R, 0., 0., 0., 0., jd, 0., 0., lon * DD2R, lat * DD2R, alt, 0., 0., 0., 0., 0., 1., azumith, altitude, ha_out, &dob, &rob, &eo);
+    if (ha_out != NULL) {
+        iauAtco13(ra * DD2R, dec * DD2R, 0., 0., 0., 0., jd, 0., 0., lon * DD2R, lat * DD2R, alt, 0., 0., 0., 0., 0., 1., azumith, altitude, ha_out, &dob, &rob, &eo);
+    } else {
+        double tmp;
+        iauAtco13(ra * DD2R, dec * DD2R, 0., 0., 0., 0., jd, 0., 0., lon * DD2R, lat * DD2R, alt, 0., 0., 0., 0., 0., 1., azumith, altitude, &tmp, &dob, &rob, &eo);
+    }
+    *azumith *= DR2D;
+    *altitude *= DR2D;
+    *altitude = 90. - *altitude;
+    
 }
 #endif
 
@@ -1518,9 +1523,6 @@ __destructor__(void)
     regfree(&preg_fmt);
 #ifdef __USE_SOFA__
 #ifdef __USE_GSL__
-    if (mjd == NULL) {
-        return;
-    }
     free(mjd);
     free(pm_x_a);
     free(pm_y_a);
@@ -1549,62 +1551,58 @@ __constructor__(void)
 #ifdef __USE_SOFA__
 #ifdef __USE_GSL__
     FILE *fp;
-    size_t nlines = 0;
-    char buf[256], field[32];
     
-    if ((fp = fopen("finals2000A.all", "r")) == NULL) {
-        return;
+    if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+        size_t nlines = 0;
+        char buf[256], field[32];
+        while (fgets(buf, 256, fp) != NULL) {
+            nlines++;
+        }
+        mjd = malloc(sizeof(double) * nlines);
+        pm_x_a = malloc(sizeof(double) * nlines);
+        pm_y_a = malloc(sizeof(double) * nlines);
+        ut1_utc_a = malloc(sizeof(double) * nlines);
+        dx_2000a_a = malloc(sizeof(double) * nlines);
+        dy_2000a_a = malloc(sizeof(double) * nlines);
+        
+        rewind(fp);
+        nlines = 0;
+        while (fgets(buf, 256, fp) != NULL) {
+            memset(field, '\0', 32);
+            memcpy(field, buf + 6, 9);
+            mjd[nlines] = atof(field);
+            memcpy(field, buf + 17, 10);
+            pm_x_a[nlines] = atof(field);
+            memcpy(field, buf + 36, 10);
+            pm_y_a[nlines] = atof(field);
+            memcpy(field, buf + 58, 10);
+            ut1_utc_a[nlines] = atof(field);
+            memcpy(field, buf + 96, 10);
+            dx_2000a_a[nlines] = atof(field);
+            memset(field, '\0', 32);
+            memcpy(field, buf + 115, 10);
+            dy_2000a_a[nlines] = atof(field);
+            nlines++;
+        }
+        fclose(fp);
+        
+        pm_x_a_acc = gsl_interp_accel_alloc();
+        pm_x_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_x_a_spline, mjd, pm_x_a, nlines);
+        pm_y_a_acc = gsl_interp_accel_alloc();
+        pm_y_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_y_a_spline, mjd, pm_y_a, nlines);
+        ut1_utc_a_acc = gsl_interp_accel_alloc();
+        ut1_utc_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(ut1_utc_a_spline, mjd, ut1_utc_a, nlines);
+        dx_2000a_a_acc = gsl_interp_accel_alloc();
+        dx_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_x_a_spline, mjd, dx_2000a_a, nlines);
+        dy_2000a_a_acc = gsl_interp_accel_alloc();
+        dy_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_x_a_spline, mjd, dy_2000a_a, nlines);
+        gsl_set_error_handler_off();
     }
-    
-    while (fgets(buf, 256, fp) != NULL) {
-        nlines++;
-    }
-    
-    mjd = malloc(sizeof(double) * nlines);
-    pm_x_a = malloc(sizeof(double) * nlines);
-    pm_y_a = malloc(sizeof(double) * nlines);
-    ut1_utc_a = malloc(sizeof(double) * nlines);
-    dx_2000a_a = malloc(sizeof(double) * nlines);
-    dy_2000a_a = malloc(sizeof(double) * nlines);
-    
-    rewind(fp);
-    
-    nlines = 0;
-    while (fgets(buf, 256, fp) != NULL) {
-        memset(field, '\0', 32);
-        memcpy(field, buf + 6, 9);
-        mjd[nlines] = atof(field);
-        memcpy(field, buf + 17, 10);
-        pm_x_a[nlines] = atof(field);
-        memcpy(field, buf + 36, 10);
-        pm_y_a[nlines] = atof(field);
-        memcpy(field, buf + 58, 10);
-        ut1_utc_a[nlines] = atof(field);
-        memcpy(field, buf + 96, 10);
-        dx_2000a_a[nlines] = atof(field);
-        memset(field, '\0', 32);
-        memcpy(field, buf + 115, 10);
-        dy_2000a_a[nlines] = atof(field);
-        nlines++;
-    }
-    fclose(fp);
-    
-    pm_x_a_acc = gsl_interp_accel_alloc();
-    pm_x_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_x_a_spline, mjd, pm_x_a, nlines);
-    pm_y_a_acc = gsl_interp_accel_alloc();
-    pm_y_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_y_a_spline, mjd, pm_y_a, nlines);
-    ut1_utc_a_acc = gsl_interp_accel_alloc();
-    ut1_utc_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(ut1_utc_a_spline, mjd, ut1_utc_a, nlines);
-    dx_2000a_a_acc = gsl_interp_accel_alloc();
-    dx_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_x_a_spline, mjd, dx_2000a_a, nlines);
-    dy_2000a_a_acc = gsl_interp_accel_alloc();
-    dy_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_x_a_spline, mjd, dy_2000a_a, nlines);
-    gsl_set_error_handler_off();
 #endif
 #endif
     regcomp(&preg_hms_1, pattern_hms_1, REG_EXTENDED | REG_NOSUB);

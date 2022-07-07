@@ -41,13 +41,15 @@
 #define TELESCOPE_COMMAND_GET_TRACK_RATE    22
 #define TELESCOPE_COMMAND_GET_INDEX_BY_NAME 23
 #define TELESCOPE_COMMAND_SET_OPTION        24
+#define TELESCOPE_COMMAND_INSPECT           25
+#define TELESCOPE_COMMAND_REGISTER          26
 
 
 int telescope_get_index_by_name(void *_self, const char *name);
 
 /**
  * Staus method of telescope object.
- * @param[in,out] _self detector object.
+ * @param[in,out] _self telescope object.
  * @param[in] res a pointer to restore the result.
  * @param[in] res_size size of \b res.
  * @param[in] res_len data length of \b res. If \b res_len is \b NULL, do nothing.
@@ -57,6 +59,12 @@ int telescope_get_index_by_name(void *_self, const char *name);
  * Telescope is in MALFUNCTION state.
  */
 int telescope_status(void *_self, char *res, size_t res_size, size_t *res_len);
+
+/**
+ * Set options.
+ * @param[in,out] _self telescope object.
+ * @param[in] option options.
+ */
 int telescope_set_option(void *_self, uint16_t option);
 
 /**
@@ -91,6 +99,7 @@ int telescope_raw(void *_self, const void *command, size_t command_size, void *r
  * Power on method is not supported by the underline telescope.
  */
 int telescope_power_on(void *_self);
+
 /**
  * Power off method of telescope object.
  * @details If power off method is supported by the underline telescope, it will change the state of the telescope to PWROFF. Approriate cleaning up methods should be called before calling power off.
@@ -371,9 +380,34 @@ int telescope_set_track_rate(void *_self, double track_rate_x, double track_rate
  */
 int telescope_get_track_rate(void *_self, double *track_rate_x, double *track_rate_y);
 
+/**
+ * Inspect whether the telescope is working properly.
+ * @param[in,out] _self telescope object.
+ * @retval AAOS_OK
+ * No errors.
+ * @retval AAOS_ERROR
+ * Telescope is in MALFUNCTION state.
+ * @retval AAOS_ENOTSUP
+ *  Inspect is not supported.
+ */
+int telescope_inspect(void *_self);
+
+/**
+ * Wait until the telescope is recovered. 
+ * @param[in,out] _self telescope object.
+ * @retval AAOS_OK
+ * No errors.
+ * @retval AAOS_ERROR
+ * Telescope is in MALFUNCTION state.
+ * @retval AAOS_ENOTSUP
+ *  Inspect is not supported.
+ */
+int telescope_register(void *_self, double timeout);
+
+
+
 extern const void *Telescope(void);
 extern const void *TelescopeClass(void);
-
 
 extern const void *TelescopeClient(void);
 extern const void *TelescopeClientClass(void);
