@@ -1,0 +1,92 @@
+#!/bin/bash
+
+#Start: awsd
+
+PROGRAM=rc.awsd
+
+if [ -f ./awsd.cfg ]; then
+    CONFIG_FILE="./awsd.cfg"
+elif [ -f /usr/local/aaos/etc/awsd.cfg ]; then
+    CONFIG_FILE="/usr/local/aaos/etc/awsd.cfg"
+elif [ -f /usr/local/etc/awsd.cfg ]; then
+    CONFIG_FILE="/usr/local/etc/awsd.cfg"
+elif [ -f CONFIG_FILE="/etc/aaos/awsd.cfg" ]; then
+    CONFIG_FILE="/etc/aaos/awsd.cfg"
+elif [ -f CONFIG_FILE="/etc/awsd.cfg" ]; then
+    CONFIG_FILE="/etc/awsd.cfg"
+else
+    CONFIG_FILE=
+fi
+
+if [ -x /usr/local/aaos/bin/awsd ]; then
+    AWSD="/usr/local/aaos/bin/awsd"
+elif [ -x /usr/local/bin/awsd ]; then
+    AWSD="/usr/local/aaos/bin/awsd"
+elif [ -x /usr/bin/awsd ]; then
+    AWSD="/usr/bin/awsd"
+else
+    echo "Cannot find 'awsd'" >&2
+    echo
+    exit 1
+fi
+
+ARGV=`getopt -o c: -l config -- "$@"`
+if [ $? -ne 0 ]; then
+    echo "Cannot reaarange options." >&2
+    echo 
+    exit 1
+fi
+
+eval set -- "$ARGV"
+
+while true
+do
+    case "$1" in
+        -c|--config)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        *)
+            echo "$PROGRAM illegal option -- $1" >&2
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+usage()
+{
+    echo "usage $PROGRAM [-c filepath | --config=filepath] start|stop|restart"
+    echo
+}
+
+awsd_start()
+{
+    $AWSD -c "$CONFIG_FILE" start
+}
+
+awsd_stop()
+{
+    $AWSD -c "$CONF_FILE" stop
+}
+
+awsd_restart()
+{
+    $AWSD -c "$CONF_FILE" restart
+}
+
+case "$1" in
+    start)
+        awsd_start
+        ;;
+    stop)
+        awsd_stop
+        ;;
+    restart)
+        awsd_restart
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac

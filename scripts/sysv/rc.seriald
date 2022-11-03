@@ -1,0 +1,92 @@
+#!/bin/bash
+
+#Start: seriald
+
+PROGRAM=rc.seriald
+
+if [ -f ./seriald.cfg ]; then
+    CONFIG_FILE="./seriald.cfg"
+elif [ -f /usr/local/aaos/etc/seriald.cfg ]; then
+    CONFIG_FILE="/usr/local/aaos/etc/seriald.cfg"
+elif [ -f /usr/local/etc/seriald.cfg ]; then
+    CONFIG_FILE="/usr/local/etc/seriald.cfg"
+elif [ -f CONFIG_FILE="/etc/aaos/seriald.cfg" ]; then
+    CONFIG_FILE="/etc/aaos/seriald.cfg"
+elif [ -f CONFIG_FILE="/etc/seriald.cfg" ]; then
+    CONFIG_FILE="/etc/seriald.cfg"
+else
+    CONFIG_FILE=
+fi
+
+if [ -x /usr/local/aaos/bin/seriald ]; then
+    SERIALD="/usr/local/aaos/bin/seriald"
+elif [ -x /usr/local/bin/seriald ]; then
+    SERIALD="/usr/local/aaos/bin/seriald"
+elif [ -x /usr/bin/seriald ]; then
+    SERIALD="/usr/bin/seriald"
+else
+    echo "Cannot find 'seriald'" >&2
+    echo
+    exit 1
+fi
+
+ARGV=`getopt -o c: -l config -- "$@"`
+if [ $? -ne 0 ]; then
+    echo "Cannot reaarange options." >&2
+    echo 
+    exit 1
+fi
+
+eval set -- "$ARGV"
+
+while true
+do
+    case "$1" in
+        -c|--config)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        *)
+            echo "$PROGRAM illegal option -- $1" >&2
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+usage()
+{
+    echo "usage $PROGRAM [-c filepath | --config=filepath] start|stop|restart"
+    echo
+}
+
+seriald_start()
+{
+    $SERIALD -c "$CONFIG_FILE" start
+}
+
+seriald_stop()
+{
+    $SERIALD -c "$CONF_FILE" stop
+}
+
+seriald_restart()
+{
+    $SERIALD -c "$CONF_FILE" restart
+}
+
+case "$1" in
+    start)
+        seriald_start
+        ;;
+    stop)
+        seriald_stop
+        ;;
+    restart)
+        seriald_restart
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
