@@ -107,8 +107,9 @@ read_configuration(void)
                 serials[i] = new(AAGPDUSerial(), name, path, "description", description, NULL);
             } else if (strcmp(type, "RDSS") == 0) {
                 serials[i] = new(RDSSSerial(), name, path, "description", description, NULL);
+            } else if (strcmp(type, "KLTP") == 0) {
+                serials[i] = new(KLTPSerial, name, path, "description", description, NULL);
             } else {
-                
             }
             config_setting_lookup_string(serial_setting, "inspect", &inspect);
             if (inspect != NULL) {

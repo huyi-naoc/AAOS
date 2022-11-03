@@ -4474,7 +4474,14 @@ static int
 KLTPSerial_inspect(void *_self)
 {
     char buf[BUFSIZE];
-    return KLTPSerial_raw(_self, "GG", 2, NULL, buf, BUFSIZE, NULL);
+    unsigned char command[32];
+    command[0] = 0x55;
+    command[1] = 0x03;
+    command[2] = 0x00;
+    command[3] = 0x04;
+    command[5] = 0x00;
+    command[6] = 0x04;
+    return KLTPSerial_raw(_self, command, 6, NULL, buf, BUFSIZE, NULL);
 }
 
 static const void *_kltp_serial_virtual_table;
@@ -4489,11 +4496,11 @@ static void
 kltp_serial_virtual_table_initialize(void)
 {
     _kltp_serial_virtual_table = new(__SerialVirtualTable(),
-                                     __serial_init, "init", APMountSerial_init,
-                                     __serial_feed_dog, "feed_dog", APMountSerial_feed_dog,
-                                     __serial_validate, "validate", APMountSerial_validate,
-                                     __serial_raw, "raw", APMountSerial_raw,
-                                     __serial_inspect, "inspect", APMountSerial_inspect,
+                                     __serial_init, "init", KLTPSerial_init,
+                                     __serial_feed_dog, "feed_dog", KLTPSerial_feed_dog,
+                                     __serial_validate, "validate", KLTPSerial_validate,
+                                     __serial_raw, "raw", KLTPSerial_raw,
+                                     __serial_inspect, "inspect", KLTPSerial_inspect,
                                      (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(kltp_serial_virtual_table_destroy);
