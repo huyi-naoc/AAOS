@@ -33,4 +33,6 @@ test/
 *.lo
 *.o
 
+aaos-*.tar.gz
+
 .DS_Store 

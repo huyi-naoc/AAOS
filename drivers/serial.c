@@ -4248,6 +4248,113 @@ sms_serial_virtual_table(void)
 }
 
 /*
+ * Kunlun turbulence profiler serial.
+ */
+
+
+static const void *kltp_serial_virtual_table(void);
+
+static void *
+KLTPSerial_ctor(void *_self, va_list *app)
+{
+    struct KLTPSerial *self = super_ctor(KLTPSerial(), _self, app);
+    
+    self->_._vtab= kltp_serial_virtual_table();
+    
+    self->output_len = 21;
+    self->read_buf = (unsigned char *) Malloc(self->output_len);
+    Pthread_mutex_init(&self->mtx, NULL);
+    Pthread_cond_init(&self->cond, NULL);
+    
+    return (void *) self;
+}
+
+static void *
+KLTPSerial_dtor(void *_self)
+{
+    struct KLTPSerial *self = cast(KLTPSerial(), _self);
+    
+    free(self->read_buf);
+    Pthread_mutex_destroy(&self->mtx);
+    Pthread_cond_destroy(&self->cond);
+    return super_dtor(KLTPSerial(), _self);
+}
+
+static void *
+KLTPSerialClass_ctor(void *_self, va_list *app)
+{
+    struct KLTPSerialClass *self = super_ctor(KLTPSerialClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.validate.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_KLTPSerialClass;
+
+static void
+KLTPSerialClass_destroy(void)
+{
+    free((void *) _KLTPSerialClass);
+}
+
+static void
+KLTPSerialClass_initialize(void)
+{
+    _KLTPSerialClass = new(__SerialClass(), "KLTPSerialClass", __SerialClass(), sizeof(struct KLTPSerialClass),
+                              ctor, "", KLTPSerialClass_ctor,
+                              (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(KLTPSerialClass_destroy);
+#endif
+}
+
+const void *
+KLTPSerialClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, KLTPSerialClass_initialize);
+#endif
+    
+    return _KLTPSerialClass;
+}
+
+static const void *_KLTPSerial;
+
+static void
+KLTPSerial_destroy(void)
+{
+    
+    free((void *)_KLTPSerial);
+}
+
+static void
+KLTPSerial_initialize(void)
+{
+    _KLTPSerial = new(KLTPSerialClass(), "KLTPSerial", __Serial(), sizeof(struct KLTPSerial),
+                         ctor, "ctor", KLTPSerial_ctor,
+                         dtor, "dtor", KLTPSerial_dtor,
+                         (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(KLTPSerial_destroy);
+#endif
+}
+
+const void *
+KLTPSerial(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, KLTPSerial_initialize);
+#endif
+
+    return _KLTPSerial;
+}
+
+/*
  * MODBUS_CRC16_v3 copy from libcrc.
  */
 
