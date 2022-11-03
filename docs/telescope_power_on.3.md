@@ -1,11 +1,11 @@
-% telescope_init(3) | Library Functions Manual
+% telescope\_power_on(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_power_on - power on the telescope
+telescope\_power\_on - power on the telescope
 
 SYNOPSIS
 ========
@@ -35,12 +35,7 @@ ERRORS
 
 These functions shall fail if:
 
-AAOS_EDEVMAL
-------------
-
-The underline telescope is in *MALFUNCTION* state.
-
-AAOS_ENOTSUP
+AAOS\_ENOTSUP
 ------------
 
 The underline telescope does not support this operation.

@@ -1,4 +1,4 @@
-SUBDIRS = cores drivers src
+SUBDIRS = cores drivers mics src
 ACLOCAL_AMFLAGS = -I m4
 
 if WITH_PANDOC

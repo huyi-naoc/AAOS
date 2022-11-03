@@ -937,7 +937,6 @@ AWS_data_field(void *_self, FILE *fp)
     return AAOS_OK;
 }
 
-/*
 int
 aws_inspect(void *_self)
 {
@@ -992,7 +991,6 @@ AWS_register(void *_self, double timeout)
     
     return rpc_call(_self);
 }
- */
 
 static int
 AWS_execute_get_index_by_name(struct AWS *self)
@@ -1811,7 +1809,6 @@ AWSClass_ctor(void *_self, va_list *app)
             self->data_field.method = method;
             continue;
         }
-        /*
         if (selector == (Method) aws_inspect) {
             if (tag) {
                 self->inspect.tag = tag;
@@ -1828,7 +1825,6 @@ AWSClass_ctor(void *_self, va_list *app)
             self->reg.method = method;
             continue;
         }
-         */
     }
     
 #ifdef va_copy
@@ -1898,8 +1894,8 @@ AWS_initialize(void)
                aws_data_log, "data_log", AWS_data_log,
                aws_data_field, "data_field", AWS_data_field,
                aws_status, "status", AWS_status,
-               //aws_inspect, "inspect", AWS_inspect,
-               //aws_register, "register", AWS_register,
+               aws_inspect, "inspect", AWS_inspect,
+               aws_register, "register", AWS_register,
                (void *) 0);
     
 #ifndef _USE_COMPILER_ATTRIBUTION_

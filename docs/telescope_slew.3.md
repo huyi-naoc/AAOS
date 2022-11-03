@@ -1,11 +1,11 @@
-% telescope_slew(3) | Library Functions Manual
+% telescope\_slew(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_slew - slew the telescope
+telescope\_slew - slew the telescope
 
 SYNOPSIS
 ========
@@ -41,46 +41,46 @@ ERRORS
 
 These functions shall fail if:
 
-AAOS_ECANCELED
+AAOS\_ECANCELED
 --------------
 
 The current execution is cancelled by a new call of *telescope_go_home*(), *telescope_move*(), *telescope_park*(), *telescope_slew*(), and *telescope_stop*() that operate the same underline telescope. 
 
-AAOS_EDEVMAL
+AAOS\_EDEVMAL
 ------------
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_EINVAL
+AAOS\_EINVAL
 -----------
 
-The *ra* or *dec* value is out of the underline telescope's setting limits.
+The value of *ra* and/or *dec* value is out of their definition range or the underline telescope's setting limits.
 
-AAOS_EPWROFF
+AAOS\_EPWROFF
 ------------
 
 The underline telescope is not powered.
 
-AAOS_ETIMEDOUT
+AAOS\_ETIMEDOUT
 --------------
 
 The execution timed out, usually means the telescope is in trouble.
 
-AAOS_EUNINT
+AAOS\_EUNINT
 -----------
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
 
 *telescope_timed_slew*() function shall also fail if:
 
-AAOS_ETIMEDOUT
+AAOS\_ETIMEDOUT
 --------------
 
 The telescope is still moving or slewing until *timeout*.
 
 *telescope_try_slew*() function shall also fail if:
 
-AAOS_EBUSY
+AAOS\_EBUSY
 ----------
 
 The telescope is moving or slewing now.

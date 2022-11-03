@@ -62,8 +62,8 @@ int aws_get_raw_data_by_channel(void *_self, unsigned int index, unsigned int ch
 int aws_status(void *_self, FILE *fp);
 int aws_data_log(void *_self, FILE *fp);
 int aws_data_field(void *_self, FILE *fp);
-//int aws_register(void *_self, double timeout);
-//int aws_inspect(void *_self);
+int aws_register(void *_self, double timeout);
+int aws_inspect(void *_self);
 
 extern const void *AWS(void);
 extern const void *AWSClass(void);

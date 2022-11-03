@@ -1,8 +1,8 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.6])
-AC_INIT([aaos], [0.1], [huyi.naoc@gmail.com])
+AC_PREREQ([2.71])
+AC_INIT([aaos],[0.1],[huyi.naoc@gmail.com])
 AM_INIT_AUTOMAKE
 AC_CANONICAL_HOST
 LT_PREREQ([2.2])
@@ -74,7 +74,7 @@ AC_FUNC_REALLOC
 AC_FUNC_STRERROR_R
 AC_CHECK_FUNCS([atexit clock_gettime floor ftruncate memset mkdir munmap regcomp select socket strchr strerror strrchr strstr])
 
-AC_ARG_ENABLE([ascom], [--enable-ascom enable ascom], [ascom=${enableval}], [ascom=no])
+AC_ARG_ENABLE([ascom], [AS_HELP_STRING([--enable-ascom], [Enable ASCOM interface [default = no]])], [ascom=${enableval}], [ascom=no])
 if test x"${ascom}" = xyes; then
     AC_CHECK_HEADERS([cjson/cJSON.h curl/curl.h], [have_ascom=yes], [have_ascom=no])
     if test x"${have_ascom}" = xyes; then
@@ -97,7 +97,7 @@ else
     AC_MSG_NOTICE([*** ASCOM driver will not be enabled ***])
 fi
 
-AC_ARG_ENABLE([gsl], [--disable-gsl disable gsl], [gsl=${enableval}], [gsl=yes])
+AC_ARG_ENABLE([gsl], [AS_HELP_STRING([--enable-gsl], [Use GNU scientific library [default = yes]])], [gsl=${enableval}], [gsl=yes])
 if test x"${gsl}" = xyes; then
     AC_CHECK_HEADERS([gsl/gsl_errno.h gsl/gsl_spline.h], [have_gsl=yes], [have_gsl=no])
     if test x"${have_gsl}" = xyes; then
@@ -118,7 +118,7 @@ else
     AC_MSG_NOTICE([*** GSL library will NOT be linked, some functions may not work properly ***])
 fi
 
-AC_ARG_ENABLE([sofa], [--disable-sofa disable sofa], [sofa=${enableval}], [sofa=yes])
+AC_ARG_ENABLE([sofa], [AS_HELP_STRING([--enable-sofa],[Use IAU SOFA library [default = yes]])], [sofa=${enableval}], [sofa=yes])
 if test x"${sofa}" = xyes; then
     AC_CHECK_HEADERS([sofa.h sofam.h], [have_sofa=yes], [have_sofa=no])
     if test x"${have_sofa}" = xyes; then
@@ -133,7 +133,7 @@ if test x"${sofa}" = xyes; then
     fi
 fi
 
-AC_ARG_ENABLE([docs], [--enable-docs enable docs], [docs=${enableval}], [docs=no])
+AC_ARG_ENABLE([docs], [AS_HELP_STRING([--enable-doc], [Generate manpages [default = no]])], [docs=${enableval}], [docs=no])
 
 if test x"${docs}" = xyes; then
     AC_CHECK_PROGS([PANDOC], [pandoc])
@@ -252,5 +252,6 @@ AC_CONFIG_FILES([Makefile
 		 cores/Makefile
                  docs/Makefile
 		 drivers/Makefile
+                 mics/Makefile
                  src/Makefile])
 AC_OUTPUT

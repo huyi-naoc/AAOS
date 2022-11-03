@@ -226,6 +226,7 @@ struct __AWSVirtualTable {
 struct KLAWSDevice {
     struct Object _;
     char *name;
+    char *name2;
     int critical;
     uint16_t index;
 };
@@ -234,6 +235,7 @@ struct KLAWSDeviceClass {
     struct Class _;
     struct Method get_index;
     struct Method set_index;
+    struct Method set_index2;
     struct Method inspect;
 };
 

@@ -21,16 +21,20 @@ static unsigned int status_flag;
 const char *aws_name, *sensor_name;
 
 static struct option longopts[] = {
-    {"aws",         required_argument,  NULL,       'a' },
-    {"channel",     required_argument,  NULL,       'c' },
-    {"help",        no_argument,        NULL,       'h' },
-    {"index",       required_argument,  NULL,       'i' },
-    {"name",        optional_argument,  NULL,       'n' },
-    {"raw",         no_argument,        NULL,       'r' },
-    {"sensor",      optional_argument,  NULL,       's' },
-    {"status",      optional_argument,  NULL,       'S' },
-    {"version",     no_argument,        NULL,       'v' },
-    { NULL,         0,                  NULL,       0 }
+    {"aws",     required_argument,      NULL,   'a' },
+    {"channel", required_argument,      NULL,   'c' },
+    {"check",   no_argument,            NULL,   'C' },
+    {"delay",   required_argument,      NULL,   'd' },
+    {"help",    no_argument,            NULL,   'h' },
+    {"index",   required_argument,      NULL,   'i' },
+    {"name",    optional_argument,      NULL,   'n' },
+    {"raw",     no_argument,            NULL,   'r' },
+    {"register",no_argument,            NULL,   'R' },
+    {"sensor",  optional_argument,      NULL,   's' },
+    {"status",  no_argument,            NULL,   'S' },
+    {"wait",    optional_argument,      NULL,   'w' },        
+    {"version", no_argument,            NULL,   'v' },
+    { NULL,     0,                      NULL,   0 }
 };
 
 static void
@@ -71,11 +75,15 @@ main(int argc, char *argv[])
     void *client, *aws;
     char *buf = NULL;
     size_t i, n_field = 1, size;
+    int waiting = 0;
+    int checking = 0;
+    int reg = 0;
+    double delay = 0.;
     
     snprintf(address, ADDRSIZE, "localhost");
     snprintf(port, PORTSIZE, AWS_RPC_PORT);
     
-    while ((ch = getopt_long(argc, argv, "a:c:hi:ln:N:rs:St:v", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "a:c:Cd:hi:ln:N:rRs:St:vw", longopts, NULL)) != -1) {
         switch (ch) {
             case 'a':
                 s = strrchr(optarg, ':');
@@ -119,6 +127,12 @@ main(int argc, char *argv[])
             case 'c':
                 chan = atoi(optarg);
                 break;
+            case 'C':
+                checking = 1;
+                break;
+            case 'd':
+                delay = atof(optarg);
+                break;
             case 'i':
                 idx = atoi(optarg);
                 break;
@@ -133,6 +147,9 @@ main(int argc, char *argv[])
                 break;
             case 'r':
                 raw_flag = 1;
+                break;
+            case 'R':
+                reg = 1;
                 break;
             case 's':
                 sensor_name = optarg;
@@ -156,6 +173,9 @@ main(int argc, char *argv[])
                 } else if (strcmp(optarg, "sqm") == 0) {
                     type = SENSOR_TYPE_SKY_QUALITY;
                 }
+                break;
+            case 'w':
+                waiting = 1;
                 break;
             default:
                 break;
@@ -192,7 +212,49 @@ main(int argc, char *argv[])
     } else {
         protobuf_set(aws, PACKET_INDEX, idx);
     }
-    
+
+    if (checking) {
+        ret = aws_inspect(aws);
+        delete(aws);
+        delete(client);
+        if (ret == AAOS_OK) {
+            if (aws_name != NULL) {
+                fprintf(stderr, "AWS `%s` is OK.\n", aws_name);
+            } else {
+                fprintf(stderr,  "AWS `%d` is OK.\n", idx);
+            }
+            exit(EXIT_SUCCESS);
+        } else {
+            if (aws_name != NULL) {
+                fprintf(stderr, "AWS `%s` is failed.\n", aws_name);
+            } else {
+                fprintf(stderr,  "AWS `%d` is failed.\n", idx);
+            }
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (reg) {
+        ret = aws_register(aws, delay);
+        delete(aws);
+        delete(client);
+        if (ret == AAOS_OK) {
+            if (aws_name != NULL) {
+                fprintf(stderr, "`%s` is OK, operate again.\n", aws_name);
+            } else {
+                fprintf(stderr,  "`%d` is OK, operate again.\n", idx);
+            }
+            exit(EXIT_SUCCESS);
+        } else {
+            if (aws_name != NULL) {
+                fprintf(stderr, "waiting for `%s` recoverying timed out.\n", aws_name);
+            } else {
+                fprintf(stderr,  "waiting for `%d` recoverying timed out.\n", idx);
+            }
+            exit(EXIT_FAILURE);
+        }
+    }
+
     if (log_flag || status_flag) {
         aws_data_field(aws, stdout);
         if (log_flag) {

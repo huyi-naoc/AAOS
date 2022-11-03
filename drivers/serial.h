@@ -76,5 +76,6 @@ int sms_serial_del(void *_self, unsigned int number);
 extern const void *SMSSerial(void);
 extern const void *SMSSerialClass(void);
 
-
+extern const void *KLTPSerial(void);
+extern const void *KLTPSerialClass(void);
 #endif /* serial_h */

@@ -83,16 +83,15 @@ str2hex(const char *str, void *hex, size_t size)
             if (isdigit(str[i + 1])) {
                 l = str[i + 1] - '0';
             } else if (isupper(str[i + 1])) {
-                l = str[i] - 'A' + 10;
+                l = str[i + 1] - 'A' + 10;
             } else {
-                l = str[i] - 'a' + 10;
+                l = str[i + 1] - 'a' + 10;
             }
             s[i/2] = (h << 4) | l;
         } else {
             return 0;
         }
     }
-    
     return MIN((size_t) len / 2, size);
 }
 
@@ -114,7 +113,7 @@ main(int argc, char *argv[])
     snprintf(address, ADDRSIZE, "localhost");
     snprintf(port, PORTSIZE, SERIAL_RPC_PORT);
     
-    while ((ch = getopt_long(argc, argv, "bcd:hi:n:p:rs:w", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "bcC:d:hi:n:p:rs:w", longopts, NULL)) != -1) {
         switch (ch) {
             case 'b':
                 binary = 1;

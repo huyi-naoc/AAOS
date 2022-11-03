@@ -148,4 +148,18 @@ struct SMSSerialClass {
     struct Method recv;
     struct Method del;
 };
+
+struct KLTPSerial {
+    struct __Serial _;
+    size_t output_len;
+    unsigned char *read_buf;
+    int flag;
+    pthread_t tid;
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
+};
+
+struct KLTPSerialClass {
+    struct __SerialClass _;
+};
 #endif /* serial_r_h */

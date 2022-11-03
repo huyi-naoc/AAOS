@@ -10,13 +10,6 @@
  * Segmentation error, index -1 VS -2.
  */
 
-#if HAVE_CONFIG_H
-#ifndef __USE_CONFIG_H__
-#define __USE_CONFIG_H__
-#include "config.h"
-#endif
-#endif
-
 #include "aws_def.h"
 #include "aws.h"
 #include "aws_r.h"
@@ -5513,16 +5506,23 @@ KLAWSController_inspect(void *_self)
     n = self->n_device;
     void *serial = self->serial, *device;
     int ret;
+    int flag = AAOS_OK;
     
     for (i = 0; i < n; i++) {
+        /*
+         * inspect all the devices attached to the  controller.
+         */
         Pthread_mutex_lock(&self->mtx);
         device = self->devices[i];
-        ret = klaws_device_inspect(device, serial);
-        if (ret != AAOS_OK && self->critical != 0) {
-            Pthread_mutex_unlock(&self->mtx);
-            return ret;
+        if ((ret = klaws_device_inspect(device, serial)) != AAOS_OK) {
+            flag = ret;
         }
         Pthread_mutex_unlock(&self->mtx);
+    }
+    ret = flag;
+    
+    if (self->critical == 0) {
+        return AAOS_OK;
     }
     
     return AAOS_OK;
@@ -5794,7 +5794,43 @@ KLAWSDevice_set_index(void *_self, void *serial)
     
     int ret;
     
+    if (self->name == NULL) {
+        self->index = 0;
+        return;
+    }
+    
     if ((ret = serial_get_index_by_name(serial, self->name)) == AAOS_OK) {
+        protobuf_get(serial, PACKET_INDEX, &self->index);
+    } else {
+        self->index = 0;
+    }
+}
+
+void
+klaws_device_set_index2(void *_self, void *serial)
+{
+    const struct KLAWSDeviceClass *class = (const struct KLAWSDeviceClass *) classOf(_self);
+    
+    if (isOf(class, KLAWSDeviceClass()) && class->set_index2.method) {
+        ((void (*)(void *, void *)) class->set_index2.method)(_self, serial);
+    } else {
+        forward(_self, 0, (Method) klaws_device_set_index2, "set_index2", _self);
+    }
+}
+
+static void
+KLAWSDevice_set_index2(void *_self, void *serial)
+{
+    struct KLAWSDevice *self = cast(KLAWSDevice(), _self);
+    
+    int ret;
+    
+    if (self->name2 == NULL) {
+        self->index = 0;
+        return;
+    }
+    
+    if ((ret = serial_get_index_by_name(serial, self->name2)) == AAOS_OK) {
         protobuf_get(serial, PACKET_INDEX, &self->index);
     } else {
         self->index = 0;
@@ -5821,12 +5857,23 @@ KLAWSDevice_inspect(void *_self, void *serial)
     struct KLAWSDevice *self = cast(KLAWSDevice(), _self);
     int ret;
     
-    protobuf_set(serial, PACKET_INDEX, self->index);
-    ret = rpc_inspect(serial);
-    if (ret != AAOS_OK && self->critical != 0) {
-        return ret;
-    } else {
+    
+    KLAWSDevice_set_index(self, serial);
+    if ((ret = serial_inspect(serial)) != AAOS_OK) {
+        /*
+         * name1 serial failed, change to name2
+         */
+        KLAWSDevice_set_index2(self, serial);
+        ret = serial_inspect(serial);
+    }
+    
+    /*
+     * If this device is not critical, always return AAOS_OK.
+     */
+    if (self->critical == 0) {
         return AAOS_OK;
+    } else {
+        return ret;
     }
 }
 
@@ -5841,7 +5888,11 @@ KLAWSDevice_ctor(void *_self, va_list *app)
     name = va_arg(*app, const char *);
     self->name = Malloc(strlen(name) + 1);
     snprintf(self->name, strlen(name) + 1, "%s", name);
-    
+    name = va_arg(*app, const char *);
+    if (name != NULL) {
+        self->name2 = Malloc(strlen(name) + 1);
+        snprintf(self->name2, strlen(name) + 1, "%s", name);
+    }
     critical = va_arg(*app, int);
     self->critical = critical;
     
@@ -5854,6 +5905,7 @@ KLAWSDevice_dtor(void *_self)
     struct KLAWSDevice *self = cast(KLAWSDevice(), _self);
     
     free(self->name);
+    free(self->name2);
     
     return super_dtor(KLAWSDevice(), _self);
 }
@@ -5889,6 +5941,14 @@ KLAWSDeviceClass_ctor(void *_self, va_list *app)
                 self->set_index.selector = selector;
             }
             self->set_index.method = method;
+            continue;
+        }
+        if (selector == (Method) klaws_device_set_index2) {
+            if (tag) {
+                self->set_index2.tag = tag;
+                self->set_index2.selector = selector;
+            }
+            self->set_index2.method = method;
             continue;
         }
         if (selector == (Method) klaws_device_inspect) {
@@ -5954,6 +6014,7 @@ KLAWSDevice_initialize(void)
                        dtor, "dtor", KLAWSDevice_dtor,
                        klaws_device_get_index, "get_index", KLAWSDevice_get_index,
                        klaws_device_set_index, "set_index", KLAWSDevice_set_index,
+                       klaws_device_set_index2, "set_index2", KLAWSDevice_set_index2,
                        klaws_device_inspect, "inspect", KLAWSDevice_inspect,
                        (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
@@ -5986,7 +6047,6 @@ static void __spline_constructor__(void) __attribute__ ((constructor(101)));
 static void
 __spline_constructor__(void)
 {
-    
     PT100_acc = gsl_interp_accel_alloc();
     PT100_spline = gsl_spline_alloc(gsl_interp_cspline, sizeof(PT100_resistance)/sizeof(double));
     gsl_spline_init(PT100_spline, PT100_resistance, PT100_temperature, sizeof(PT100_resistance)/sizeof(double));

@@ -1,11 +1,11 @@
-% telescope_init(3) | Library Functions Manual
+% telescope\_power\_off(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_power_off - power off the telescope
+telescope\_power\_off - power off the telescope
 
 SYNOPSIS
 ========
@@ -35,12 +35,12 @@ ERRORS
 
 These functions shall fail if:
 
-AAOS_EDEVMAL
+AAOS\_EDEVMAL
 ------------
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_ENOTSUP
+AAOS\_ENOTSUP
 ------------
 
 The underline telescope does not support this operation.

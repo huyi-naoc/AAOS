@@ -38,7 +38,12 @@ AAOS_EDEVMAL
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_ENOTSUP
+AAOS\_EINVAL
+------------
+
+The value of  *move\_speed* is invalid.
+
+AAOS\_ENOTSUP
 ------------
 
 The underline telescope does not support this operation.

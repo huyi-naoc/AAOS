@@ -1,11 +1,11 @@
-% telescope_status(3) | Library Functions Manual
+% telescope\_status(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_status - retrieve the telescope status
+telescope\_status - retrieve the telescope status
 
 SYNOPSIS
 ========
@@ -13,7 +13,7 @@ SYNOPSIS
 **#include <telescope_rpc.h>**  
 
 int  
-**telescope_status**(void *\*\_self*, char *\*res*, size_t *res_size*, size_t *\*res_len*);
+**telescope_status**(void *\*\_self*, char *\*res*, size\_t *res_size*, size\_t *\*res_len*);
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
@@ -34,17 +34,17 @@ ERRORS
 
 These functions shall fail if:
 
-AAOS_EDEVMAL
+AAOS\_EDEVMAL
 ------------
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_EPWROFF
+AAOS\_EPWROFF
 ------------
 
 The underline telescope is not powered.
 
-AAOS_EUNINT
+AAOS\_EUNINT
 -----------
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().

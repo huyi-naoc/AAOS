@@ -1,11 +1,11 @@
-% telescope_set_slew_speed(3) | Library Functions Manual
+% telescope\_set\_slew\_speed(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_set_slew_speed - set slew speeds of both axes of telescope
+telescope\_set\_slew\_speed - set slew speeds of both axes of telescope
 
 SYNOPSIS
 ========
@@ -35,22 +35,27 @@ ERRORS
 
 These functions shall fail if:
 
-AAOS_EDEVMAL
+AAOS\_EDEVMAL
 ------------
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_ENOTSUP
+AAOS\_EINVAL
+------------
+
+The value of  *slew\_speed\_x* and/or *slew\_speed\_y* is invalid. 
+
+AAOS\_ENOTSUP
 ------------
 
 The underline telescope does not support this operation.
 
-AAOS_EPWROFF
+AAOS\_EPWROFF
 ------------
 
 The underline telescope is not powered.
 
-AAOS_EUNINT
+AAOS\_EUNINT
 -----------
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().

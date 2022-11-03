@@ -3251,7 +3251,7 @@ HCD6817CSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, si
     }
     crc16 = crc16_modbus(ctx, ctx_len);
     
-#ifndef BIGENDIAN
+#ifdef BIGENDIAN
     crc16 = swap_uint16(crc16);
 #endif
     
@@ -4248,6 +4248,269 @@ sms_serial_virtual_table(void)
 }
 
 /*
+ * MODBUS_CRC16_v3 copy from libcrc.
+ */
+
+static uint16_t
+MODBUS_CRC16_v3(const unsigned char *buf, unsigned int len)
+{
+    static const uint16_t table[256] = {
+        0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,
+        0xC601, 0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440,
+        0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,
+        0x0A00, 0xCAC1, 0xCB81, 0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841,
+        0xD801, 0x18C0, 0x1980, 0xD941, 0x1B00, 0xDBC1, 0xDA81, 0x1A40,
+        0x1E00, 0xDEC1, 0xDF81, 0x1F40, 0xDD01, 0x1DC0, 0x1C80, 0xDC41,
+        0x1400, 0xD4C1, 0xD581, 0x1540, 0xD701, 0x17C0, 0x1680, 0xD641,
+        0xD201, 0x12C0, 0x1380, 0xD341, 0x1100, 0xD1C1, 0xD081, 0x1040,
+        0xF001, 0x30C0, 0x3180, 0xF141, 0x3300, 0xF3C1, 0xF281, 0x3240,
+        0x3600, 0xF6C1, 0xF781, 0x3740, 0xF501, 0x35C0, 0x3480, 0xF441,
+        0x3C00, 0xFCC1, 0xFD81, 0x3D40, 0xFF01, 0x3FC0, 0x3E80, 0xFE41,
+        0xFA01, 0x3AC0, 0x3B80, 0xFB41, 0x3900, 0xF9C1, 0xF881, 0x3840,
+        0x2800, 0xE8C1, 0xE981, 0x2940, 0xEB01, 0x2BC0, 0x2A80, 0xEA41,
+        0xEE01, 0x2EC0, 0x2F80, 0xEF41, 0x2D00, 0xEDC1, 0xEC81, 0x2C40,
+        0xE401, 0x24C0, 0x2580, 0xE541, 0x2700, 0xE7C1, 0xE681, 0x2640,
+        0x2200, 0xE2C1, 0xE381, 0x2340, 0xE101, 0x21C0, 0x2080, 0xE041,
+        0xA001, 0x60C0, 0x6180, 0xA141, 0x6300, 0xA3C1, 0xA281, 0x6240,
+        0x6600, 0xA6C1, 0xA781, 0x6740, 0xA501, 0x65C0, 0x6480, 0xA441,
+        0x6C00, 0xACC1, 0xAD81, 0x6D40, 0xAF01, 0x6FC0, 0x6E80, 0xAE41,
+        0xAA01, 0x6AC0, 0x6B80, 0xAB41, 0x6900, 0xA9C1, 0xA881, 0x6840,
+        0x7800, 0xB8C1, 0xB981, 0x7940, 0xBB01, 0x7BC0, 0x7A80, 0xBA41,
+        0xBE01, 0x7EC0, 0x7F80, 0xBF41, 0x7D00, 0xBDC1, 0xBC81, 0x7C40,
+        0xB401, 0x74C0, 0x7580, 0xB541, 0x7700, 0xB7C1, 0xB681, 0x7640,
+        0x7200, 0xB2C1, 0xB381, 0x7340, 0xB101, 0x71C0, 0x7080, 0xB041,
+        0x5000, 0x90C1, 0x9181, 0x5140, 0x9301, 0x53C0, 0x5280, 0x9241,
+        0x9601, 0x56C0, 0x5780, 0x9741, 0x5500, 0x95C1, 0x9481, 0x5440,
+        0x9C01, 0x5CC0, 0x5D80, 0x9D41, 0x5F00, 0x9FC1, 0x9E81, 0x5E40,
+        0x5A00, 0x9AC1, 0x9B81, 0x5B40, 0x9901, 0x59C0, 0x5880, 0x9841,
+        0x8801, 0x48C0, 0x4980, 0x8941, 0x4B00, 0x8BC1, 0x8A81, 0x4A40,
+        0x4E00, 0x8EC1, 0x8F81, 0x4F40, 0x8D01, 0x4DC0, 0x4C80, 0x8C41,
+        0x4400, 0x84C1, 0x8581, 0x4540, 0x8701, 0x47C0, 0x4680, 0x8641,
+        0x8201, 0x42C0, 0x4380, 0x8341, 0x4100, 0x81C1, 0x8081, 0x4040
+    };
+
+    uint8_t xor = 0;
+    uint16_t crc = 0xFFFF;
+
+    while (len--) {
+        xor = (*buf++) ^ crc;
+        crc >>= 8;
+        crc ^= table[xor];
+    }
+
+    return crc;
+}
+
+static void
+KLTPSerial_fill_output(struct KLTPSerial *self, unsigned char *buf)
+{
+    Pthread_mutex_lock(&self->mtx);
+    self->flag = 1;
+    memcpy(self->read_buf, buf, self->output_len);
+    Pthread_mutex_unlock(&self->mtx);
+    Pthread_cond_signal(&self->cond);
+}
+
+static void *
+KLTPSerial_read_thr(void *arg)
+{
+    struct KLTPSerial *self = (struct KLTPSerial *) arg;
+
+    int fd = self->_.fd;
+    unsigned char buf[32];
+    int ret;
+    size_t read_size, output_len = self->output_len;
+    uint16_t crc, crc2;
+    unsigned int len;
+
+    for (;;) {
+        ret = __serial_read(self, buf, 32, &read_size);
+        if (ret == 0 && read_size == output_len) {
+            len = (unsigned int)(output_len - sizeof(uint16_t));
+            memcpy(&crc, buf + output_len - 2, sizeof(uint16_t));
+            crc2 = MODBUS_CRC16_v3(buf, len);
+#ifdef BIGENDIAN
+            crc2 = swap_uint16(crc2);
+#endif
+            if (crc == crc2) {
+                switch (buf[1]) {
+                    case 0x03:
+                    case 0x83:
+                        KLTPSerial_fill_output(self, buf);
+                        break;
+                    case 0x05:
+                    case 0x85:
+                        KLTPSerial_fill_output(self, buf);
+                        break;
+                    case 0x06:
+                    case 0x86:
+                        KLTPSerial_fill_output(self, buf);
+                        break;
+                    case 0x55: /* */
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+
+    return NULL;
+}
+
+static int
+KLTPSerial_init(void *_self)
+{
+    struct __Serial *self = cast(__Serial(), _self);
+    struct KLTPSerial *myself = cast(KLTPSerial(), _self);
+    struct termios termptr;
+    int ibaud = B230400, obaud = B230400;
+
+    self->fd = Open(self->path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (self->fd < 0) {
+        if (errno == ENOENT && (self->option&SERIAL_OPTION_WAIT_FOR_READY)) {
+            pthread_t tid;
+            self->state = SERIAL_STATE_WAIT_FOR_READY;
+            Pthread_create(&tid, NULL, __Serial_wait_for_tty_ready_thread, self);
+        } else {
+            self->state = SERIAL_STATE_ERROR;
+        }
+        return AAOS_EBADF;
+    } else {
+        self->state = SERIAL_STATE_OK;
+    }
+
+    Tcgetattr(self->fd, &termptr);
+    Cfsetispeed(&termptr, ibaud);
+    Cfsetospeed(&termptr, obaud);
+    termptr.c_lflag &= ~(ISIG | ICANON | IEXTEN | ISIG | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE);
+    termptr.c_iflag &= ~(IXON | BRKINT | ICRNL | INPCK | ISTRIP);
+    termptr.c_cflag &= ~(CSIZE | PARENB);
+    termptr.c_cflag |= CS8;
+    termptr.c_oflag |= OPOST;
+    termptr.c_cc[VMIN] = 1;
+    termptr.c_cc[VTIME] = 0;
+
+    Tcsetattr(self->fd, TCSANOW, &termptr);
+
+    Pthread_create(&myself->tid, NULL, KLTPSerial_read_thr, myself);
+
+    return AAOS_OK;
+}
+
+static int
+KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+{
+    struct __Serial *self = cast(__Serial(), _self);
+    struct KLTPSerial *myself = cast(KLTPSerial(), _self);
+
+    int ret = AAOS_OK;
+
+    Pthread_mutex_lock(&self->mtx);
+    switch (self->state) {
+        case SERIAL_STATE_ERROR:
+            Pthread_mutex_unlock(&self->mtx);
+            return AAOS_EDEVMAL;
+            break;
+        case SERIAL_STATE_UNLOADED:
+            Pthread_mutex_unlock(&self->mtx);
+            return AAOS_EDEVNOTLOADED;
+            break;
+        default:
+            break;
+    }
+    while (self->state == SERIAL_STATE_WAIT_FOR_READY) {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+     }
+
+    //Tcflush(self->fd, TCIOFLUSH);
+    unsigned char *buf;
+    buf = (unsigned char *) Malloc(write_buffer_size + sizeof(uint16_t));
+    memcpy(buf, write_buffer, write_buffer_size);
+    uint16_t crc;
+    crc = MODBUS_CRC16_v3(buf, (unsigned int) write_buffer_size);
+#ifdef BIGENDIAN
+    crc = swap_uint16(crc);
+#endif
+    memcpy(buf + write_buffer_size, &crc, sizeof(uint16_t));
+    if ((ret = __Serial_write(self, write_buffer, write_buffer_size + sizeof(uint16_t), write_size)) != AAOS_OK) {
+        free(buf);
+        Pthread_mutex_unlock(&self->mtx);
+        return ret;
+    }
+    free(buf);
+    if (write_size != NULL) {
+        write_size -= sizeof(uint16_t);
+    }
+    Pthread_mutex_unlock(&self->mtx);
+
+    Pthread_mutex_lock(&myself->mtx);
+    while (myself->flag == 0) {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+    }
+    memcpy(read_buffer, myself->read_buf, min(read_buffer_size, myself->output_len));
+    if (read_size != NULL) {
+        *read_size = min(read_buffer_size, myself->output_len);
+    }
+    myself->flag = 0;
+    Pthread_mutex_unlock(&myself->mtx);
+
+    return AAOS_OK;
+}
+
+static int
+KLTPSerial_feed_dog(void *_self)
+{
+    return AAOS_OK;
+}
+
+static int
+KLTPSerial_validate(const void *_self, const void *command, size_t size)
+{
+    return AAOS_OK;
+}
+
+static int
+KLTPSerial_inspect(void *_self)
+{
+    char buf[BUFSIZE];
+    return KLTPSerial_raw(_self, "GG", 2, NULL, buf, BUFSIZE, NULL);
+}
+
+static const void *_kltp_serial_virtual_table;
+
+static void
+kltp_serial_virtual_table_destroy(void)
+{
+    delete((void *) _kltp_serial_virtual_table);
+}
+
+static void
+kltp_serial_virtual_table_initialize(void)
+{
+    _kltp_serial_virtual_table = new(__SerialVirtualTable(),
+                                     __serial_init, "init", APMountSerial_init,
+                                     __serial_feed_dog, "feed_dog", APMountSerial_feed_dog,
+                                     __serial_validate, "validate", APMountSerial_validate,
+                                     __serial_raw, "raw", APMountSerial_raw,
+                                     __serial_inspect, "inspect", APMountSerial_inspect,
+                                     (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(kltp_serial_virtual_table_destroy);
+#endif
+}
+
+static const void *
+kltp_serial_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, kltp_serial_virtual_table_initialize);
+#endif
+    return _kltp_serial_virtual_table;
+}
+
+/*
  * Compiler-dependant initializer.
  */
 #ifdef _USE_COMPILER_ATTRIBUTION_
@@ -4257,6 +4520,9 @@ static void __destructor__(void) __attribute__ ((destructor(_SERIAL_PRIORITY_)))
 static void
 __destructor__(void)
 {
+    KLTPSerial_destroy();
+    KLTPSerialClass_destroy();
+    kltp_serial_virtual_table_destroy();
     SMSSerial_destroy();
     SMSSerialClass_destroy();
     sms_serial_virtual_table_destroy();
@@ -4306,5 +4572,8 @@ __constructor__(void)
     sms_serial_virtual_table_initialize();
     SMSSerialClass_initialize();
     SMSSerial_initialize();
+    kltp_serial_virtual_table_initialize();
+    KLTPSerialClass_initialize();
+    KLTPSerial_initialize();
 }
 #endif
