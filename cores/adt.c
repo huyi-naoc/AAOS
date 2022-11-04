@@ -309,6 +309,211 @@ ThreadsafeQueue(void)
     return _ThreadsafeQueue;
 }
 
+/*
+ * Threadsafe circular queue or ring buffer.
+ * A variant algorithm from Unix Network Programmig (UNP).
+ */
+
+static void
+ThreadsafeCircularQueue_push(void *_self, void *data)
+{
+    struct ThreadsafeCircularQueue *self = cast(ThreadsafeCircularQueue(), _self);
+    
+    Pthread_mutex_lock(&self->mtx);
+    memcpy((char *)self->data + self->put * self->length, data, self->length);
+    if (++(self->put) == self->size) {
+        self->put = 0;
+    }
+    Pthread_cond_signal(&self->cond);
+    Pthread_mutex_unlock(&self->mtx);
+}
+
+void
+threadsafe_circular_queue_push(void *_self, void *data)
+{
+    const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
+    
+    
+    if (isOf(class, ThreadsafeCircularQueueClass()) && class->push.method) {
+        return ((void (*)(void *, void *)) class->push.method)(_self, data);
+    } else {
+       
+        forward(_self, 0, (Method) threadsafe_queue_push, "push", _self, data);
+    
+    }
+}
+
+static void
+ThreadsafeCircularQueue_pop(void *_self, void *data)
+{
+    struct ThreadsafeCircularQueue *self = cast(ThreadsafeCircularQueue(), _self);
+    
+    Pthread_mutex_lock(&self->mtx);
+    while (self->get == self->put)  {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+    }
+    memcpy(data, (const char *)self->data + self->get * self->length, self->length);
+    if (++(self->get) == self->size) {
+        self->get =  0;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+}
+
+void
+threadsafe_circular_queue_pop(void *_self, void *data)
+{
+    const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
+    
+    
+    if (isOf(class, ThreadsafeCircularQueueClass()) && class->push.method) {
+        return ((void (*)(void *, void *)) class->push.method)(_self, data);
+    } else {
+       
+        forward(_self, 0, (Method) threadsafe_queue_push, "push", _self, data);
+    
+    }
+}
+
+static void *
+ThreadsafeCircularQueue_ctor(void *_self, va_list *app)
+{
+    struct ThreadsafeCircularQueue *self = super_ctor(ThreadsafeCircularQueue(), _self, app);
+    
+    self->size = va_arg(*app, size_t);
+    self->length = va_arg(*app, size_t);
+    self->data = Malloc(self->size * self->length);
+    
+    Pthread_mutex_init(&self->mtx, NULL);
+    Pthread_cond_init(&self->cond, NULL);
+    
+    return self;
+}
+
+static void *
+ThreadsafeCircularQueue_dtor(void *_self)
+{
+    struct ThreadsafeCircularQueue *self = super_dtor(ThreadsafeCircularQueue(), _self);
+    
+    Pthread_mutex_lock(&self->mtx);
+    free(self->data);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_mutex_destroy(&self->mtx);
+    Pthread_cond_destroy(&self->cond);
+
+    return self;
+}
+
+static void *
+ThreadsafeCircularQueueClass_ctor(void *_self, va_list *app)
+{
+    struct ThreadsafeCircularQueueClass *self = super_ctor(ThreadsafeCircularQueueClass(), _self, app);
+    Method selector;
+    
+#ifdef va_copy
+    va_list ap;
+    va_copy(ap, *app);
+#else
+    va_list ap = *app;
+#endif
+    
+    while ((selector = va_arg(ap, Method))) {
+        const char *tag = va_arg(ap, const char *);
+        Method method = va_arg(ap, Method);
+        
+        if (selector == (Method) threadsafe_circular_queue_pop) {
+            if (tag) {
+                
+                self->pop.tag = tag;
+                self->pop.selector = selector;
+            }
+            self->pop.method = method;
+        }
+        if (selector == (Method) threadsafe_circular_queue_push) {
+            if (tag) {
+                
+                self->push.tag = tag;
+                self->push.selector = selector;
+            }
+            self->push.method = method;
+        }
+    }
+    
+#ifdef va_copy
+    va_end(ap);
+#endif
+    
+    return self;
+}
+
+static const void *_ThreadsafeCircularQueueClass;
+
+static void
+ThreadsafeCircularQueueClass_destroy(void)
+{
+    free((void *) _ThreadsafeQueueClass);
+}
+
+static void
+ThreadsafeCircularQueueClass_initialize(void)
+{
+    _ThreadsafeCircularQueueClass = new(Class(), "ThreadsafeCircularQueueClass", Class(), sizeof(struct ThreadsafeCircularQueueClass),
+                                        ctor, "ctor", ThreadsafeCircularQueueClass_ctor,
+                                        (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(ThreadsafeCircularQueueClass_destroy);
+#endif
+}
+
+const void *
+ThreadsafeCircularQueueClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, ThreadsafeCircularQueueClass_initialize);
+#endif
+    
+    return _ThreadsafeCircularQueueClass;
+}
+
+static const void *_ThreadsafeCircularQueue;
+
+static void
+ThreadsafeCircularQueue_destroy()
+{
+    free((void *) _ThreadsafeCircularQueue);
+}
+
+static void
+ThreadsafeCircularQueue_initialize(void)
+{
+    _ThreadsafeCircularQueue = new(ThreadsafeCircularQueue(), "ThreadsafeCircularQueue", Object(), sizeof(struct ThreadsafeCircularQueue),
+                                   ctor, "ctor", ThreadsafeCircularQueue_ctor,
+                                   dtor, "dtor", ThreadsafeCircularQueue_dtor,
+                                   threadsafe_circular_queue_push, "push", ThreadsafeCircularQueue_push,
+                                   threadsafe_circular_queue_pop, "pop", ThreadsafeCircularQueue_pop,
+                                   (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(ThreadsafeCircularQueue_destroy);
+#endif
+}
+
+const void *
+ThreadsafeCircularQueue(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, ThreadsafeCircularQueue_initialize);
+#endif
+    
+    return _ThreadsafeCircularQueue;
+}
+
+
+/*
+ * Threadsafe list
+ */
+
 void
 threadsafe_list_push_front(void *_self, void *data)
 {
@@ -721,6 +926,8 @@ __destructor__(void)
 {
     ThreadsafeQueue_destroy();
     ThreadsafeQueueClass_destroy();
+    ThreadsafeCircularQueue_destroy();
+    ThreadsafeCircularQueueClass_destroy();
     ThreadsafeList_destroy();
     ThreadsafeListClass_destroy();
 }
@@ -731,6 +938,8 @@ static void
 __constructor__(void)
 {
     ThreadsafeQueueClass_initialize();
+    ThreadsafeQueue_initialize();
+    ThreadsafeCircularQueueClass_initialize();
     ThreadsafeQueue_initialize();
     ThreadsafeListClass_initialize();
     ThreadsafeList_initialize();

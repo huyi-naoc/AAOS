@@ -54,6 +54,24 @@ struct ThreadsafeQueueClass {
     struct Method empty;
 };
 
+struct ThreadsafeCircularQueue {
+    const struct Object _;
+    size_t size; /* Number of ring buffers in the queue. */
+    size_t get;
+    size_t put;
+    size_t length; /* The length of one buffer. */
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
+    void *data;
+};
+
+struct ThreadsafeCircularQueueClass {
+    const struct Class _;
+    struct Method push;
+    struct Method pop;
+    struct Method empty;
+};
+
 struct l_node {
     void *data;
     struct l_node *next;

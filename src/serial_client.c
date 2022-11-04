@@ -71,7 +71,7 @@ str2hex(const char *str, void *hex, size_t size)
         return 0;
     }
     
-    for (i = 0; i < len && i < size; i+=2) {
+    for (i = 0; i < len && i/2 < size; i+=2) {
         if (isxdigit(str[i]) && isxdigit(str[i + 1])) {
             if (isdigit(str[i])) {
                 h = str[i] - '0';

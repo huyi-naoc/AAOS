@@ -23,6 +23,11 @@ typedef void (*cleanup)(void *);
 typedef bool (*predict)(void *, va_list *app);
 typedef void (*disposition)(void *, va_list *app);
 
+void threadsafe_circular_queue_push(void *_self, void *data);
+void threadsafe_circular_queue_pop(void *_self, void *data);
+extern const void *ThreadsafeCircularQueue(void);
+extern const void *ThreadsafeCircularQueueClass(void);
+
 void threadsafe_list_push_front(void *_self, void *data);
 void threadsafe_list_foreach(void *_self, disposition func, ...);
 void *threadsafe_list_find_first_if(void *_self, predict pred, ...);
