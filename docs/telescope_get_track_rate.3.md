@@ -1,11 +1,11 @@
-% telescope_get_track_rate(3) | Library Functions Manual
+% telescope\_get\_track\_rate(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_get_track_rate - get track rates of both axes of telescope
+telescope\_get\_track\_rate - get track rates of both axes of telescope
 
 SYNOPSIS
 ========
@@ -33,24 +33,24 @@ Upon successful completion, a value of zero shall be returned; otherwise, an err
 ERRORS
 ======
 
-These functions shall fail if:
+This functions shall fail if:
 
-AAOS_EDEVMAL
+AAOS\_EDEVMAL
 ------------
 
-The underline telescope is in *MALFUNCTION* state.
+The u\nderline telescope is in *MALFUNCTION* state.
 
-AAOS_ENOTSUP
+AAOS\_ENOTSUP
 ------------
 
 The underline telescope does not support this operation.
 
-AAOS_EPWROFF
+AAOS\_EPWROFF
 ------------
 
 The underline telescope is not powered.
 
-AAOS_EUNINT
+AAOS\_EUNINT
 -----------
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().

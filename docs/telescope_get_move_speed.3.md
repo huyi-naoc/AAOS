@@ -1,11 +1,11 @@
-% telescope_get_move_speed(3) | Library Functions Manual
+% telescope\_get\_move\_speed(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_get_move_speed - get current axis move speed
+telescope\_get\_move\_speed - get current axis move speed
 
 SYNOPSIS
 ========
@@ -31,25 +31,25 @@ Upon successful completion, a value of zero shall be returned; otherwise, an err
 ERRORS
 ======
 
-These functions shall fail if:
+This functions shall fail if:
 
-AAOS_EDEVMAL
-------------
+AAOS\_EDEVMAL
+-------------
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_ENOTSUP
+AAOS\_ENOTSUP
 ------------
 
-The operation is not supported.
+The o\peration is not supported.
 
-AAOS_EPWROFF
+AAOS\_EPWROFF
 ------------
 
 The underline telescope does not support this operation.
 
-AAOS_EUNINT
------------
+AAOS\_EUNINT
+------------
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
 

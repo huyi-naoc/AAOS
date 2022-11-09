@@ -1,11 +1,11 @@
-% telescope_park(3) | Library Functions Manual
+% telescope\_park(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_park - park the telescope
+telescope\_park - park the telescope
 
 SYNOPSIS
 ========
@@ -33,19 +33,19 @@ Upon successful completion, a value of zero shall be returned; otherwise, an err
 ERRORS
 ======
 
-These functions shall fail if:
+This functions shall fail if:
 
-AAOS_EDEVMAL
+AAOS\_EDEVMAL
 ------------
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_EPWROFF
+AAOS\_EPWROFF
 ------------
 
 The underline telescope is not powered.
 
-AAOS_EUNINT
+AAOS\_EUNINT
 -----------
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().

@@ -31,7 +31,7 @@ Upon successful completion, a value of zero shall be returned; otherwise, an err
 ERRORS
 ======
 
-These functions shall fail if:
+This functions shall fail if:
 
 AAOS\_EDEVMAL
 ------------

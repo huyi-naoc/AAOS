@@ -154,9 +154,17 @@ struct KLTPSerial {
     size_t output_len;
     unsigned char *read_buf;
     int flag;
-    pthread_t tid;
+    int data_flag;
+    pthread_t tid; /* read thread */
     pthread_mutex_t mtx;
     pthread_cond_t cond;
+    pthread_t tid2; /* process thread */
+    void *queue;
+    size_t size;
+    size_t length;
+    char *prefix;
+    char *directory;
+    char *fmt;
 };
 
 struct KLTPSerialClass {

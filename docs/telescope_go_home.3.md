@@ -1,11 +1,11 @@
-% telescope_go_home(3) | Library Functions Manual
+% telescope\_go\_home(3) | Library Functions Manual
 %
 % May 2022
 
 NAME
 ====
 
-telescope_go_home - slew then park the telescope at a proper position
+telescope\_go\_home - slew then park the telescope at a proper position
 
 SYNOPSIS
 ========
@@ -35,22 +35,22 @@ ERRORS
 
 This functions shall fail if:
 
-AAOS_ECANCELED
+AAOS\_ECANCELED
 --------------
 
 The current execution is cancelled by a new call of *telescope_go_home*(), *telescope_move*(), *telescope_park*(), *telescope_slew*(), and *telescope_stop*() that operate the same underline telescope. 
 
-AAOS_EDEVMAL
+AAOS\_EDEVMAL
 ------------
 
 The underline telescope is in *MALFUNCTION* state.
 
-AAOS_EPWROFF
+AAOS\_EPWROFF
 ------------
 
 The underline telescope is not powered.
 
-AAOS_EUNINT
+AAOS\_EUNINT
 -----------
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().

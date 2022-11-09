@@ -36,6 +36,8 @@ During **detector_expose**(), the state of the detector is changed to EXPOSING a
 
 The **detector_expose**() will return when all the requested frames are saved, or the last frame is ready to read. 
 
+The directory that stored the generated FITS files can be set by **detector_set_directory**. The filenames are like "prefix\_YYYYmmdd\_HHMMSS\_nn.fits", where *prefix* can be set by **detector_set_prefix**. The keywords in the primary HDU of the file are copied from template file, whhich can be set by **detector_set_template**.
+
 RETURN VALUE
 ============
 
@@ -44,7 +46,7 @@ Upon successful completion, a value of zero shall be returned; otherwise, an err
 ERRORS
 ======
 
-These functions shall fail if:
+This functions shall fail if:
 
 AAOS\_EDEVMAL
 -------------
@@ -88,7 +90,7 @@ This function is thread-safe, as long as *\*\_self* is not shared among threads.
 
 SEE ALSO
 ========
-**detector_abort**(3), **detector_set_directory**(), **detector_set_exposure_time**(3), **detector_set_prefix**(), **detector_stop**(3)
+**detector_abort**(3), **detector_set_directory**(3), **detector_set_exposure_time**(3), **detector_set_prefix**(3), **detector_set_template**(3), **detector_stop**(3)
 
 BUGS
 ====
