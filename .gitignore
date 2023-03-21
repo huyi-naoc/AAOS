@@ -22,10 +22,13 @@ Makefile
 Makefile.in
 src/aws
 src/awsd
+src/pdu
+src/pdud
 src/serial
 src/seriald
 src/telescope
 src/telescoped
+src/thermald
 stamp-h1
 test/
 
