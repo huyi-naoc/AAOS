@@ -736,6 +736,9 @@ __Serial_read3(void *_self, void *read_buffer, size_t request_size, size_t *read
     ssize_t n = -1;
     struct timeval tv;
     fd_set readfds;
+    ssize_t nleft = request_size;
+    size_t nread  = 0;
+    char *s = read_buffer;
     
     if (fd == -1) {
         return AAOS_EINVAL;
@@ -746,42 +749,30 @@ __Serial_read3(void *_self, void *read_buffer, size_t request_size, size_t *read
     FD_ZERO(&readfds);
     FD_SET(fd, &readfds);
     
-    ret = Select(fd + 1, &readfds, NULL, NULL, &tv);
-    switch (ret) {
-        case -1:
-            return AAOS_ERROR;
-            break;
-        case 0:
-            return AAOS_ETIMEDOUT;
-        default:
-            break;
-    }
-    
-    if (FD_ISSET(fd, &readfds)) {
-        ssize_t nleft = request_size;
-        size_t nread = 0;
-        char *s = read_buffer;
-        while ((n = Read(fd, s, nleft)) > 0 && nleft > 0) {
+    while (nleft > 0) {
+        ret = Select(fd + 1, &readfds, NULL, NULL, &tv);
+        switch (ret) {
+            case -1:
+                return AAOS_ERROR;
+                break;
+            default:
+                break;
+        }
+        if (FD_ISSET(fd, &readfds)) {
+            n = Read(fd, s, nleft);
+            if (n < 0) {
+                return AAOS_ERROR;
+            }
             nleft -= n;
             s += n;
             nread += n;
         }
-        if (n == 0) {
-            switch (errno) {
-                case EAGAIN:
-                    if (read_size) {
-                        *read_size = nread;
-                    }
-                    return AAOS_OK;
-                    break;
-                default:
-                    return AAOS_ERROR;
-                    break;
-            }
-        }
-    } else {
-        return AAOS_ERROR;
     }
+    
+    if (read_size != NULL) {
+        *read_size = nread;
+    }
+    
     return AAOS_OK;
 }
 
@@ -4418,50 +4409,174 @@ KLTPSerial_fill_output(struct KLTPSerial *self, unsigned char *buf)
     Pthread_cond_signal(&self->cond);
 }
 
+/*
+ * Data flag
+ */
+#define KLTP_DATA_FLAG_IDLE 0
+#define KLTP_DATA_FLAG_DC 1
+#define KLTP_DATA_FLAG_AC 2
+
+#include <fitsio2.h>
+
+static void
+KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
+{
+    static int old_data_flag = KLTP_DATA_FLAG_IDLE;
+    
+    static FILE *fp = NULL;
+    static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
+    
+    if ((old_data_flag == KLTP_DATA_FLAG_IDLE || old_data_flag == KLTP_DATA_FLAG_AC) && self->data_flag == KLTP_DATA_FLAG_DC) {
+        if (fp != NULL) {
+            if (old_data_flag == KLTP_DATA_FLAG_AC) {
+                struct timespec tp;
+                uint32_t t[2];
+                Clock_gettime(CLOCK_REALTIME, &tp);
+                t[0] = (uint32_t) tp.tv_sec;
+                t[1] = ac_data_cnt;
+                fseek(fp, 20L, SEEK_SET);
+                fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
+            }
+            fclose(fp);
+        }
+        char path[FILENAMESIZE], datetime[FILENAMESIZE];
+        struct timespec tp;
+        struct tm time_buf;
+        time_t tloc;
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        tloc = tp.tv_sec;
+        gmtime_r(&tloc, &time_buf);
+        strftime(datetime, FILENAMESIZE, self->fmt, &time_buf);
+        snprintf(path, FILENAMESIZE, "%s/%s_%s.dat", self->directory, self->prefix, datetime);
+        if ((fp = fopen(path, "r+")) != NULL) {
+            uint32_t t[8];
+            memset(t, '\0', sizeof(uint32_t) * 8);
+            t[0] = (uint32_t) tp.tv_sec;
+            fwrite(t, sizeof(uint32_t) * 8, 1, fp);
+        }
+        dc_data_cnt = 0;
+    }
+        
+    if (self->data_flag == KLTP_DATA_FLAG_DC) {
+        dc_data_cnt++;
+        fwrite(buf + 2, 17, 1, fp);
+    } else if (self->data_flag == KLTP_DATA_FLAG_AC) {
+        if (old_data_flag == KLTP_DATA_FLAG_DC) {
+            struct timespec tp;
+            uint32_t t[2];
+            Clock_gettime(CLOCK_REALTIME, &tp);
+            t[0] = (uint32_t) tp.tv_sec;
+            t[1] = ac_data_cnt;
+            fseek(fp, 4L, SEEK_SET);
+            fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
+            ac_data_cnt = 0;
+            fseek(fp, 0L, SEEK_END);
+        }
+        ac_data_cnt++;
+        fwrite(buf + 2, 17, 1, fp);
+    }
+    
+    old_data_flag = self->data_flag;
+}
+
+static void *
+KLTPSerial_process_thr(void *arg)
+{
+    struct KLTPSerial *self = (struct KLTPSerial *) arg;
+    unsigned char buf[self->length];
+    
+    for (;;) {
+        threadsafe_circular_queue_pop(self->queue, buf);
+        switch (buf[1]) {
+            case 0x55:
+                KLTPSerial_raw_data(self, buf);
+                break;
+            case 0x03:
+                KLTPSerial_fill_output(self, buf);
+                break;
+            case 0x83:
+                KLTPSerial_fill_output(self, buf);
+                break;
+            case 0x05:
+                KLTPSerial_fill_output(self, buf);
+                if (buf[2] == 0x00 && buf[3] == 0x02 && buf[4] == 00 && buf[5] == 00) {
+                    /*
+                     * DC
+                     */
+                    self->data_flag = KLTP_DATA_FLAG_DC;
+                    
+                } else if (buf[2] == 0x00 && buf[3] == 0x02 && buf[4] == 00 && buf[5] == 00) {
+                    /*
+                     * AC
+                     */
+                    self->data_flag = KLTP_DATA_FLAG_AC;
+                }
+                break;
+            case 0x85:
+                KLTPSerial_fill_output(self, buf);
+                break;
+            case 0x06:
+                KLTPSerial_fill_output(self, buf);
+                break;
+            case 0x86:
+                KLTPSerial_fill_output(self, buf);
+                break;
+            default:
+                break;
+        }
+    }
+    
+    return NULL;
+}
+
 static void *
 KLTPSerial_read_thr(void *arg)
 {
     struct KLTPSerial *self = (struct KLTPSerial *) arg;
 
-    int fd = self->_.fd;
-    unsigned char buf[32];
+    unsigned char buf[self->length * 2];
     int ret;
-    size_t read_size, output_len = self->output_len;
+    size_t i, read_size, output_len = self->output_len, nleft = 0;
     uint16_t crc, crc2;
-    unsigned int len;
-
     for (;;) {
-        ret = __serial_read(self, buf, 32, &read_size);
-        if (ret == 0 && read_size == output_len) {
-            len = (unsigned int)(output_len - sizeof(uint16_t));
-            memcpy(&crc, buf + output_len - 2, sizeof(uint16_t));
-            crc2 = MODBUS_CRC16_v3(buf, len);
+        ret = __Serial_read3(self, buf + nleft, output_len - nleft, &read_size);
+        if (ret == AAOS_OK) {
+            /*
+             * checksum.
+             */
+            memcpy(&crc, buf + output_len - 2, 2);
+            crc2 = MODBUS_CRC16_v3(buf, (unsigned int) output_len - 2);
 #ifdef BIGENDIAN
             crc2 = swap_uint16(crc2);
 #endif
             if (crc == crc2) {
-                switch (buf[1]) {
-                    case 0x03:
-                    case 0x83:
-                        KLTPSerial_fill_output(self, buf);
-                        break;
-                    case 0x05:
-                    case 0x85:
-                        KLTPSerial_fill_output(self, buf);
-                        break;
-                    case 0x06:
-                    case 0x86:
-                        KLTPSerial_fill_output(self, buf);
-                        break;
-                    case 0x55: /* */
-                        break;
-                    default:
-                        break;
+                nleft = 0;
+                threadsafe_circular_queue_pop(self->queue, buf);
+            } else {
+                ret = __Serial_read3(self, buf + output_len, output_len, &read_size);
+                if (ret == AAOS_OK) {
+                    nleft = output_len;
+                    for (i = 1; i <= output_len; i++) {
+                        nleft = output_len - i;
+                        memcpy(&crc, buf + output_len - 2, 2);
+                        crc2 = MODBUS_CRC16_v3(buf + i, (unsigned int) output_len - 2);
+#ifdef BIGENDIAN
+                        crc2 = swap_uint16(crc2);
+#endif
+                        if (crc == crc2 && buf[i] == 0x55) {
+                            threadsafe_circular_queue_pop(self->queue, buf + i);
+                            memmove(buf, buf + i + output_len, nleft);
+                            break;
+                        }
+                    }
+                } else {
+                    nleft = 0;
                 }
             }
+        } else {
+            nleft = 0;
         }
     }
-
     return NULL;
 }
 
@@ -4550,10 +4665,15 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
         write_size -= sizeof(uint16_t);
     }
     Pthread_mutex_unlock(&self->mtx);
+    
+    struct timespec tp;
+    
+    tp.tv_sec = 5.;
+    tp.tv_nsec = 0.;
 
     Pthread_mutex_lock(&myself->mtx);
     while (myself->flag == 0) {
-        Pthread_cond_wait(&self->cond, &self->mtx);
+        Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
     }
     memcpy(read_buffer, myself->read_buf, min(read_buffer_size, myself->output_len));
     if (read_size != NULL) {

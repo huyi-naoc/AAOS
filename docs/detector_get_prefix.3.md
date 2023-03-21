@@ -52,7 +52,7 @@ This function is thread-safe, as long as *\*\_self* is not shared among threads.
 SEE ALSO
 ========
 
-**detector_get_prefix**(3)
+**detector_set_prefix**(3)
 
 BUGS
 ====

@@ -5,7 +5,7 @@
 NAME
 ====
 
-detector\_power\_on - power off the detector
+detector\_power\_on - power on the detector
 
 SYNOPSIS
 ========
@@ -23,7 +23,7 @@ DESCRIPTION
 
 The **detector_power_on**() function powers on the detector referenced by *\*\_self*.   
 
-If the detector has already been powered, calling this function does nothing and return successfully. Otherwise, it will change the state of the telescope to *DETECTOR_STATE_UNINITIALIZED*. 
+If the detector has already been powered, calling this function does nothing and return successfully. Otherwise, it will change the state of the detector to *DETECTOR_STATE_UNINITIALIZED*. 
 
 RETURN VALUE
 ============
@@ -33,7 +33,7 @@ Upon successful completion, a value of zero shall be returned; otherwise, an err
 ERRORS
 ======
 
-These functions shall fail if:
+This functions shall fail if:
 
 AAOS\_ENOTSUP
 ------------
@@ -58,7 +58,7 @@ This function is thread-safe, as long as *\*\_self* is not shared among threads.
 SEE ALSO
 ========
 
-**detector_init**(3), **detector_power_off**(3)
+**detector_power_init**(3), **detector_power_off**(3)
 
 BUGS
 ====

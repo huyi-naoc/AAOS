@@ -145,14 +145,21 @@ static void
 destroy(void)
 {
     size_t i;
-    for (i = 0; i < n_telescope; i++) {
-        if (telescopes[i] != NULL) {
-            delete(telescopes[i]);
+    if (telescopes != NULL) {
+        for (i = 0; i < n_telescope; i++) {
+            if (telescopes[i] != NULL) {
+                delete(telescopes[i]);
+            }
         }
     }
     free(telescopes);
+
     if (server != NULL) {
         delete(server);
+    }
+
+    if (d != NULL) {
+        delete(d);
     }
 }
 
@@ -192,7 +199,6 @@ main(int argc, char *argv[])
     
     read_daemon();
     
-    
     if (argc == 0) {
         daemon_start(d);
         init();
@@ -217,7 +223,6 @@ main(int argc, char *argv[])
         }
     }
     destroy();
-    delete(d);
     config_destroy(&cfg);
     return 0;
 }

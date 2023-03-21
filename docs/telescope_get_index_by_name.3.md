@@ -20,7 +20,7 @@ Compile and link with *-laaoscore* *-laaosdriver*.
 
 DESCRIPTION
 ===========
-The **telescope_get_index_by_name**() function gets the index of the telescoope identified by its *name*. The index will be stored in *\_self* object and opaque to the user.
+The **telescope_get_index_by_name**() function gets the index of the telescope identified by its *name*. The index will be stored in *\_self* object and opaque to the user.
 
 RETURN VALUE
 ============

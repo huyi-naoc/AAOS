@@ -20,6 +20,7 @@ extern size_t n_aws;
 static void *d;
 static void *server;
 static const char *config_path = "/usr/local/aaos/etc/telescopes.cfg";
+static config_t cfg;
 static bool daemon_flag = true;
 
 static void
@@ -36,25 +37,12 @@ static struct option longopts[] = {
     { NULL,         0,                  NULL,       0 }
 };
 
+
 static void
-read_configuration(const char *pathname)
+read_daemon(void)
 {
-    int ret;
-    config_t cfg;
-    config_init(&cfg);
     config_setting_t *setting;
-    
-    
-    if ((ret = Access(pathname, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if(config_read_file(&cfg, pathname) == CONFIG_FALSE) {
-        fprintf(stderr, "fail to read configuration file.\n");
-        exit(EXIT_FAILURE);
-    }
-    
+
     setting = config_lookup(&cfg, "daemon");
     if (setting != NULL) {
         const char *name = NULL, *username = "aaos", *rootdir = "/", *lockfile = NULL;
@@ -70,6 +58,14 @@ read_configuration(const char *pathname)
             d = new(Daemon(), name, rootdir, lockfile, username, false);
         }
     }
+}
+
+
+
+static void
+read_configuration(void)
+{
+    config_setting_t *setting;
     
     setting = config_lookup(&cfg, "server");
     if (setting == NULL) {
@@ -229,12 +225,12 @@ read_configuration(const char *pathname)
         }
         
     }
-    config_destroy(&cfg);
 }
 
 static void
 init(void)
 {
+    read_configuration();
     rpc_server_start(server);
 }
 
@@ -242,15 +238,19 @@ static void
 destroy(void)
 {
     size_t i;
-    for (i = 0; i < n_aws; i++) {
-        if (awses[i] != NULL) {
-            delete(awses[i]);
+    if (awses != NULL) {
+        for (i = 0; i < n_aws; i++) {
+            if (awses[i] != NULL) {
+                delete(awses[i]);
+            }
         }
     }
     free(awses);
+
     if (server != NULL) {
         delete(server);
     }
+
     if (d != NULL) {
         delete(d);
     }
@@ -259,7 +259,7 @@ destroy(void)
 int
 main(int argc, char *argv[])
 {
-    int ch;
+    int ch, ret;
     
     while ((ch = getopt_long(argc, argv, "c:Dv", longopts, NULL)) != -1) {
         switch (ch) {
@@ -277,8 +277,21 @@ main(int argc, char *argv[])
     
     argc -= optind;
     argv += optind;
-    
-    read_configuration(config_path);
+
+    config_init(&cfg);
+
+    if ((ret = Access(config_path, F_OK)) < 0) {
+        fprintf(stderr, "configuration file does not exist.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if(config_read_file(&cfg, config_path) == CONFIG_FALSE) {
+        fprintf(stderr, "fail to read configuration file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    read_daemon();
+
     if (argc == 0) {
         daemon_start(d);
         init();
@@ -304,6 +317,9 @@ main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
     }
+
     destroy();
+    config_destroy(&cfg);
+
     return 0;
 }
