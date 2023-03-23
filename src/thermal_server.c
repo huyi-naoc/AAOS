@@ -9,14 +9,15 @@
 #include "def.h"
 #include "daemon.h"
 #include "thermal.h"
+#include "thermal_rpc.h"
 #include "wrapper.h"
 #include <libconfig.h>
 
-static void **units;
-static size_t n_unit;
+extern void **units;
+extern size_t n_unit;
 pthread_t *tids;
 
-static void *d;
+static void *d, *server;
 static const char *conf_path = "/usr/local/aaos/etc/telescopes.cfg";
 static config_t cfg;
 static bool daemon_flag = true;
@@ -61,9 +62,18 @@ read_daemon(void)
 static void
 read_configuration(void)
 {
-    int ret;
-    
     config_setting_t *setting;
+    
+    
+    setting = config_lookup(&cfg, "server");
+    if (setting == NULL) {
+        fprintf(stderr, "`server` section does not exist in configuration file.\n");
+        exit(EXIT_FAILURE);
+    } else {
+        const char *port;
+        config_setting_lookup_string(setting, "port", &port);
+        server = new(ThermalUnitServer(), port);
+    }
     
     setting = config_lookup(&cfg, "units");
     if (setting == NULL) {
@@ -129,6 +139,18 @@ read_configuration(void)
                     threshold = -40.;
                 }
                 units[i] = new(KLCAMSimpleThermalUnit(), name, highest, lowest, period, "description", description, '\0', temp_cmd, turn_on_cmd, turn_off_cmd, temp_cmd2, turn_on_cmd2, turn_off_cmd2, temp_cmd3, threshold);
+            } else if (strcmp(type, "simple") == 0) {
+                const char *temp_cmd, *turn_on_cmd, *turn_off_cmd;
+                if (config_setting_lookup_string(unit_setting, "temp_cmd", &temp_cmd) != CONFIG_TRUE) {
+                    temp_cmd = NULL;
+                }
+                if (config_setting_lookup_string(unit_setting, "turn_on_cmd", &turn_on_cmd) != CONFIG_TRUE) {
+                    turn_on_cmd = NULL;
+                }
+                if (config_setting_lookup_string(unit_setting, "turn_off_cmd", &turn_off_cmd) != CONFIG_TRUE) {
+                    turn_off_cmd = NULL;
+                }
+                units[i] = new(SimpleThermalUnit(), name, highest, lowest, period, "description", description, '\0', temp_cmd, turn_on_cmd, turn_off_cmd);
             }
         }
     }
@@ -141,29 +163,39 @@ init(void)
     read_configuration();
     tids = (pthread_t *) Malloc(sizeof(pthread_t));
     size_t i;
+    void *retval;
+
     for (i = 0; i < n_unit; i++) {
-        Pthread_create(&tids[i], NULL, thermal_unit_thermal_control, units[i]);
+        if (units[i] != NULL) {
+            Pthread_create(&tids[i], NULL, __thermal_unit_thermal_control, units[i]);
+        }
+    }
+    rpc_server_start(server);
+    for (i = 0; i < n_unit; i++) {
+        if (units[i] != NULL) {
+            Pthread_join(tids[i], &retval);
+        }
     }
 }
 
 static void
 destroy(void)
 {
-    void *retval;
     size_t i;
     if (units != NULL) {
         for (i = 0; i < n_unit; i++) {
             if (units[i] != NULL) {
                 delete(units[i]);
             }
-            if (tids != NULL) {
-                Pthread_cancel(tids[i]);
-                Pthread_join(tids[i], &retval);
-            }
         }
     }
     free(units);
     free(tids);
+    
+    if (server != NULL) {
+        delete(server);
+    }
+    
     if (d != NULL) {
         delete(d);
     }

@@ -12,7 +12,9 @@
 #include "object_r.h"
 #include "virtual_r.h"
 
-struct ThermalUnit {
+#include <pthread.h>
+
+struct __ThermalUnit {
     struct Object _;
     const void *_vtab;
     char *name;
@@ -21,28 +23,31 @@ struct ThermalUnit {
     double lowest;
     double period;
     unsigned int state;
+    pthread_mutex_t mtx;
 };
 
-struct ThermalUnitClass {
+struct __ThermalUnitClass {
     struct Class _;
     struct Method get_temperature;
+    struct Method get_name;
+    struct Method status;
+    struct Method thermal_control;
     struct Method turn_on;
     struct Method turn_off;
-    struct Method thermal_control;
-    struct Method status;
 };
 
-struct ThermalUnitVirtualTable {
+struct __ThermalUnitVirtualTable {
     struct VirtualTable _;
     struct Method get_temperature;
+    struct Method status;
+    struct Method thermal_control;
     struct Method turn_on;
     struct Method turn_off;
-    struct Method thermal_control;
-    struct Method status;
 };
 
+/*
 struct KLCAMThermalUnit {
-    struct ThermalUnit _;
+    struct __ThermalUnit _;
     char *external_addr;
     char *external_port;
     char *external_aws;
@@ -62,11 +67,23 @@ struct KLCAMThermalUnit {
 };
 
 struct KLCAMThermalUnitClass {
-    struct ThermalUnitClass _;
+    struct __ThermalUnitClass _;
+};
+ */
+
+struct SimpleThermalUnit {
+    struct __ThermalUnit _;
+    char *temp_cmd;
+    char *turn_on_cmd;
+    char *turn_off_cmd;
+};
+
+struct SimpleThermalUnitClass {
+    struct __ThermalUnitClass _;
 };
 
 struct KLCAMSimpleThermalUnit {
-    struct ThermalUnit _;
+    struct __ThermalUnit _;
     char *temp_cmd;         /* get temperature command, internal */
     char *turn_on_cmd;      /* turn on heater(s) command, internal */
     char *turn_off_cmd;     /* turn off command, internal */
@@ -76,10 +93,12 @@ struct KLCAMSimpleThermalUnit {
     char *temp_cmd3;        /* get ambient temperature command */
     double threshold;       /* thershold for turn on/off external heater(s) */
     unsigned int state;     /* external heater state */
+    pthread_mutex_t mtx;
+    
 };
 
 struct KLCAMSimpleThermalUnitClass {
-    struct ThermalUnitClass _;
+    struct __ThermalUnitClass _;
 };
 
 

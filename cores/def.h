@@ -43,6 +43,7 @@
 #define PROTO_PDU       6
 #define PROTO_SMS       7
 #define PROTO_DETECTOR  8
+#define PROTO_THERMAL   9
 #define PROTO_SYSTEM    0xFFFF   /* system error recovery */
 
 #define SYSTEM_COMMAND_REGISTER 0xFFFF
@@ -57,6 +58,7 @@
 #define AWS_RPC_PORT            "13001"
 #define PDU_RPC_PORT            "13002"
 #define SMS_RPC_PORT            "13003"
+#define THM_RPC_PORT            "13004"
 
 #define FMODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 

@@ -28,6 +28,7 @@ src/serial
 src/seriald
 src/telescope
 src/telescoped
+src/thermal
 src/thermald
 stamp-h1
 test/

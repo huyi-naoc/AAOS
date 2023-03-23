@@ -1,4 +1,4 @@
-bin_PROGRAMS = aws awsd pdu pdud serial seriald telescope telescoped thermald
+bin_PROGRAMS = aws awsd pdu pdud serial seriald telescope telescoped thermal thermald
 
 aws_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
 aws_LDADD = ../cores/libaaoscore.la  ../drivers/libaaosdriver.la
@@ -31,6 +31,10 @@ telescope_SOURCES = telescope_client.c
 telescoped_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
 telescoped_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
 telescoped_SOURCES = telescope_server.c
+
+thermal_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
+thermal_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
+thermal_SOURCES = thermal_client.c
 
 thermald_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers
 thermald_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la

@@ -1301,6 +1301,7 @@ ct2lst(double jd, double lon)
 }
 #endif
 
+#ifdef __USE_SOFA__
 double
 dut_iers_a(double jd)
 #ifdef __USE_GSL__
@@ -1363,6 +1364,7 @@ dxy_iers_a(double jd, double *dx, double *dy)
     *dx = -9999.;
     *dy = -9999.;
 }
+#endif
 #endif
 
 void

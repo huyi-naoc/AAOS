@@ -7,6 +7,7 @@
 //
 
 #include "def.h"
+#include "thermal_def.h"
 #include "thermal.h"
 #include "thermal_r.h"
 #include "virtual.h"
@@ -16,16 +17,16 @@
  * ThermalUnit virtual table.
  */
 static void *
-ThermalUnitVirtualTable_ctor(void *_self, va_list *app)
+__ThermalUnitVirtualTable_ctor(void *_self, va_list *app)
 {
-    struct ThermalUnitVirtualTable *self = super_ctor(ThermalUnitVirtualTable(), _self, app);
+    struct __ThermalUnitVirtualTable *self = super_ctor(__ThermalUnitVirtualTable(), _self, app);
     Method selector;
     
     while ((selector = va_arg(*app, Method))) {
         const char *tag = va_arg(*app, const char *);
         Method method = va_arg(*app, Method);
         
-        if (selector == (Method) thermal_unit_turn_on) {
+        if (selector == (Method) __thermal_unit_turn_on) {
             if (tag) {
                 self->turn_on.tag = tag;
                 self->turn_on.selector = selector;
@@ -34,7 +35,7 @@ ThermalUnitVirtualTable_ctor(void *_self, va_list *app)
             continue;
         }
         
-        if (selector == (Method) thermal_unit_turn_off) {
+        if (selector == (Method) __thermal_unit_turn_off) {
             if (tag) {
                 self->turn_off.tag = tag;
                 self->turn_off.selector = selector;
@@ -43,7 +44,7 @@ ThermalUnitVirtualTable_ctor(void *_self, va_list *app)
             continue;
         }
         
-        if (selector == (Method) thermal_unit_get_temperature) {
+        if (selector == (Method) __thermal_unit_get_temperature) {
             if (tag) {
                 self->get_temperature.tag = tag;
                 self->get_temperature.selector = selector;
@@ -52,12 +53,20 @@ ThermalUnitVirtualTable_ctor(void *_self, va_list *app)
             continue;
         }
         
-        if (selector == (Method) thermal_unit_thermal_control) {
+        if (selector == (Method) __thermal_unit_thermal_control) {
             if (tag) {
                 self->get_temperature.tag = tag;
                 self->get_temperature.selector = selector;
             }
             self->get_temperature.method = method;
+            continue;
+        }
+        if (selector == (Method) __thermal_unit_status) {
+            if (tag) {
+                self->status.tag = tag;
+                self->status.selector = selector;
+            }
+            self->status.method = method;
             continue;
         }
     }
@@ -66,72 +75,132 @@ ThermalUnitVirtualTable_ctor(void *_self, va_list *app)
 }
 
 static void *
-ThermalUnitVirtualTable_dtor(void *_self)
+__ThermalUnitVirtualTable_dtor(void *_self)
 {
     return super_dtor(Object(), _self);
 }
 
-static const void *_ThermalUnitVirtualTable;
+static const void *___ThermalUnitVirtualTable;
 
 static void
-ThermalUnitVirtualTable_destroy(void)
+__ThermalUnitVirtualTable_destroy(void)
 {
-    free((void *) _ThermalUnitVirtualTable);
+    free((void *) ___ThermalUnitVirtualTable);
 }
 
 static void
-ThermalUnitVirtualTable_initialize(void)
+__ThermalUnitVirtualTable_initialize(void)
 {
-    _ThermalUnitVirtualTable = new(VirtualTableClass(), "ThermalUnitVirtualTable", VirtualTable(), sizeof(struct ThermalUnitVirtualTable),
-                                   ctor, "ctor", ThermalUnitVirtualTable_ctor,
-                                   dtor, "dtor", ThermalUnitVirtualTable_dtor,
-                                   (void *)0);
+    ___ThermalUnitVirtualTable = new(VirtualTableClass(), "__ThermalUnitVirtualTable", VirtualTable(), sizeof(struct __ThermalUnitVirtualTable),
+                                     ctor, "ctor", __ThermalUnitVirtualTable_ctor,
+                                     dtor, "dtor", __ThermalUnitVirtualTable_dtor,
+                                     (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(ThermalUnitVirtualTable_destroy);
+    atexit(__ThermalUnitVirtualTable_destroy);
 #endif
 }
 
 const void *
-ThermalUnitVirtualTable(void)
+__ThermalUnitVirtualTable(void)
 {
 #ifndef _USE_COMPILER_ATTRIBUTION_
     static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-    Pthread_once(&once_control, ThermalUnitVirtualTable_initialize);
+    Pthread_once(&once_control, __ThermalUnitVirtualTable_initialize);
 #endif
     
-    return _ThermalUnitVirtualTable;
+    return ___ThermalUnitVirtualTable;
+}
+
+const char *
+__thermal_unit_get_name(const void *_self)
+{
+    const struct __ThermalUnitClass *class = (const struct __ThermalUnitClass *) classOf(_self);
+    
+    if (isOf(class, __ThermalUnitClass()) && class->get_name.method) {
+        return ((const char * (*)(const void *)) class->get_name.method)(_self);
+    } else {
+        const char *result;
+        forward(_self, &result, (Method) __thermal_unit_get_name, "get_name", _self);
+        return result;
+    }
+}
+
+static const char *
+__ThermalUnit_get_name(const void *_self)
+{
+    struct __ThermalUnit *self = cast(__ThermalUnit(), _self);
+    
+    return self->name;
+}
+
+int
+__thermal_unit_status(void *_self, void *buffer, size_t size, size_t *res_len)
+{
+    const struct __ThermalUnitClass *class = (const struct __ThermalUnitClass *) classOf(_self);
+    
+    if (isOf(class, __ThermalUnitClass()) && class->status.method) {
+        return ((int (*)(void *, void *, size_t, size_t *)) class->status.method)(_self, buffer, size, res_len);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __thermal_unit_turn_on, "status", _self, buffer, size, res_len);
+        return result;
+    }
+}
+
+static int
+__ThermalUnit_status(void *_self, void *buffer, size_t size, size_t *res_len)
+{
+    struct __ThermalUnit *self = cast(__ThermalUnit(), _self);
+    
+    uint16_t status;
+    
+    Pthread_mutex_lock(&self->mtx);
+    status = (uint16_t) self->state;
+    Pthread_mutex_unlock(&self->mtx);
+    
+    if (size < sizeof(uint16_t)) {
+        return AAOS_ENOMEM;
+    }
+    
+    memcpy(buffer, &status, sizeof(uint16_t));
+    
+    if (res_len != NULL) {
+        *res_len = sizeof(uint16_t);
+    }
+    
+    return AAOS_OK;
 }
 
 void *
-thermal_unit_thermal_control(void *_self)
+__thermal_unit_thermal_control(void *_self)
 {
-    const struct ThermalUnitClass *class = (const struct ThermalUnitClass *) classOf(_self);
+    const struct __ThermalUnitClass *class = (const struct __ThermalUnitClass *) classOf(_self);
     
-    if (isOf(class, ThermalUnitClass()) && class->thermal_control.method) {
+    if (isOf(class, __ThermalUnitClass()) && class->thermal_control.method) {
         return ((void * (*)(void *)) class->thermal_control.method)(_self);
     } else {
         void *result;
-        forward(_self, &result, (Method) thermal_unit_thermal_control, "thermal_control", _self);
+        forward(_self, &result, (Method) __thermal_unit_thermal_control, "thermal_control", _self);
         return result;
     }
 }
 
 static void *
-ThermalUnit_thermal_control(void *_self)
+__ThermalUnit_thermal_control(void *_self)
 {
-    struct ThermalUnit *self = cast(ThermalUnit(), _self);
+    struct __ThermalUnit *self = cast(__ThermalUnit(), _self);
     double temperature;
     int ret;
     for (; ;) {
-        if ((ret = thermal_unit_get_temperature(_self, &temperature)) != AAOS_OK) {
+        if ((ret = __thermal_unit_get_temperature(_self, &temperature)) != AAOS_OK) {
             /*
              *
              */
         }
         if (temperature > self->highest && self->state == THERMAL_UNIT_STATE_ON) {
-            thermal_unit_turn_off(_self);
+            __thermal_unit_turn_off(_self);
         } else if (temperature < self->lowest && self->state == THERMAL_UNIT_STATE_OFF) {
-            thermal_unit_turn_on(_self);
+            __thermal_unit_turn_on(_self);
         }
         Nanosleep(self->period);
     }
@@ -139,51 +208,51 @@ ThermalUnit_thermal_control(void *_self)
 }
 
 int
-thermal_unit_turn_on(void *_self)
+__thermal_unit_turn_on(void *_self)
 {
-    const struct ThermalUnitClass *class = (const struct ThermalUnitClass *) classOf(_self);
+    const struct __ThermalUnitClass *class = (const struct __ThermalUnitClass *) classOf(_self);
     
-    if (isOf(class, ThermalUnitClass()) && class->turn_on.method) {
+    if (isOf(class, __ThermalUnitClass()) && class->turn_on.method) {
         return ((int (*)(void *)) class->turn_on.method)(_self);
     } else {
         int result;
-        forward(_self, &result, (Method) thermal_unit_turn_on, "turn_on", _self);
+        forward(_self, &result, (Method) __thermal_unit_turn_on, "turn_on", _self);
         return result;
     }
 }
 
 int
-thermal_unit_turn_off(void *_self)
+__thermal_unit_turn_off(void *_self)
 {
-    const struct ThermalUnitClass *class = (const struct ThermalUnitClass *) classOf(_self);
+    const struct __ThermalUnitClass *class = (const struct __ThermalUnitClass *) classOf(_self);
     
-    if (isOf(class, ThermalUnitClass()) && class->turn_off.method) {
+    if (isOf(class, __ThermalUnitClass()) && class->turn_off.method) {
         return ((int (*)(void *)) class->turn_off.method)(_self);
     } else {
         int result;
-        forward(_self, &result, (Method) thermal_unit_turn_off, "turn_off", _self);
+        forward(_self, &result, (Method) __thermal_unit_turn_off, "turn_off", _self);
         return result;
     }
 }
 
 int
-thermal_unit_get_temperature(const void *_self, double *temperature)
+__thermal_unit_get_temperature(const void *_self, double *temperature)
 {
-    const struct ThermalUnitClass *class = (const struct ThermalUnitClass *) classOf(_self);
+    const struct __ThermalUnitClass *class = (const struct __ThermalUnitClass *) classOf(_self);
     
-    if (isOf(class, ThermalUnitClass()) && class->get_temperature.method) {
+    if (isOf(class, __ThermalUnitClass()) && class->get_temperature.method) {
         return ((int (*)(const void *, double *)) class->turn_off.method)(_self, temperature);
     } else {
         int result;
-        forward(_self, &result, (Method) thermal_unit_turn_off, "turn_off", _self, temperature);
+        forward(_self, &result, (Method) __thermal_unit_get_temperature, "get_temperature", _self, temperature);
         return result;
     }
 }
 
 static void
-ThermalUnit_forward(const void *_self, void *result, Method selector, const char *name, va_list *app)
+__ThermalUnit_forward(const void *_self, void *result, Method selector, const char *name, va_list *app)
 {
-    const struct ThermalUnit *self = cast(ThermalUnit(), _self);
+    const struct __ThermalUnit *self = cast(__ThermalUnit(), _self);
     Method method = virtualTo(self->_vtab, name);
     va_list ap;
     
@@ -195,13 +264,18 @@ ThermalUnit_forward(const void *_self, void *result, Method selector, const char
     
     void *obj = va_arg(*app, void *);
     
-    if (selector == (Method) thermal_unit_turn_on || selector == (Method) thermal_unit_turn_off) {
+    if (selector == (Method) __thermal_unit_turn_on || selector == (Method) __thermal_unit_turn_off) {
         *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) thermal_unit_get_temperature) {
+    } else if (selector == (Method) __thermal_unit_get_temperature) {
         double *temperature = va_arg(*app, double *);
         *((int *) result) = ((int (*)(const void *, double *)) method)(obj, temperature);
-    } else if (selector == (Method) thermal_unit_thermal_control) {
+    } else if (selector == (Method) __thermal_unit_thermal_control) {
         *((void **) result) = ((void * (*)(void *)) method)(obj);
+    } else if (selector == (Method) __thermal_unit_status) {
+        void *buffer = va_arg(*app, void *);
+        size_t size = va_arg(*app, size_t);
+        size_t *res_size = va_arg(*app, size_t *);
+        *((int *) result) = ((int (*)(void *, void *, size_t, size_t *)) method)(obj, buffer, size, res_size);
     } else {
         assert(0);
     }
@@ -212,49 +286,60 @@ ThermalUnit_forward(const void *_self, void *result, Method selector, const char
 }
 
 /*
- * tu = new(ThermalUnit(), name, description, highest, lowest, period)
+ * tu = new(__ThermalUnit(), name, highest, lowest, period, "description", '\0')
  */
 
 static void *
-ThermalUnit_ctor(void *_self, va_list *app)
+__ThermalUnit_ctor(void *_self, va_list *app)
 {
-    struct ThermalUnit *self = super_ctor(ThermalUnit(), _self, app);
+    struct __ThermalUnit *self = super_ctor(__ThermalUnit(), _self, app);
     
-    const char *s;
+    const char *s, *key, *value;
     
     s = va_arg(*app, const char *);
     if (s) {
         self->name = (char *) Malloc(strlen(s) + 1);
         snprintf(self->name, strlen(s) + 1, "%s", s);
     }
-    s = va_arg(*app, const char *);
-    if (s) {
-        self->description = (char *) Malloc(strlen(s) + 1);
-        snprintf(self->description, strlen(s) + 1, "%s", s);
-    }
+
+
     self->highest = va_arg(*app, double);
     self->lowest = va_arg(*app, double);
     self->period = va_arg(*app, double);
-    self->state = THERMAL_UNIT_STATE_OFF;
+    
+    while ((key = va_arg(*app, const char *))) {
+        if (strcmp(key, "description") == 0) {
+            value = va_arg(*app, const char *);
+            if (value) {
+                self->description = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->description, strlen(value) + 1, "%s", value);
+            }
+            continue;
+        }
+    }
+    
+    Pthread_mutex_init(&self->mtx, NULL);
     
     return (void *) self;
 }
 
 static void *
-ThermalUnit_dtor(void *_self)
+__ThermalUnit_dtor(void *_self)
 {
-    struct ThermalUnit *self = cast(ThermalUnit(), _self);
+    struct __ThermalUnit *self = cast(__ThermalUnit(), _self);
     
     free(self->name);
     free(self->description);
     
-    return super_dtor(ThermalUnit(), _self);
+    Pthread_mutex_destroy(&self->mtx);
+    
+    return super_dtor(__ThermalUnit(), _self);
 }
 
 static void *
-ThermalUnitClass_ctor(void *_self, va_list *app)
+__ThermalUnitClass_ctor(void *_self, va_list *app)
 {
-    struct ThermalUnitClass *self = super_ctor(ThermalUnitClass(), _self, app);
+    struct __ThermalUnitClass *self = super_ctor(__ThermalUnitClass(), _self, app);
     Method selector;
     
 #ifdef va_copy
@@ -267,7 +352,7 @@ ThermalUnitClass_ctor(void *_self, va_list *app)
     while ((selector = va_arg(ap, Method))) {
         const char *tag = va_arg(ap, const char *);
         Method method = va_arg(ap, Method);
-        if (selector == (Method) thermal_unit_turn_on) {
+        if (selector == (Method) __thermal_unit_turn_on) {
             if (tag) {
                 self->turn_on.tag = tag;
                 self->turn_on.selector = selector;
@@ -275,7 +360,7 @@ ThermalUnitClass_ctor(void *_self, va_list *app)
             self->turn_on.method = method;
             continue;
         }
-        if (selector == (Method) thermal_unit_turn_off) {
+        if (selector == (Method) __thermal_unit_turn_off) {
             if (tag) {
                 self->turn_off.tag = tag;
                 self->turn_off.selector = selector;
@@ -283,7 +368,7 @@ ThermalUnitClass_ctor(void *_self, va_list *app)
             self->turn_off.method = method;
             continue;
         }
-        if (selector == (Method) thermal_unit_thermal_control) {
+        if (selector == (Method) __thermal_unit_thermal_control) {
             if (tag) {
                 self->thermal_control.tag = tag;
                 self->thermal_control.selector = selector;
@@ -291,12 +376,20 @@ ThermalUnitClass_ctor(void *_self, va_list *app)
             self->thermal_control.method = method;
             continue;
         }
-        if (selector == (Method) thermal_unit_get_temperature) {
+        if (selector == (Method) __thermal_unit_get_temperature) {
             if (tag) {
                 self->get_temperature.tag = tag;
                 self->get_temperature.selector = selector;
             }
             self->get_temperature.method = method;
+            continue;
+        }
+        if (selector == (Method) __thermal_unit_get_name) {
+            if (tag) {
+                self->get_name.tag = tag;
+                self->get_name.selector = selector;
+            }
+            self->get_name.method = method;
             continue;
         }
     }
@@ -308,71 +401,283 @@ ThermalUnitClass_ctor(void *_self, va_list *app)
     return (void *) self;
 }
 
-static const void *_ThermalUnitClass;
+static const void *___ThermalUnitClass;
 
 static void
-ThermalUnitClass_destroy(void)
+__ThermalUnitClass_destroy(void)
 {
-    free((void *) _ThermalUnitClass);
+    free((void *) ___ThermalUnitClass);
 }
 
 static void
-ThermalUnitClass_initialize(void)
+__ThermalUnitClass_initialize(void)
 {
-    _ThermalUnitClass = new(Class(), "ThermalUnitClass", Class(), sizeof(struct ThermalUnitClass),
-                            ctor, "ctor", ThermalUnitClass_ctor,
-                            (void *) 0);
+    ___ThermalUnitClass = new(Class(), "__ThermalUnitClass", Class(), sizeof(struct __ThermalUnitClass),
+                              ctor, "ctor", __ThermalUnitClass_ctor,
+                              (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(ThermalUnitClass_destroy);
+    atexit(__ThermalUnitClass_destroy);
 #endif
 }
 
 const void *
-ThermalUnitClass(void)
+__ThermalUnitClass(void)
 {
 #ifndef _USE_COMPILER_ATTRIBUTION_
     static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-    Pthread_once(&once_control, ThermalUnitClass_initialize);
+    Pthread_once(&once_control, __ThermalUnitClass_initialize);
 #endif
     
-    return _ThermalUnitClass;
+    return ___ThermalUnitClass;
 }
 
-static const void *_ThermalUnit;
+static const void *___ThermalUnit;
 
 static void
-ThermalUnit_destroy(void)
+__ThermalUnit_destroy(void)
 {
-    free((void *)_ThermalUnit);
+    free((void *)___ThermalUnit);
 }
 
 static void
-ThermalUnit_initialize(void)
+__ThermalUnit_initialize(void)
 {
-    _ThermalUnit = new(ThermalUnitClass(), "ThermalUnit", Object(), sizeof(struct ThermalUnit),
-                       ctor, "ctor", ThermalUnit_ctor,
-                       dtor, "dtor", ThermalUnit_dtor,
-                       forward, "forward", ThermalUnit_forward,
-                       thermal_unit_thermal_control, "thermal_control", ThermalUnit_thermal_control,
+    ___ThermalUnit = new(__ThermalUnitClass(), "__ThermalUnit", Object(), sizeof(struct __ThermalUnit),
+                         ctor, "ctor", __ThermalUnit_ctor,
+                         dtor, "dtor", __ThermalUnit_dtor,
+                         forward, "forward", __ThermalUnit_forward,
+                         __thermal_unit_get_name, "get_name", __ThermalUnit_get_name,
+                         __thermal_unit_thermal_control, "thermal_control", __ThermalUnit_thermal_control,
                        (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(ThermalUnit_destroy);
+    atexit(__ThermalUnit_destroy);
 #endif
 }
 
 const void *
-ThermalUnit(void)
+__ThermalUnit(void)
 {
 #ifndef _USE_COMPILER_ATTRIBUTION_
     static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-    Pthread_once(&once_control, ThermalUnit_initialize);
+    Pthread_once(&once_control, __ThermalUnit_initialize);
 #endif
     
-    return _ThermalUnit;
+    return ___ThermalUnit;
+}
+
+/*
+ * A simple  thermal control, directly using low level commands.
+ *
+ */
+
+static const void *simple_thermal_unit_virtual_table(void);
+
+/*
+ * tu = new(SimpleThermalUnit(), ..., temp_cmd, turn_on_cmd, turn_off_cmd)
+ */
+static void *
+SimpleThermalUnit_ctor(void *_self, va_list *app)
+{
+    struct SimpleThermalUnit *self = super_ctor(SimpleThermalUnit(), _self, app);
+    
+    self->_._vtab= simple_thermal_unit_virtual_table();
+    
+    char *s;
+    
+    s = va_arg(*app, char *);
+    if (s) {
+        self->temp_cmd = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->temp_cmd, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, char *);
+    if (s) {
+        self->turn_on_cmd = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->turn_on_cmd, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, char *);
+    if (s) {
+        self->turn_off_cmd = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->turn_off_cmd, strlen(s) + 1, "%s", s);
+    }
+    
+    return (void *) self;
+}
+
+static void *
+SimpleThermalUnit_dtor(void *_self)
+{
+    struct SimpleThermalUnit *self = cast(SimpleThermalUnit(), _self);
+    
+    free(self->temp_cmd);
+    free(self->turn_on_cmd);
+    free(self->turn_off_cmd);
+    
+    return super_dtor(KLCAMSimpleThermalUnit(), _self);
+}
+
+static void *
+SimpleThermalUnitClass_ctor(void *_self, va_list *app)
+{
+    struct SimpleThermalUnitClass *self = super_ctor(SimpleThermalUnitClass(), _self, app);
+    
+    self->_.get_temperature.method = (Method) 0;
+    self->_.turn_on.method = (Method) 0;
+    self->_.turn_off.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_SimpleThermalUnitClass;
+
+static void
+SimpleThermalUnitClass_destroy(void)
+{
+    free((void *)_SimpleThermalUnitClass);
+}
+
+static void
+SimpleThermalUnitClass_initialize(void)
+{
+    _SimpleThermalUnitClass = new(__ThermalUnitClass(), "SimpleThermalUnitClass", __ThermalUnitClass(), sizeof(struct SimpleThermalUnitClass),
+                                  ctor, "", SimpleThermalUnitClass_ctor,
+                                  (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SimpleThermalUnitClass_destroy);
+#endif
+}
+
+const void *
+SimpleThermalUnitClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, SimpleThermalUnitClass_initialize);
+#endif
+    
+    return _SimpleThermalUnitClass;
+}
+
+static const void *_SimpleThermalUnit;
+
+static void
+SimpleThermalUnit_destroy(void)
+{
+    
+    free((void *)_SimpleThermalUnit);
+}
+
+static void
+SimpleThermalUnit_initialize(void)
+{
+  
+    _SimpleThermalUnit = new(SimpleThermalUnitClass(), "SimpleThermalUnit", __ThermalUnit(), sizeof(struct SimpleThermalUnit),
+                             ctor, "ctor", SimpleThermalUnit_ctor,
+                             dtor, "dtor", SimpleThermalUnit_dtor,
+                             (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SimpleThermalUnit_destroy);
+#endif
+}
+
+const void *
+SimpleThermalUnit(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, SimpleThermalUnit_initialize);
+#endif
+
+    return _SimpleThermalUnit;
+}
+
+static int
+SimpleThermalUnit_turn_on(void *_self)
+{
+    struct SimpleThermalUnit *self = cast(SimpleThermalUnit(), _self);
+    
+    int ret = AAOS_ERROR;
+    FILE *fp;
+    
+    if (self->turn_on_cmd != NULL && (fp = popen(self->turn_on_cmd, "r")) != NULL) {
+        Pthread_mutex_lock(&self->_.mtx);
+        self->_.state = THERMAL_UNIT_STATE_ON;
+        Pthread_mutex_unlock(&self->_.mtx);
+        pclose(fp);
+    }
+    
+    return ret;
+}
+
+static int
+SimpleThermalUnit_turn_off(void *_self)
+{
+    struct SimpleThermalUnit *self = cast(SimpleThermalUnit(), _self);
+    
+    int ret = AAOS_ERROR;
+    FILE *fp;
+    
+    if (self->turn_off_cmd != NULL && (fp = popen(self->turn_off_cmd, "r")) != NULL) {
+        Pthread_mutex_lock(&self->_.mtx);
+        self->_.state = THERMAL_UNIT_STATE_OFF;
+        Pthread_mutex_unlock(&self->_.mtx);
+        pclose(fp);
+    }
+    
+    return ret;
+}
+
+static int
+SimpleThermalUnit_get_temperature(void *_self, double *temperature)
+{
+    struct SimpleThermalUnit *self = cast(SimpleThermalUnit(), _self);
+    
+    int ret = AAOS_ERROR;
+    FILE *fp;
+    
+    *temperature = 9999.;
+    if (self->temp_cmd != NULL && (fp = popen(self->temp_cmd, "r")) != NULL) {
+        fscanf(fp, "%lf", temperature);
+        pclose(fp);
+    }
+    
+    return ret;
+}
+
+static const void *_simple_thermal_unit_virtual_table;
+
+static void
+simple_thermal_unit_virtual_table_destroy(void)
+{
+    delete((void *) _simple_thermal_unit_virtual_table);
+}
+
+static void
+simple_thermal_unit_virtual_table_initialize(void)
+{
+   _simple_thermal_unit_virtual_table = new(__ThermalUnitVirtualTable(),
+                                            __thermal_unit_turn_on, "turn_on", SimpleThermalUnit_turn_on,
+                                            __thermal_unit_turn_off, "turn_off", SimpleThermalUnit_turn_off,
+                                            __thermal_unit_get_temperature, "get_temperature", SimpleThermalUnit_get_temperature,
+                                            (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(simple_thermal_unit_virtual_table_destroy);
+#endif
+}
+
+static const void *
+simple_thermal_unit_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, simple_thermal_unit_virtual_table_initialize);
+#endif
+    
+    return _simple_thermal_unit_virtual_table;
 }
 
 /*
  * A simple KLCAM thermal control, directly using low level commands.
+ * Two level thermal control, internal and external.
  */
 
 static const void *klcam_simple_thermal_unit_virtual_table(void);
@@ -425,6 +730,7 @@ KLCAMSimpleThermalUnit_ctor(void *_self, va_list *app)
         snprintf(self->temp_cmd3, strlen(s) + 1, "%s", s);
     }
     
+    Pthread_mutex_init(&self->mtx, NULL);
     return (void *) self;
 }
 
@@ -441,6 +747,8 @@ KLCAMSimpleThermalUnit_dtor(void *_self)
     free(self->turn_off_cmd2);
     free(self->temp_cmd3);
     
+    Pthread_mutex_destroy(&self->mtx);
+    
     return super_dtor(KLCAMSimpleThermalUnit(), _self);
 }
 
@@ -453,6 +761,7 @@ KLCAMSimpleThermalUnitClass_ctor(void *_self, va_list *app)
     self->_.turn_on.method = (Method) 0;
     self->_.turn_off.method = (Method) 0;
     self->_.thermal_control.method = (Method) 0;
+    self->_.status.method = (Method) 0;
     
     return self;
 }
@@ -468,7 +777,7 @@ KLCAMSimpleThermalUnitClass_destroy(void)
 static void
 KLCAMSimpleThermalUnitClass_initialize(void)
 {
-    _KLCAMSimpleThermalUnitClass = new(ThermalUnitClass(), "KLCAMSimpleThermalUnitClass", ThermalUnitClass(), sizeof(struct KLCAMSimpleThermalUnitClass),
+    _KLCAMSimpleThermalUnitClass = new(__ThermalUnitClass(), "KLCAMSimpleThermalUnitClass", __ThermalUnitClass(), sizeof(struct KLCAMSimpleThermalUnitClass),
                                        ctor, "", KLCAMSimpleThermalUnitClass_ctor,
                                        (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
@@ -500,7 +809,7 @@ static void
 KLCAMSimpleThermalUnit_initialize(void)
 {
   
-    _KLCAMSimpleThermalUnit = new(KLCAMSimpleThermalUnitClass(), "KLCAMSimpleThermalUnit", ThermalUnit(), sizeof(struct KLCAMSimpleThermalUnit),
+    _KLCAMSimpleThermalUnit = new(KLCAMSimpleThermalUnitClass(), "KLCAMSimpleThermalUnit", __ThermalUnit(), sizeof(struct KLCAMSimpleThermalUnit),
                                   ctor, "ctor", KLCAMSimpleThermalUnit_ctor,
                                   dtor, "dtor", KLCAMSimpleThermalUnit_dtor,
                                   (void *) 0);
@@ -529,7 +838,9 @@ KLCAMSimpleThermalUnit_turn_on(void *_self)
     FILE *fp;
     
     if (self->turn_on_cmd != NULL && (fp = popen(self->turn_on_cmd, "r")) != NULL) {
+        Pthread_mutex_lock(&self->_.mtx);
         self->_.state = THERMAL_UNIT_STATE_ON;
+        Pthread_mutex_unlock(&self->_.mtx);
         pclose(fp);
     }
     
@@ -545,7 +856,9 @@ KLCAMSimpleThermalUnit_turn_off(void *_self)
     FILE *fp;
     
     if (self->turn_off_cmd != NULL && (fp = popen(self->turn_off_cmd, "r")) != NULL) {
+        Pthread_mutex_lock(&self->_.mtx);
         self->_.state = THERMAL_UNIT_STATE_OFF;
+        Pthread_mutex_unlock(&self->_.mtx);
         pclose(fp);
     }
     
@@ -578,12 +891,16 @@ KLCAMSimpleThermalUnit_thermal_control(void *_self)
     FILE *fp;
     
     if (self->turn_off_cmd != NULL && (fp = popen(self->turn_off_cmd, "r")) != NULL) {
+        Pthread_mutex_lock(&self->_.mtx);
         self->_.state = THERMAL_UNIT_STATE_OFF;
+        Pthread_mutex_unlock(&self->_.mtx);
         pclose(fp);
     }
     
     if (self->turn_off_cmd2 != NULL && (fp = popen(self->turn_off_cmd2, "r")) != NULL) {
+        Pthread_mutex_lock(&self->mtx);
         self->state = THERMAL_UNIT_STATE_OFF;
+        Pthread_mutex_unlock(&self->mtx);
         pclose(fp);
     }
     
@@ -612,12 +929,16 @@ KLCAMSimpleThermalUnit_thermal_control(void *_self)
          */
         if (temp < lowest && self->_.state == THERMAL_UNIT_STATE_OFF) {
             if (self->turn_on_cmd != NULL && (fp = popen(self->turn_on_cmd, "r")) != NULL) {
+                Pthread_mutex_lock(&self->_.mtx);
                 self->_.state = THERMAL_UNIT_STATE_ON;
+                Pthread_mutex_unlock(&self->_.mtx);
                 pclose(fp);
             }
         } else if (temp > highest && self->state == THERMAL_UNIT_STATE_ON) {
             if (self->turn_off_cmd != NULL && (fp = popen(self->turn_off_cmd, "r")) != NULL) {
+                Pthread_mutex_lock(&self->_.mtx);
                 self->_.state = THERMAL_UNIT_STATE_OFF;
+                Pthread_mutex_unlock(&self->_.mtx);
                 pclose(fp);
             }
         }
@@ -626,12 +947,16 @@ KLCAMSimpleThermalUnit_thermal_control(void *_self)
          */
         if (temp3 < threshold && self->state == THERMAL_UNIT_STATE_OFF) {
             if (self->turn_on_cmd2 != NULL && (fp = popen(self->turn_on_cmd2, "r")) != NULL) {
+                Pthread_mutex_lock(&self->mtx);
                 self->state = THERMAL_UNIT_STATE_ON;
+                Pthread_mutex_unlock(&self->mtx);
                 pclose(fp);
             }
         } else if (temp3 > threshold && self->state == THERMAL_UNIT_STATE_ON) {
             if (self->turn_off_cmd != NULL && (fp = popen(self->turn_off_cmd, "r")) != NULL) {
-                self->_.state = THERMAL_UNIT_STATE_OFF;
+                Pthread_mutex_lock(&self->mtx);
+                self->state = THERMAL_UNIT_STATE_OFF;
+                Pthread_mutex_unlock(&self->mtx);
                 pclose(fp);
             }
         }
@@ -640,6 +965,35 @@ KLCAMSimpleThermalUnit_thermal_control(void *_self)
     }
     
     return NULL;
+}
+
+static int
+KLCAMSimpleThermalUnit_status(void *_self, void *buffer, size_t size, size_t *res_len)
+{
+    struct KLCAMSimpleThermalUnit *self = cast(KLCAMSimpleThermalUnit(), _self);
+    
+    uint16_t status, status2;
+    
+    Pthread_mutex_lock(&self->mtx);
+    status2 = self->state;
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_mutex_lock(&self->_.mtx);
+    status2 = self->_.state;
+    Pthread_mutex_unlock(&self->_.mtx);
+    
+    if (size < 4) {
+        return AAOS_ENOMEM;
+    }
+    
+    memcpy(buffer, &status, sizeof(uint16_t));
+    memcpy((char *) buffer + sizeof(uint16_t), &status2, sizeof(uint16_t));
+    
+    if (res_len != NULL) {
+        *res_len = 2 * sizeof(uint16_t);
+    }
+    
+    return AAOS_OK;
 }
 
 static const void *_klcam_simple_thermal_unit_virtual_table;
@@ -653,11 +1007,12 @@ klcam_simple_thermal_unit_virtual_table_destroy(void)
 static void
 klcam_simple_thermal_unit_virtual_table_initialize(void)
 {
-    _klcam_simple_thermal_unit_virtual_table = new(ThermalUnitVirtualTable(),
-                                                   thermal_unit_turn_on, "turn_on", KLCAMSimpleThermalUnit_turn_on,
-                                                   thermal_unit_turn_off, "turn_off", KLCAMSimpleThermalUnit_turn_off,
-                                                   thermal_unit_get_temperature, "get_temperature", KLCAMSimpleThermalUnit_get_temperature,
-                                                   thermal_unit_thermal_control, "thermal_control", KLCAMSimpleThermalUnit_thermal_control,
+    _klcam_simple_thermal_unit_virtual_table = new(__ThermalUnitVirtualTable(),
+                                                   __thermal_unit_turn_on, "turn_on", KLCAMSimpleThermalUnit_turn_on,
+                                                   __thermal_unit_turn_off, "turn_off", KLCAMSimpleThermalUnit_turn_off,
+                                                   __thermal_unit_status, "status", KLCAMSimpleThermalUnit_status,
+                                                   __thermal_unit_get_temperature, "get_temperature", KLCAMSimpleThermalUnit_get_temperature,
+                                                   __thermal_unit_thermal_control, "thermal_control", KLCAMSimpleThermalUnit_thermal_control,
                                                    (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(klcam_simple_thermal_unit_virtual_table_destroy);
