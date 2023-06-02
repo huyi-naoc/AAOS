@@ -19,7 +19,7 @@ extern size_t n_aws;
 
 static void *d;
 static void *server;
-static const char *config_path = "/usr/local/aaos/etc/telescopes.cfg";
+static const char *config_path = "/usr/local/aaos/etc/awsd.cfg";
 static config_t cfg;
 static bool daemon_flag = true;
 
@@ -116,15 +116,17 @@ read_configuration(void)
                 for (k = 0; k < n_device; k++) {
                     config_setting_t *device_setting, *sensors_setting;
                     device_setting = config_setting_get_elem(devices_setting, (unsigned int) k);
-                    sensors_setting = config_setting_get_member(controller_setting, "sensors");
+                    sensors_setting = config_setting_get_member(device_setting, "sensors");
                     size_t n;
+
                     n = config_setting_length(sensors_setting);
                     n_sensor += n;
                 }
             }
-            n_sensor = 0;
+
             if (strcmp(type, "KLAWS") == 0) {
                 awses[i] = new(KLAWS(), name, n_sensor, "type", type, "description", description, '\0', n_controller);
+		n_sensor = 0;
                 void *aws = awses[i];
                 size_t j;
                 controllers_setting = config_setting_get_member(aws_setting, "controllers");
@@ -154,7 +156,7 @@ read_configuration(void)
                         int critical;
                         config_setting_t *device_setting, *sensors_setting;
                         device_setting = config_setting_get_elem(devices_setting, (unsigned int) k);
-                        sensors_setting = config_setting_get_member(controller_setting, "sensors");
+                        sensors_setting = config_setting_get_member(device_setting, "sensors");
                         size_t l, n;
                         n = config_setting_length(sensors_setting);
                         if (config_setting_lookup_string(device_setting, "name", &name) != CONFIG_TRUE) {
@@ -187,6 +189,9 @@ read_configuration(void)
                             if (config_setting_lookup_string(sensor_setting, "type", &type) != CONFIG_TRUE) {
                                 type = NULL;
                             }
+                            if (config_setting_lookup_string(sensor_setting, "model", &model) != CONFIG_TRUE) {
+                                model = NULL;
+                            }
                             
                             if (strcmp(model, "Young41342") == 0) {
                                 sensor = new(Young41342(), name, command, "description", description, "model", model, '\0');
@@ -212,10 +217,16 @@ read_configuration(void)
                             } else if (strcmp(model, "SQM") == 0) {
                                 sensor = new(SkyQualityMonitor(), name, command, "description", description, "model", model, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_SKY_QUALITY);
-                            } else {
+                            } else if (strcmp(model, "PT100") == 0) {
+                                sensor = new(PT100(), name, command, "description", description, "model", model, '\0');
+
+                                sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
+			    } else {
                                 
                             }
                             sensor_set_channel(sensor, (unsigned int) (n_sensor + l + 1));
+			    sensor_set_controller(sensor, controller);
+			    sensor_set_device(sensor, device);
                             __aws_set_sensor(aws, sensor, n_sensor + l);
                         }
                         n_sensor += n;
