@@ -608,6 +608,8 @@ static void *
 PT100_ctor(void *_self, va_list *app)
 {
     struct PT100 *self = super_ctor(PT100(), _self, app);
+
+    self->output_type = va_arg(*app, int);
     
     self->_._vtab= pt100_virtual_table();
     
@@ -1112,6 +1114,8 @@ AAGPDUPT1000_ctor(void *_self, va_list *app)
 {
     struct AAGPDUPT1000 *self = super_ctor(AAGPDUPT1000(), _self, app);
     
+    self->output_type = va_arg(*app, int);
+    
     self->_._vtab= aag_pdu_pt1000_virtual_table();
     
     return (void *) self;
@@ -1365,6 +1369,8 @@ static void *
 Young41342_ctor(void *_self, va_list *app)
 {
     struct Young41342 *self = super_ctor(Young41342(), _self, app);
+    
+    self->output_type = va_arg(*app, int);
     
     self->_._vtab= young41342_virtual_table();
     

@@ -60,8 +60,6 @@ read_daemon(void)
     }
 }
 
-
-
 static void
 read_configuration(void)
 {
@@ -79,7 +77,7 @@ read_configuration(void)
     
     setting = config_lookup(&cfg, "awses");
     if (setting == NULL) {
-        fprintf(stderr, "`telescopes` section does not exist in configuration file.\n");
+        fprintf(stderr, "`awses` section does not exist in configuration file.\n");
         exit(EXIT_FAILURE);
     } else {
         n_aws = config_setting_length(setting);
@@ -106,6 +104,11 @@ read_configuration(void)
             config_setting_t *controllers_setting;
             controllers_setting = config_setting_get_member(aws_setting, "controllers");
             n_controller = config_setting_length(controllers_setting);
+            /*
+             * first pass, count how many sensors in the configuration
+             * for an AWS, because of the number of sensors is needed to 
+             * create an AWS object.
+             */
             for (j = 0; j < n_controller; j++) {
                 config_setting_t *devices_setting;
                 config_setting_t *controller_setting;
@@ -194,7 +197,11 @@ read_configuration(void)
                             }
                             
                             if (strcmp(model, "Young41342") == 0) {
-                                sensor = new(Young41342(), name, command, "description", description, "model", model, '\0');
+                                int output_type;
+                                if (config_setting_lookup_int(sensor_setting, "output_type", &output_type) != CONFIG_TRUE) {
+                                    output_type = TEMEPRATURE_OUTPUT_RESISTANSE;
+                                }
+                                sensor = new(Young41342(), name, command, "description", description, "model", model, '\0', output_type);
                                 sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
                             } else if (strcmp(model, "Young05305V") == 0 && strcmp(type, "wind speed")) {
                                 sensor = new(Young05305VS(), name, command, "description", description, "model", model, '\0');
@@ -217,9 +224,15 @@ read_configuration(void)
                             } else if (strcmp(model, "SQM") == 0) {
                                 sensor = new(SkyQualityMonitor(), name, command, "description", description, "model", model, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_SKY_QUALITY);
-                            } else if (strcmp(model, "PT100") == 0) {
+                            } else if (strcmp(model, "PTB210") == 0) {
                                 sensor = new(PT100(), name, command, "description", description, "model", model, '\0');
-
+                                sensor_set_type(sensor, SENSOR_TYPE_AIR_PRESSURE);
+                            } else if (strcmp(model, "PT100") == 0) {
+                                int output_type;
+                                if (config_setting_lookup_int(sensor_setting, "output_type", &output_type) != CONFIG_TRUE) {
+                                    output_type = TEMEPRATURE_OUTPUT_RESISTANSE;
+                                }
+                                sensor = new(PT100(), name, command, "description", description, "model", model, '\0', output_type);
                                 sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
 			    } else {
                                 
