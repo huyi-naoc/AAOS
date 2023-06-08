@@ -610,7 +610,6 @@ PT100_ctor(void *_self, va_list *app)
     struct PT100 *self = super_ctor(PT100(), _self, app);
 
     self->output_type = va_arg(*app, int);
-    
     self->_._vtab= pt100_virtual_table();
     
     return (void *) self;

@@ -195,7 +195,6 @@ read_configuration(void)
                             if (config_setting_lookup_string(sensor_setting, "model", &model) != CONFIG_TRUE) {
                                 model = NULL;
                             }
-                            
                             if (strcmp(model, "Young41342") == 0) {
                                 int output_type;
                                 if (config_setting_lookup_int(sensor_setting, "output_type", &output_type) != CONFIG_TRUE) {
@@ -203,11 +202,15 @@ read_configuration(void)
                                 }
                                 sensor = new(Young41342(), name, command, "description", description, "model", model, '\0', output_type);
                                 sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
-                            } else if (strcmp(model, "Young05305V") == 0 && strcmp(type, "wind speed")) {
+                            } else if (strcmp(model, "Young05305V") == 0 && strcmp(type, "wind speed") == 0) {
                                 sensor = new(Young05305VS(), name, command, "description", description, "model", model, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_WIND_SPEED);
-                            } else if (strcmp(model, "Young05305V") == 0 && strcmp(type, "wind direction")) {
-                                sensor = new(Young05305VD(), name, command, "description", description, "model", model, '\0');
+                            } else if (strcmp(model, "Young05305V") == 0 && strcmp(type, "wind direction") == 0) {
+                                double offset;
+                                if (config_setting_lookup_float(sensor_setting, "output_type", &offset) != CONFIG_TRUE) {
+                                    offset = 0.;
+                                }
+                                sensor = new(Young05305VD(), name, command, "description", description, "model", model, '\0', "offset", offset, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_WIND_DIRECTION);
                             } else if (strcmp(model, "Young41382VC") == 0 && strcmp(type, "humidity")) {
                                 sensor = new(Young41382VCR(), name, command, "description", description, "model", model, '\0');
@@ -225,7 +228,7 @@ read_configuration(void)
                                 sensor = new(SkyQualityMonitor(), name, command, "description", description, "model", model, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_SKY_QUALITY);
                             } else if (strcmp(model, "PTB210") == 0) {
-                                sensor = new(PT100(), name, command, "description", description, "model", model, '\0');
+                                sensor = new(PTB210(), name, command, "description", description, "model", model, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_AIR_PRESSURE);
                             } else if (strcmp(model, "PT100") == 0) {
                                 int output_type;
@@ -331,9 +334,8 @@ main(int argc, char *argv[])
             daemon_stop(d);
             daemon_reload(d);
             init();
-        } else if (strcmp(argv[1], "stop") == 0) {
+        } else if (strcmp(argv[0], "stop") == 0) {
             daemon_stop(d);
-            init();
         } else {
             fprintf(stderr, "Unknow argument.\n");
             fprintf(stderr, "Exit...");
