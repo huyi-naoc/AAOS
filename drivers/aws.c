@@ -608,10 +608,16 @@ static void *
 PT100_ctor(void *_self, va_list *app)
 {
     struct PT100 *self = super_ctor(PT100(), _self, app);
-
-    self->output_type = va_arg(*app, int);
-    self->_._vtab= pt100_virtual_table();
     
+    const char *key;
+    while ((key = va_arg(*app, const char *))) {
+        if (strcmp(key, "output_type") == 0) {
+            self->output_type = va_arg(*app, int);
+        }
+        continue;
+    }
+
+    self->_._vtab= pt100_virtual_table();
     return (void *) self;
 }
 
@@ -1369,7 +1375,13 @@ Young41342_ctor(void *_self, va_list *app)
 {
     struct Young41342 *self = super_ctor(Young41342(), _self, app);
     
-    self->output_type = va_arg(*app, int);
+    const char *key;
+    while ((key = va_arg(*app, const char *))) {
+        if (strcmp(key, "output_type") == 0) {
+            self->output_type = va_arg(*app, int);
+        }
+        continue;
+    }
     
     self->_._vtab= young41342_virtual_table();
     

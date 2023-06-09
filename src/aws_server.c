@@ -200,7 +200,7 @@ read_configuration(void)
                                 if (config_setting_lookup_int(sensor_setting, "output_type", &output_type) != CONFIG_TRUE) {
                                     output_type = TEMEPRATURE_OUTPUT_RESISTANSE;
                                 }
-                                sensor = new(Young41342(), name, command, "description", description, "model", model, '\0', output_type);
+                                sensor = new(Young41342(), name, command, "description", description, "model", model, '\0', "output_type", output_type, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
                             } else if (strcmp(model, "Young05305V") == 0 && strcmp(type, "wind speed") == 0) {
                                 sensor = new(Young05305VS(), name, command, "description", description, "model", model, '\0');
@@ -235,7 +235,7 @@ read_configuration(void)
                                 if (config_setting_lookup_int(sensor_setting, "output_type", &output_type) != CONFIG_TRUE) {
                                     output_type = TEMEPRATURE_OUTPUT_RESISTANSE;
                                 }
-                                sensor = new(PT100(), name, command, "description", description, "model", model, '\0', output_type);
+                                sensor = new(PT100(), name, command, "description", description, "model", model, '\0', "output_type", output_type, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
 			    } else {
                                 
