@@ -24,7 +24,7 @@ static config_t cfg;
 static bool daemon_flag = true;
 
 static void
-usage()
+usage(void)
 {
     fprintf(stderr, "\t\t[-n|--name <name>] [-i|--index <index>]");
     exit(EXIT_FAILURE);
@@ -212,10 +212,10 @@ read_configuration(void)
                                 }
                                 sensor = new(Young05305VD(), name, command, "description", description, "model", model, '\0', "offset", offset, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_WIND_DIRECTION);
-                            } else if (strcmp(model, "Young41382VC") == 0 && strcmp(type, "humidity")) {
+                            } else if (strcmp(model, "Young41382VC") == 0 && strcmp(type, "humidity") == 0) {
                                 sensor = new(Young41382VCR(), name, command, "description", description, "model", model, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_RELATIVE_HUMIDITY);
-                            } else if (strcmp(model, "Young41382VC") == 0 && strcmp(type, "temperature")) {
+                            } else if (strcmp(model, "Young41382VC") == 0 && strcmp(type, "temperature") == 0) {
                                 sensor = new(Young41382VCT(), name, command, "description", description, "model", model, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
                             } else if (strcmp(model, "Young61302V") == 0) {
