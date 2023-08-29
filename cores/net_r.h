@@ -36,6 +36,8 @@ struct TCPSocketClass {
     struct Method get_sockfd;
     struct Method set_option;
     struct Method get_option;
+    struct Method get_host_info;
+    struct Method get_peer_info;
 };
 
 struct TCPClientVirtualTable {
