@@ -318,6 +318,81 @@ TCPSocket_set_option(void *_self, unsigned int option)
     return old_option;
 }
 
+int
+tcp_socket_get_host_info(void *_self, char *addr, size_t addr_size, char *port, size_t port_size)
+{
+    struct TCPSocketClass *class = (struct TCPSocketClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, TCPSocketClass()) && class->get_host_info.method) {
+        result = ((unsigned int (*)(void *, char *, size_t, char *, size_t)) class->get_host_info.method)( _self, addr, addr_size, port, port_size);
+    } else {
+        forward(_self, &result, (Method) tcp_socket_get_host_info, "get_host_info", _self, addr, addr_size, port, port_size);
+    }
+    
+    return result;
+}
+
+static int
+TCPSocket_get_host_info(void *_self, char *addr, size_t addr_size, char *port, size_t port_size)
+{
+    struct TCPSocket *self = cast(TCPSocket(), _self);
+    
+    socklen_t address_len = sizeof(SA);
+    SA sa;
+    char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
+    
+    getsockname(self->sockfd, &sa, &address_len);
+    getnameinfo(&sa, sizeof(sa), hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), 0);
+    
+    if (addr != NULL) {
+        snprintf(addr, addr_size, "%s", hbuf);
+    }
+    if (port != NULL) {
+        snprintf(port, port_size, "%s", sbuf);
+    }
+    
+    return AAOS_OK;
+}
+
+int
+tcp_socket_get_peer_info(void *_self, char *addr, size_t addr_size, char *port, size_t port_size)
+{
+    struct TCPSocketClass *class = (struct TCPSocketClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, TCPSocketClass()) && class->get_peer_info.method) {
+        result = ((unsigned int (*)(void *, char *, size_t, char *, size_t)) class->get_peer_info.method)( _self, addr, addr_size, port, port_size);
+    } else {
+        forward(_self, &result, (Method) tcp_socket_get_peer_info, "get_peer_info", _self, addr, addr_size, port, port_size);
+    }
+    
+    return result;
+}
+
+static int
+TCPSocket_get_peer_info(void *_self, char *addr, size_t addr_size, char *port, size_t port_size)
+{
+    struct TCPSocket *self = cast(TCPSocket(), _self);
+    
+    socklen_t address_len = sizeof(SA);
+    SA sa;
+    char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
+    
+    getpeername(self->sockfd, &sa, &address_len);
+    getnameinfo(&sa, sizeof(sa), hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), 0);
+    
+    if (addr != NULL) {
+        snprintf(addr, addr_size, "%s", hbuf);
+    }
+    if (port != NULL) {
+        snprintf(port, port_size, "%s", sbuf);
+    }
+    
+    return AAOS_OK;
+}
+
+
 static void
 TCPSocket_forward(const void *_self, void *result, Method selector, const char *name, va_list *app)
 {
@@ -450,6 +525,22 @@ TCPSocketClass_ctor(void *_self, va_list *app)
             self->set_option.method = method;
             continue;
         }
+        if (selector == (Method) tcp_socket_get_host_info) {
+            if (tag) {
+                self->get_host_info.tag = tag;
+                self->get_host_info.selector = selector;
+            }
+            self->get_host_info.method = method;
+            continue;
+        }
+        if (selector == (Method) tcp_socket_get_peer_info) {
+            if (tag) {
+                self->get_peer_info.tag = tag;
+                self->get_peer_info.selector = selector;
+            }
+            self->get_peer_info.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -511,6 +602,8 @@ TCPSocket_initialize(void)
                      tcp_socket_write, "write", TCPSocket_write,
                      tcp_socket_get_sockfd, "get_socket", TCPSocket_get_sockfd,
                      tcp_socket_set_option, "set_option", TCPSocket_set_option,
+                     tcp_socket_get_host_info, "get_host_info", TCPSocket_get_host_info,
+                     tcp_socket_get_peer_info, "get_peer_info", TCPSocket_get_peer_info,
                      (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(TCPSocket_destroy);

@@ -8,6 +8,7 @@
 
 #include "adt.h"
 #include "def.h"
+#include "log.h"
 #include "protocol.h"
 #include "serial.h"
 #include "serial_rpc.h"

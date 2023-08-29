@@ -16,6 +16,8 @@
 #define TCPSOCKET_OPTION_NOBLOCKING 0x02
 
 int tcp_socket_get_sockfd(const void *_self);
+int tcp_socket_get_host_info(void *_self, char *addr, size_t addr_size, char *port, size_t port_size);
+int tcp_socket_get_peer_info(void *_self, char *addr, size_t addr_size, char *port, size_t port_size);
 int tcp_socket_read(void *_self, void *read_buffer, size_t request_size, size_t *read_size);
 int tcp_socket_read_until(void *_self, void *read_buffer, size_t request_size, size_t *read_size, const char *delim);
 int tcp_socket_write(void *_self, const void *write_buffer, size_t request_size, size_t *write_size);
