@@ -9,13 +9,13 @@
 #ifndef log_h
 #define log_h
 
+#include <time.h>
+
 struct LogData {
     unsigned int level;
     struct timespec tp;
     char data[];
 };
-
-void *log_queue;
 
 void write_log_data_to_file(int fd, const char *facility, struct LogData *log_data);
 
