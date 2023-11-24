@@ -2924,7 +2924,7 @@ APMountSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, siz
         return AAOS_OK;
     }
     
-    if ((ret = __Serial_read(self, read_buffer, read_buffer_size, read_size)) != AAOS_OK) {
+    if ((ret = __Serial_read3(self, read_buffer, read_buffer_size, read_size)) != AAOS_OK) {
         Pthread_mutex_unlock(&self->mtx);
         return ret;
     }

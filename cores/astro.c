@@ -1509,6 +1509,139 @@ world2pix_sip(double ra, double dec, double crval[2], double crpix[2], double CD
 }
 */
 
+static void
+read_iers_a(void)
+{
+    /* 
+     * Download link https://datacenter.iers.org/data/9/finals2000A.all
+     * IERS_A table file search order:
+     * 1. current work directory
+     * 2. /usr/local/aaos/share
+     * 3. /usr/local/share/aaos
+     * 4. /usr/share/aaos
+     * 5. The pathname set in AAOS_IERS_A environment variable.
+     */
+    FILE *fp = NULL;
+    if (access("finals2000A.all", R_OK) == 0) {
+        if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+            goto error;
+        }
+    }
+    if (access("/usr/local/aaos/share/finals2000A.all", R_OK) == 0) {
+        if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+            goto error;
+        }
+    }
+    if (access("/usr/local/share/aaos/finals2000A.all", R_OK) == 0) {
+        if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+            goto error;
+        }
+    }
+    if (access("/usr/share/aaos/finals2000A.all", R_OK) == 0) {
+        if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+            goto error;
+        }
+    }
+    if (access(getenv("AAOS_IERS_A"), R_OK) == 0) {
+        if ((fp = fopen(getenv("AAOS_IERS_A"), "r")) != NULL) {
+            goto error;
+        }
+    }
+error:
+    if (fp == NULL) {
+        exit(EXIT_FAILURE);
+    }
+    /*
+     * The file format of finals2000A.all is referenced 
+     * https://maia.usno.navy.mil/ser7/readme.finals2000A.
+     * The format of the finals2000A.data, finals2000A.daily, and finals2000A.all files is:
+     * Col.#    Format  Quantity
+     * -------  ------  -------------------------------------------------------------
+     *  1-2      I2      year (to get true calendar year, add 1900 for MJD<=51543 or add 2000 for MJD>=51544)
+     *  3-4      I2      month number
+     *  5-6      I2      day of month
+     *  7        X       [blank]
+     *  8-15     F8.2    fractional Modified Julian Date (MJD UTC)
+     *  16       X       [blank]
+     *  17       A1      IERS (I) or Prediction (P) flag for Bull. A polar motion values
+     *  18       X       [blank]
+     *  19-27    F9.6    Bull. A PM-x (sec. of arc)
+     *  28-36    F9.6    error in PM-x (sec. of arc)
+     *  37       X       [blank]
+     *  38-46    F9.6    Bull. A PM-y (sec. of arc)
+     *  47-55    F9.6    error in PM-y (sec. of arc)
+     *  56-57    2X      [blanks]
+     *  58       A1      IERS (I) or Prediction (P) flag for Bull. A UT1-UTC values
+     *  59-68    F10.7   Bull. A UT1-UTC (sec. of time)
+     *  69-78    F10.7   error in UT1-UTC (sec. of time)
+     *  79       X       [blank]
+     *  80-86    F7.4    Bull. A LOD (msec. of time) -- NOT ALWAYS FILLED
+     *  87-93    F7.4    error in LOD (msec. of time) -- NOT ALWAYS FILLED
+     *  94-95    2X      [blanks]
+     *  96       A1      IERS (I) or Prediction (P) flag for Bull. A nutation values
+     *  97       X       [blank]
+     *  98-106   F9.3    Bull. A dX wrt IAU2000A Nutation (msec. of arc), Free Core Nutation NOT Removed
+     *  107-115  F9.3    error in dX (msec. of arc)
+     *  116      X       [blank]
+     *  117-125  F9.3    Bull. A dY wrt IAU2000A Nutation (msec. of arc), Free Core Nutation NOT Removed
+     *  126-134  F9.3    error in dY (msec. of arc)
+     *  135-144  F10.6   Bull. B PM-x (sec. of arc)
+     *  145-154  F10.6   Bull. B PM-y (sec. of arc)
+     *  155-165  F11.7   Bull. B UT1-UTC (sec. of time)
+     *  166-175  F10.3   Bull. B dX wrt IAU2000A Nutation (msec. of arc)
+     *  176-185  F10.3   Bull. B dY wrt IAU2000A Nutation (msec. of arc)
+     */
+    size_t nlines = 0;
+    char buf[256], field[32];
+    while (fgets(buf, 256, fp) != NULL) {
+        nlines++;
+    }
+    mjd = malloc(sizeof(double) * nlines);
+    pm_x_a = malloc(sizeof(double) * nlines);
+    pm_y_a = malloc(sizeof(double) * nlines);
+    ut1_utc_a = malloc(sizeof(double) * nlines);
+    dx_2000a_a = malloc(sizeof(double) * nlines);
+    dy_2000a_a = malloc(sizeof(double) * nlines);
+
+    rewind(fp);
+    nlines = 0;
+    while (fgets(buf, 256, fp) != NULL) {
+        memset(field, '\0', 32);
+        memcpy(field, buf + 6, 9);
+        if (strncmp(field, "         ", 9) == 0) {
+            continue;
+        }
+        mjd[nlines] = atof(field);
+        memcpy(field, buf + 17, 10);
+        if (strncmp(field, "          ", 10) == 0) {
+            continue;
+        }
+        pm_x_a[nlines] = atof(field);
+        memcpy(field, buf + 36, 10);
+        if (strncmp(field, "          ", 10) == 0) {
+            continue;
+        }
+        pm_y_a[nlines] = atof(field);
+        memcpy(field, buf + 58, 10);
+        if (strncmp(field, "          ", 10) == 0) {
+            continue;
+        }
+        ut1_utc_a[nlines] = atof(field);
+        memcpy(field, buf + 96, 10);
+        if (strncmp(field, "          ", 10) == 0) {
+            continue;
+        }
+        dx_2000a_a[nlines] = atof(field);
+        memcpy(field, buf + 115, 10);
+        if (strncmp(field, "          ", 10) == 0) {
+            continue;
+        }
+        dy_2000a_a[nlines] = atof(field);
+        nlines++;
+    }
+    fclose(fp);
+}
+
 static void __destructor__(void) __attribute__ ((destructor(101)));
 
 static void
@@ -1552,59 +1685,23 @@ __constructor__(void)
 {
 #ifdef __USE_SOFA__
 #ifdef __USE_GSL__
-    FILE *fp;
-    
-    if ((fp = fopen("finals2000A.all", "r")) != NULL) {
-        size_t nlines = 0;
-        char buf[256], field[32];
-        while (fgets(buf, 256, fp) != NULL) {
-            nlines++;
-        }
-        mjd = malloc(sizeof(double) * nlines);
-        pm_x_a = malloc(sizeof(double) * nlines);
-        pm_y_a = malloc(sizeof(double) * nlines);
-        ut1_utc_a = malloc(sizeof(double) * nlines);
-        dx_2000a_a = malloc(sizeof(double) * nlines);
-        dy_2000a_a = malloc(sizeof(double) * nlines);
-        
-        rewind(fp);
-        nlines = 0;
-        while (fgets(buf, 256, fp) != NULL) {
-            memset(field, '\0', 32);
-            memcpy(field, buf + 6, 9);
-            mjd[nlines] = atof(field);
-            memcpy(field, buf + 17, 10);
-            pm_x_a[nlines] = atof(field);
-            memcpy(field, buf + 36, 10);
-            pm_y_a[nlines] = atof(field);
-            memcpy(field, buf + 58, 10);
-            ut1_utc_a[nlines] = atof(field);
-            memcpy(field, buf + 96, 10);
-            dx_2000a_a[nlines] = atof(field);
-            memset(field, '\0', 32);
-            memcpy(field, buf + 115, 10);
-            dy_2000a_a[nlines] = atof(field);
-            nlines++;
-        }
-        fclose(fp);
-        
-        pm_x_a_acc = gsl_interp_accel_alloc();
-        pm_x_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-        gsl_spline_init(pm_x_a_spline, mjd, pm_x_a, nlines);
-        pm_y_a_acc = gsl_interp_accel_alloc();
-        pm_y_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-        gsl_spline_init(pm_y_a_spline, mjd, pm_y_a, nlines);
-        ut1_utc_a_acc = gsl_interp_accel_alloc();
-        ut1_utc_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-        gsl_spline_init(ut1_utc_a_spline, mjd, ut1_utc_a, nlines);
-        dx_2000a_a_acc = gsl_interp_accel_alloc();
-        dx_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-        gsl_spline_init(pm_x_a_spline, mjd, dx_2000a_a, nlines);
-        dy_2000a_a_acc = gsl_interp_accel_alloc();
-        dy_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-        gsl_spline_init(pm_x_a_spline, mjd, dy_2000a_a, nlines);
-        gsl_set_error_handler_off();
-    }
+    read_iers_a();
+    pm_x_a_acc = gsl_interp_accel_alloc();
+    pm_x_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+    gsl_spline_init(pm_x_a_spline, mjd, pm_x_a, nlines);
+    pm_y_a_acc = gsl_interp_accel_alloc();
+    pm_y_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+    gsl_spline_init(pm_y_a_spline, mjd, pm_y_a, nlines);
+    ut1_utc_a_acc = gsl_interp_accel_alloc();
+    ut1_utc_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+    gsl_spline_init(ut1_utc_a_spline, mjd, ut1_utc_a, nlines);
+    dx_2000a_a_acc = gsl_interp_accel_alloc();
+    dx_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+    gsl_spline_init(pm_x_a_spline, mjd, dx_2000a_a, nlines);
+    dy_2000a_a_acc = gsl_interp_accel_alloc();
+    dy_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+    gsl_spline_init(pm_x_a_spline, mjd, dy_2000a_a, nlines);
+    gsl_set_error_handler_off();
 #endif
 #endif
     regcomp(&preg_hms_1, pattern_hms_1, REG_EXTENDED | REG_NOSUB);
