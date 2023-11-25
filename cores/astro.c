@@ -16,6 +16,7 @@
 #include <stdlib.h>
 
 #include <regex.h>
+#include <unistd.h>
 #include "astro.h"
 
 #ifdef __USE_SOFA__
@@ -1509,7 +1510,7 @@ world2pix_sip(double ra, double dec, double crval[2], double crpix[2], double CD
 }
 */
 
-static void
+static size_t
 read_iers_a(void)
 {
     /* 
@@ -1640,6 +1641,7 @@ error:
         nlines++;
     }
     fclose(fp);
+    return nlines;
 }
 
 static void __destructor__(void) __attribute__ ((destructor(101)));
@@ -1685,7 +1687,8 @@ __constructor__(void)
 {
 #ifdef __USE_SOFA__
 #ifdef __USE_GSL__
-    read_iers_a();
+    size_t nlines;
+    nlines = read_iers_a();
     pm_x_a_acc = gsl_interp_accel_alloc();
     pm_x_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
     gsl_spline_init(pm_x_a_spline, mjd, pm_x_a, nlines);

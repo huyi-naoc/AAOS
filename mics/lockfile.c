@@ -95,7 +95,9 @@ main(int agrc, char *argv[])
 		close(sockets[0]);
 		exit(EXIT_FAILURE);
 	    }
-            printf("%d\n", (int) pid);
+            if (ret == 0) {
+                printf("%d\n", (int) pid);
+            }
             close(sockets[0]);
             return ret;
             break;
