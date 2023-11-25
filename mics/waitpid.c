@@ -69,7 +69,7 @@ waitpid_(pid_t pid)
 
     if ((pidfd = pidfd_open(pid, 0)) < 0) {
         if (errno == ESRCH) {
-            fprintf(stderr, "Process %d does not exist.", (int) pid);
+            fprintf(stderr, "Process %d does not exist.\n", (int) pid);
         } else {
             fprintf(stderr, "pidfd_open error.\n");
         }
@@ -101,7 +101,7 @@ error:
     int ret;
     if ((ret = kill(pid, 0)) < 0) {
         if (errno == ESRCH) {
-            fprintf(stderr, "Process %d does not exist.", (int) pid);
+            fprintf(stderr, "Process %d does not exist.\n", (int) pid);
         } else {
             fprintf(stderr, "kill error.\n");
         }
@@ -193,4 +193,3 @@ main(int argc, char *argv[])
     }
     return 0;
 }
-
