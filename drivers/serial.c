@@ -761,7 +761,15 @@ __Serial_read3(void *_self, void *read_buffer, size_t request_size, size_t *read
         if (FD_ISSET(fd, &readfds)) {
             n = Read(fd, s, nleft);
             if (n < 0) {
-                return AAOS_ERROR;
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    if (nread > 0) {
+                        return AAOS_OK;
+                    } else {
+                        return AAOS_ETIMEDOUT;
+                    }
+                } else {
+                    return AAOS_ERROR;
+                }
             }
             nleft -= n;
             s += n;
