@@ -52,7 +52,7 @@ AC_CHECK_LIB([m], [main])
 LIBS="$LIBS -pthread"
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h pthread.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h syslog.h termios.h unistd.h])
-
+GOBJECT_INTROSPECTION_CHECK([1.40.0])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
 AC_TYPE_UID_T
@@ -131,6 +131,24 @@ if test x"${sofa}" = xyes; then
     else
         AC_MSG_ERROR([sofa.h and sofam.h are required for --enable-sofa])
     fi
+fi
+        
+AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis], [Use aravis library for GiGE compatible cameras [default=yes]])], [aravis=${enableval}], [aravis=yes])
+if test x"${aravis}" = xyes; then
+    AC_CHECK_HEADERS([glib-2.0/glib.h aravis-0.8/arvcamera.h], [have_aravis=yes], [have_aravis=no])
+    if test x"${have_aravis}" = xyes; then
+        AC_SEARCH_LIBS([arv_camera_new], [aravis-0.8], [have_aravis=yes], [have_aravis=no])
+        AC_SEARCH_LIBS([g_malloc], [glib-2.0], [have_aravis=yes], [have_aravis=no])
+	if test x"${have_aravis}" = xyes; then
+	    AC_DEFINE([__USE_ARAVIS__], , [use aravis library])
+	else
+	    AC_MSG_ERROR([libaravis-0.8 is required for --enable-aravis])
+	fi
+    else
+        AC_MSG_ERROR([aravis-0.8/arvcamera.h are required for --enable-aravis])
+    fi
+else
+    AC_MSG_NOTICE([*** aravis library will NOT be linked, some functions may not work properly ***])
 fi
 
 AC_ARG_ENABLE([docs], [AS_HELP_STRING([--enable-doc], [Generate manpages [default = no]])], [docs=${enableval}], [docs=no])

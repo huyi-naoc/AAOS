@@ -1,6 +1,11 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define to 1 if you have the <aravis-0.8/arvcamera.h> header file. */
+/* #undef HAVE_ARAVIS_0_8_ARVCAMERA_H */
+
+#define HAVE_ARAVIS_0_8_ARVCAMERA_H
+
 /* Define to 1 if you have the `atexit' function. */
 #define HAVE_ATEXIT 1
 
@@ -34,6 +39,11 @@
 
 /* Define to 1 if you have the `getpagesize' function. */
 #define HAVE_GETPAGESIZE 1
+
+/* Define to 1 if you have the <glib-2.0/glib.h> header file. */
+/* #undef HAVE_GLIB_2_0_GLIB_H */
+
+#define HAVE_GLIB_2_0_GLIB_H 1
 
 /* Define to 1 if you have the <gsl/gsl_errno.h> header file. */
 #define HAVE_GSL_GSL_ERRNO_H 1
@@ -230,6 +240,9 @@
    <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
    #define below would cause a syntax error. */
 /* #undef _UINT8_T */
+
+/* use aravis library */
+#define __USE_ARAVIS__ /**/
 
 /* use cjson and curl library */
 /* #undef __USE_ASCOM__ */
