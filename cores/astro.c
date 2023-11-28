@@ -1510,6 +1510,7 @@ world2pix_sip(double ra, double dec, double crval[2], double crpix[2], double CD
 }
 */
 
+#ifdef __USE_SOFA__
 static size_t
 read_iers_a(void)
 {
@@ -1643,6 +1644,7 @@ error:
     fclose(fp);
     return nlines;
 }
+#endif
 
 static void __destructor__(void) __attribute__ ((destructor(101)));
 

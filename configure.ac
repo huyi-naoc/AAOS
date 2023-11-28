@@ -133,22 +133,6 @@ if test x"${sofa}" = xyes; then
     fi
 fi
 
-AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis],[Use aravis library for GiGE compatible cameras  [default = yes]])], [aravis=${enableval}], [aravis=yes])
-if test x"${aravis}" = xyes; then
-    AC_CHECK_HEADERS([aravis-0.8/arv.h glib-2.0/glib.h], [have_aravis=yes], [have_aravis=no])
-    if test x"${have_aravis}" = xyes; then
-	AC_SEARCH_LIBS([arv_camera_new], [libaravis-0.8], [have_aravis=yes])
-	AC_SEARCH_LIBS([g_malloc], [libglib-2.0], [have_aravis=yes])
-	if test x"${have_aravis}" = xyes; then
-	    AC_DEFINE([__USE_ARAVIS__], , [Use aravis library for GiGE compatible cameras])
-	else
-	    AC_MSG_ERROR([libaravis-0.8 and libglib-2.0 is required for --enable-aravis])
-	fi
-    else
-        AC_MSG_ERROR([aravis-0.8/arv.h glib-2.0/glib.h are required for --enable-arvis])
-    fi
-fi
-
 AC_ARG_ENABLE([docs], [AS_HELP_STRING([--enable-doc], [Generate manpages [default = no]])], [docs=${enableval}], [docs=no])
 
 if test x"${docs}" = xyes; then
