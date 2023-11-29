@@ -7,7 +7,6 @@ AM_INIT_AUTOMAKE
 AC_CANONICAL_HOST
 LT_PREREQ([2.2])
 LT_INIT([dlopen])
-
 AC_CONFIG_MACRO_DIRS([m4])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
@@ -132,20 +131,20 @@ if test x"${sofa}" = xyes; then
         AC_MSG_ERROR([sofa.h and sofam.h are required for --enable-sofa])
     fi
 fi
-        
+    
 AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis], [Use aravis library for GiGE compatible cameras [default=yes]])], [aravis=${enableval}], [aravis=yes])
 if test x"${aravis}" = xyes; then
-    AC_CHECK_HEADERS([glib-2.0/glib.h aravis-0.8/arvcamera.h], [have_aravis=yes], [have_aravis=no])
+    AC_CHECK_HEADERS([aravis-0.8/arv.h glib-2.0/glib.h], [have_aravis=yes], [have_aravis=no])
     if test x"${have_aravis}" = xyes; then
-        AC_SEARCH_LIBS([arv_camera_new], [aravis-0.8], [have_aravis=yes], [have_aravis=no])
-        AC_SEARCH_LIBS([g_malloc], [glib-2.0], [have_aravis=yes], [have_aravis=no])
-	if test x"${have_aravis}" = xyes; then
+        AC_SEARCH_LIBS([arv_camera_new], [aravis-0.8], [have_aravis_lib=yes], [have_aravis_lib=no])
+        AC_SEARCH_LIBS([g_malloc], [glib-2.0], [have_glib_lib=yes], [have_glib_lib=no])
+	if test x"${have_aravis_lib}" = xyes && x"${have_glib_lib}" = xyes; then
 	    AC_DEFINE([__USE_ARAVIS__], , [use aravis library])
 	else
-	    AC_MSG_ERROR([libaravis-0.8 is required for --enable-aravis])
+	    AC_MSG_ERROR([libaravis-0.8 and libglib-2.0 required for --enable-aravis])
 	fi
     else
-        AC_MSG_ERROR([aravis-0.8/arvcamera.h are required for --enable-aravis])
+        AC_MSG_ERROR([aravis-0.8/arv.h and glib-2.0/glib.h are required for --enable-aravis])
     fi
 else
     AC_MSG_NOTICE([*** aravis library will NOT be linked, some functions may not work properly ***])

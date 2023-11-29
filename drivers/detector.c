@@ -2109,6 +2109,113 @@ __Detector(void)
  * Virtual detector.
  */
 
+static const void *virtual_detector_virtual_table(void);
+
+static void *
+VirtualDetector_ctor(void *_self, va_list *app)
+{
+    struct VirtualDetector *self = super_ctor(VirtualDetector(), _self, app);
+    
+    self->_.d_state.state = DETECTOR_STATE_UNINITIALIZED;
+    const char *name = va_arg(*app, const char *);
+    
+   
+    
+    self->_._vtab= virtual_detector_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+VirtualDetector_dtor(void *_self)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    return super_dtor(VirtualDetector(), _self);
+}
+
+static void *
+VirtualDetectorClass_ctor(void *_self, va_list *app)
+{
+    struct VirtualDetectorClass *self = super_ctor(VirtualDetectorClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.status.method = (Method) 0;
+    
+    self->_.get_binning.method = (Method) 0;
+    self->_.set_binning.method = (Method) 0;
+    self->_.set_exposure_time.method = (Method) 0;
+    self->_.get_exposure_time.method = (Method) 0;
+    self->_.set_frame_rate.method = (Method) 0;
+    self->_.get_frame_rate.method = (Method) 0;
+    self->_.set_gain.method = (Method) 0;
+    self->_.get_gain.method = (Method) 0;
+    self->_.set_region.method = (Method) 0;
+    self->_.get_region.method = (Method) 0;
+    self->_.inspect.method = (Method) 0;
+    //self->_.wait.method = (Method) 0;
+    self->_.wait_for_completion.method = (Method) 0;
+    self->_.raw.method = (Method) 0;
+    self->_.expose.method = (Method) 0;
+    self->_.status.method = (Method) 0;
+    self->_.info.method = (Method) 0;
+    self->_.stop.method = (Method) 0;
+    self->_.abort.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_VirtualDetectorClass;
+
+static void
+VirtualDetectorClass_destroy(void)
+{
+    free((void *) _VirtualDetectorClass);
+}
+
+static void
+VirtualDetectorClass_initialize(void)
+{
+    _VirtualDetectorClass = new(__DetectorClass(), "VirtualDetectorClass", __DetectorClass(), sizeof(struct VirtualDetectorClass),
+                                ctor, "", VirtualDetectorClass_ctor,
+                                (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(VirtualDetectorClass_destroy);
+#endif
+}
+
+const void *
+VirtualDetectorClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, VirtualDetectorClass_initialize);
+#endif
+    
+    return _VirtualDetectorClass;
+}
+
+static const void *_VirtualDetector;
+
+static void
+VirtualDetector_destroy(void)
+{
+    free((void *)_VirtualDetector);
+}
+
+static void
+VirtualDetector_initialize(void)
+{
+    _VirtualDetector = new(VirtualDetectorClass(), "VirtualDetector", __Detector(), sizeof(struct VirtualDetector),
+                           ctor, "ctor", VirtualDetector_ctor,
+                           dtor, "dtor", VirtualDetector_dtor,
+                           (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(VirtualDetector_destroy);
+#endif
+}
+
 static int
 VirtualDetector_power_on(void *_self)
 {
@@ -2547,6 +2654,38 @@ VirtualDetector_inspect(void *_self)
     Pthread_mutex_unlock(&self->_.d_state.mtx);
 
     return AAOS_OK;
+}
+
+static const void *_virtual_detector_virtual_table;
+
+static void
+virtual_detector_virtual_table_destroy(void)
+{
+    delete((void *) _virtual_detector_virtual_table);
+}
+
+static void
+virtual_detector_virtual_table_initialize(void)
+{
+    _virtual_detector_virtual_table = new(__DetectorVirtualTable(),
+                                          //__detector_init, "init", Virtual_init,
+                                          //__detector_info, "info", GenICam_info,
+                                          //__detector_set_binning, "set_binning", GenICam_set_binning,
+                                          //__detector_get_binning, "get_binning", GenICam_get_binning,
+                                          //__detector_get_exposure_time, "get_exposure_time", GenICam_get_exposure_time,
+                                          //__detector_set_frame_rate, "set_frame_rate", GenICam_set_frame_rate,
+                                          //__detector_get_frame_rate, "get_frame_rate", GenICam_get_frame_rate,
+                                          //__detector_set_gain, "set_gain", GenICam_set_gain,
+                                          //__detector_get_gain, "get_gain", GenICam_get_gain,
+                                          //__detector_set_region, "set_region", GenICam_set_region,
+                                          //__detector_get_region, "get_region", GenICam_get_region,
+                                          //__detector_raw, "raw", GenICam_raw,
+                                          //__detector_inspect, "inspect", GenICam_inspect,
+                                          //__detector_wait_for_completion, "wait_for_completion", GenICam_wait_for_last_completion,
+                                 (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(virtual_detector_virtual_table_destroy);
+#endif
 }
 
 /*
