@@ -758,30 +758,30 @@ __Serial_read3(void *_self, void *read_buffer, size_t request_size, size_t *read
             default:
                 break;
         }
+        tv.tv_sec = 0;
+        tv.tv_usec = 100000;
         if (FD_ISSET(fd, &readfds)) {
             n = Read(fd, s, nleft);
             if (n < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    if (nread > 0) {
-                        return AAOS_OK;
-                    } else {
-                        return AAOS_ETIMEDOUT;
-                    }
-                } else {
-                    return AAOS_ERROR;
-                }
+                return AAOS_ERROR;
             }
             nleft -= n;
             s += n;
             nread += n;
+        } else {
+            break;
         }
     }
     
     if (read_size != NULL) {
         *read_size = nread;
     }
-    
-    return AAOS_OK;
+
+    if (nread == 0) {
+        return AAOS_ETIMEDOUT;
+    } else {
+        return AAOS_OK;
+    }
 }
 
 

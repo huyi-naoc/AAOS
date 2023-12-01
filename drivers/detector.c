@@ -2216,6 +2216,17 @@ VirtualDetector_initialize(void)
 #endif
 }
 
+const void *
+VirtualDetector(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, VirtualDetector_initialize);
+#endif
+
+    return _VirtualDetector;
+}
+
 static int
 VirtualDetector_power_on(void *_self)
 {
@@ -2668,24 +2679,50 @@ static void
 virtual_detector_virtual_table_initialize(void)
 {
     _virtual_detector_virtual_table = new(__DetectorVirtualTable(),
+                                 
                                           //__detector_init, "init", Virtual_init,
+                                 
                                           //__detector_info, "info", GenICam_info,
+                                 
+                                      
                                           //__detector_set_binning, "set_binning", GenICam_set_binning,
+                                 
                                           //__detector_get_binning, "get_binning", GenICam_get_binning,
+                                
+                                     
                                           //__detector_get_exposure_time, "get_exposure_time", GenICam_get_exposure_time,
+                                 
                                           //__detector_set_frame_rate, "set_frame_rate", GenICam_set_frame_rate,
+                                 
                                           //__detector_get_frame_rate, "get_frame_rate", GenICam_get_frame_rate,
+                                 
                                           //__detector_set_gain, "set_gain", GenICam_set_gain,
+                                 
                                           //__detector_get_gain, "get_gain", GenICam_get_gain,
+                                 
                                           //__detector_set_region, "set_region", GenICam_set_region,
+                                 
                                           //__detector_get_region, "get_region", GenICam_get_region,
+                                 
                                           //__detector_raw, "raw", GenICam_raw,
+                                 
                                           //__detector_inspect, "inspect", GenICam_inspect,
                                           //__detector_wait_for_completion, "wait_for_completion", GenICam_wait_for_last_completion,
                                  (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(virtual_detector_virtual_table_destroy);
 #endif
+}
+
+static const void *
+virtual_detector_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, virtual_detector_virtual_table_initialize);
+#endif
+    
+    return _virtual_detector_virtual_table;
 }
 
 /*
