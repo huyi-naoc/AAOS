@@ -48,12 +48,12 @@ struct DetectorCapability {
     size_t image_height_max;
     
     bool frame_rate_available;
-    double frame_rate_min;
-    double frame_rate_max;
+    double frame_rate_min; /* changing with ROI and binning */
+    double frame_rate_max; /* changing with ROI and binning */
     
     bool exposure_time_available;
-    double exposure_time_min;
-    double exposure_time_max;
+    double exposure_time_min; /* changing with frame rate */
+    double exposure_time_max; /* changing with frame rate */
     
     bool gain_available;
     double gain_min;
@@ -113,6 +113,7 @@ struct DetectorFrameProcess {
 };
 
 struct __Detector {
+    struct Device _;
     const void *_vtab;
     char *name;
     char *description;
@@ -124,6 +125,7 @@ struct __Detector {
 };
 
 struct __DetectorClass {
+    struct DeviceClass _;
     /*
      * Camera controlling methods, virtual or pure virtual methods.
      */

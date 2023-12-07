@@ -1530,17 +1530,17 @@ read_iers_a(void)
         }
     }
     if (access("/usr/local/aaos/share/finals2000A.all", R_OK) == 0) {
-        if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+        if ((fp = fopen("/usr/local/aaos/share/finals2000A.all", "r")) != NULL) {
             goto error;
         }
     }
     if (access("/usr/local/share/aaos/finals2000A.all", R_OK) == 0) {
-        if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+        if ((fp = fopen("/usr/local/share/aaos/finals2000A.all", "r")) != NULL) {
             goto error;
         }
     }
     if (access("/usr/share/aaos/finals2000A.all", R_OK) == 0) {
-        if ((fp = fopen("finals2000A.all", "r")) != NULL) {
+        if ((fp = fopen("/usr/share/aaos/finals2000A.all", "r")) != NULL) {
             goto error;
         }
     }
@@ -1551,6 +1551,8 @@ read_iers_a(void)
     }
 error:
     if (fp == NULL) {
+        fprintf(stderr, "IERS_A data file `finals2000A.all` not found.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     /*

@@ -1,0 +1,11 @@
+[Unit]
+Description=RS232/422/485 serial device daemon of AAOS
+
+[Service]
+Type=forking
+ExecStart=/usr/local/aaos/bin/seriald
+ExecStop=/usr/local/aaos/bin/seriald stop
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

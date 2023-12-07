@@ -14,7 +14,7 @@ AC_CONFIG_HEADERS([config.h])
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
-#AC_PROG_RANLIB
+# AC_PROG_RANLIB
 AM_PROG_CC_C_O
 
 #OS=`uname -s`
@@ -134,7 +134,7 @@ fi
     
 AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis], [Use aravis library for GiGE compatible cameras [default=yes]])], [aravis=${enableval}], [aravis=yes])
 if test x"${aravis}" = xyes; then
-    AC_CHECK_HEADERS([aravis-0.8/arv.h glib-2.0/glib.h], [have_aravis=yes], [have_aravis=no])
+    AC_CHECK_HEADERS([aravis-0.8/arv.h], [have_aravis=yes], [have_aravis=no])
     if test x"${have_aravis}" = xyes; then
         AC_SEARCH_LIBS([arv_camera_new], [aravis-0.8], [have_aravis_lib=yes], [have_aravis_lib=no])
         AC_SEARCH_LIBS([g_malloc], [glib-2.0], [have_glib_lib=yes], [have_glib_lib=no])
