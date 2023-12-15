@@ -33,6 +33,7 @@ src/thermal
 src/thermald
 stamp-h1
 test/
+.vscode/
 
 *.la
 *.lo
