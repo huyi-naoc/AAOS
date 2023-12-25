@@ -8,6 +8,7 @@
 
 #include "adt.h"
 #include "def.h"
+#include "detector_def.h"
 #include "detector.h"
 #include "detector_r.h"
 #include "object.h"
@@ -2276,20 +2277,23 @@ VirtualDetector_generate_frame(struct VirtualDetector *detector, void **data)
     size_t width = detector->_.d_param.image_width, height = detector->_.d_param.image_width;
     
     /*
-     * use skymaker to generate
-     */
     double gain = detector->_.d_param.gain, read_noise = detector->read_noise, bias = detector->bias_level;
-    switch (detector->_.d_param.image_format) {
-        case 8:
+     */
+    switch (detector->_.d_param.pixel_format) {
+        case DETECTOR_PIXEL_FORMAT_MONO_8:
             *data = Malloc(width * height);
             break;
-        case 16:
+        case DETECTOR_PIXEL_FORMAT_MONO_12:
+        case DETECTOR_PIXEL_FORMAT_MONO_14:
+        case DETECTOR_PIXEL_FORMAT_MONO_16:
             *data = Malloc(width * height * 2);
             break;
-        case 32:
+        case DETECTOR_PIXEL_FORMAT_MONO_18:
+        case DETECTOR_PIXEL_FORMAT_MONO_24:
+        case DETECTOR_PIXEL_FORMAT_MONO_32:
             *data = Malloc(width * height * 4);
             break;
-        case 64:
+        case DETECTOR_PIXEL_FORMAT_MONO_64:
             *data = Malloc(width * height * 8);
             break;
         default:

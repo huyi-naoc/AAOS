@@ -79,7 +79,7 @@ struct DetectorParameter {
     size_t y_offset;        //current vertical offset
     size_t image_width;     //current image width
     size_t image_height;    //current image height
-    int image_format;       //current image format;
+    int pixel_format;       //current image format;
     double gain;            //current ga
     double frame_rate;      //current frame rate
     double exposure_time;   //curret exposure time
