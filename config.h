@@ -4,19 +4,19 @@
 /* Define to 1 if you have the <aravis-0.8/arv.h> header file. */
 /* #undef HAVE_ARAVIS_0_8_ARV_H */
 
-/* Define to 1 if you have the `atexit' function. */
+/* Define to 1 if you have the 'atexit' function. */
 #define HAVE_ATEXIT 1
 
 /* Define to 1 if you have the <cjson/cJSON.h> header file. */
-/* #undef HAVE_CJSON_CJSON_H */
+#define HAVE_CJSON_CJSON_H 1
 
-/* Define to 1 if you have the `clock_gettime' function. */
+/* Define to 1 if you have the 'clock_gettime' function. */
 #define HAVE_CLOCK_GETTIME 1
 
 /* Define to 1 if you have the <curl/curl.h> header file. */
-/* #undef HAVE_CURL_CURL_H */
+#define HAVE_CURL_CURL_H 1
 
-/* Define to 1 if you have the declaration of `strerror_r', and to 0 if you
+/* Define to 1 if you have the declaration of 'strerror_r', and to 0 if you
    don't. */
 #define HAVE_DECL_STRERROR_R 1
 
@@ -26,16 +26,16 @@
 /* Define to 1 if you have the <fcntl.h> header file. */
 #define HAVE_FCNTL_H 1
 
-/* Define to 1 if you have the `floor' function. */
+/* Define to 1 if you have the 'floor' function. */
 #define HAVE_FLOOR 1
 
-/* Define to 1 if you have the `fork' function. */
+/* Define to 1 if you have the 'fork' function. */
 #define HAVE_FORK 1
 
-/* Define to 1 if you have the `ftruncate' function. */
+/* Define to 1 if you have the 'ftruncate' function. */
 #define HAVE_FTRUNCATE 1
 
-/* Define to 1 if you have the `getpagesize' function. */
+/* Define to 1 if you have the 'getpagesize' function. */
 #define HAVE_GETPAGESIZE 1
 
 /* Define to 1 if you have the <gsl/gsl_errno.h> header file. */
@@ -47,35 +47,35 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
 
-/* Define to 1 if you have the `cfitsio' library (-lcfitsio). */
+/* Define to 1 if you have the 'cfitsio' library (-lcfitsio). */
 #define HAVE_LIBCFITSIO 1
 
-/* Define to 1 if you have the `config' library (-lconfig). */
+/* Define to 1 if you have the 'config' library (-lconfig). */
 #define HAVE_LIBCONFIG 1
 
-/* Define to 1 if you have the `m' library (-lm). */
+/* Define to 1 if you have the 'm' library (-lm). */
 #define HAVE_LIBM 1
 
-/* Define to 1 if you have the `udev' library (-ludev). */
+/* Define to 1 if you have the 'udev' library (-ludev). */
 /* #undef HAVE_LIBUDEV */
 
-/* Define to 1 if your system has a GNU libc compatible `malloc' function, and
+/* Define to 1 if your system has a GNU libc compatible 'malloc' function, and
    to 0 otherwise. */
 #define HAVE_MALLOC 1
 
-/* Define to 1 if you have the `memset' function. */
+/* Define to 1 if you have the 'memset' function. */
 #define HAVE_MEMSET 1
 
-/* Define to 1 if you have the `mkdir' function. */
+/* Define to 1 if you have the 'mkdir' function. */
 #define HAVE_MKDIR 1
 
-/* Define to 1 if you have a working `mmap' system call. */
+/* Define to 1 if you have a working 'mmap' system call. */
 #define HAVE_MMAP 1
 
 /* Define to 1 if you have the <mntent.h> header file. */
 /* #undef HAVE_MNTENT_H */
 
-/* Define to 1 if you have the `munmap' function. */
+/* Define to 1 if you have the 'munmap' function. */
 #define HAVE_MUNMAP 1
 
 /* Define to 1 if you have the <netdb.h> header file. */
@@ -84,24 +84,24 @@
 /* Define to 1 if you have the <pthread.h> header file. */
 #define HAVE_PTHREAD_H 1
 
-/* Define to 1 if your system has a GNU libc compatible `realloc' function,
+/* Define to 1 if your system has a GNU libc compatible 'realloc' function,
    and to 0 otherwise. */
 #define HAVE_REALLOC 1
 
-/* Define to 1 if you have the `regcomp' function. */
+/* Define to 1 if you have the 'regcomp' function. */
 #define HAVE_REGCOMP 1
 
-/* Define to 1 if you have the `select' function. */
+/* Define to 1 if you have the 'select' function. */
 #define HAVE_SELECT 1
 
-/* Define to 1 if you have the `socket' function. */
+/* Define to 1 if you have the 'socket' function. */
 #define HAVE_SOCKET 1
 
 /* Define to 1 if you have the <sofam.h> header file. */
-#define HAVE_SOFAM_H 1
+/* #undef HAVE_SOFAM_H */
 
 /* Define to 1 if you have the <sofa.h> header file. */
-#define HAVE_SOFA_H 1
+/* #undef HAVE_SOFA_H */
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
@@ -112,13 +112,13 @@
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
 
-/* Define to 1 if you have the `strchr' function. */
+/* Define to 1 if you have the 'strchr' function. */
 #define HAVE_STRCHR 1
 
-/* Define to 1 if you have the `strerror' function. */
+/* Define to 1 if you have the 'strerror' function. */
 #define HAVE_STRERROR 1
 
-/* Define if you have `strerror_r'. */
+/* Define if you have 'strerror_r'. */
 #define HAVE_STRERROR_R 1
 
 /* Define to 1 if you have the <strings.h> header file. */
@@ -127,10 +127,10 @@
 /* Define to 1 if you have the <string.h> header file. */
 #define HAVE_STRING_H 1
 
-/* Define to 1 if you have the `strrchr' function. */
+/* Define to 1 if you have the 'strrchr' function. */
 #define HAVE_STRRCHR 1
 
-/* Define to 1 if you have the `strstr' function. */
+/* Define to 1 if you have the 'strstr' function. */
 #define HAVE_STRSTR 1
 
 /* Define to 1 if you have the <syslog.h> header file. */
@@ -163,19 +163,19 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
 
-/* Define to 1 if you have the `vfork' function. */
+/* Define to 1 if you have the 'vfork' function. */
 #define HAVE_VFORK 1
 
 /* Define to 1 if you have the <vfork.h> header file. */
 /* #undef HAVE_VFORK_H */
 
-/* Define to 1 if `fork' works. */
+/* Define to 1 if 'fork' works. */
 #define HAVE_WORKING_FORK 1
 
-/* Define to 1 if `vfork' works. */
+/* Define to 1 if 'vfork' works. */
 #define HAVE_WORKING_VFORK 1
 
-/* Define to 1 if the system has the type `_Bool'. */
+/* Define to 1 if the system has the type '_Bool'. */
 #define HAVE__BOOL 1
 
 /* Linux operating system */
@@ -208,7 +208,7 @@
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "0.1"
 
-/* Define to 1 if all of the C90 standard headers exist (not just the ones
+/* Define to 1 if all of the C89 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
@@ -238,18 +238,18 @@
 /* #undef __USE_ARAVIS__ */
 
 /* use cjson and curl library */
-/* #undef __USE_ASCOM__ */
+#define __USE_ASCOM__ /**/
 
 /* use GSL library */
 #define __USE_GSL__ /**/
 
 /* use IAU SOFA library */
-#define __USE_SOFA__ /**/
+/* #undef __USE_SOFA__ */
 
-/* Define to `int' if <sys/types.h> doesn't define. */
+/* Define as 'int' if <sys/types.h> doesn't define. */
 /* #undef gid_t */
 
-/* Define to `__inline__' or `__inline' if that's what the C compiler
+/* Define to '__inline__' or '__inline' if that's what the C compiler
    calls it, or to nothing if 'inline' is not supported under any name.  */
 #ifndef __cplusplus
 /* #undef inline */
@@ -258,7 +258,7 @@
 /* Define to rpl_malloc if the replacement function should be used. */
 /* #undef malloc */
 
-/* Define to `long int' if <sys/types.h> does not define. */
+/* Define to 'long int' if <sys/types.h> does not define. */
 /* #undef off_t */
 
 /* Define as a signed integer type capable of holding a process identifier. */
@@ -267,13 +267,13 @@
 /* Define to rpl_realloc if the replacement function should be used. */
 /* #undef realloc */
 
-/* Define to `unsigned int' if <sys/types.h> does not define. */
+/* Define as 'unsigned int' if <stddef.h> doesn't define. */
 /* #undef size_t */
 
-/* Define to `int' if <sys/types.h> does not define. */
+/* Define as 'int' if <sys/types.h> doesn't define. */
 /* #undef ssize_t */
 
-/* Define to `int' if <sys/types.h> doesn't define. */
+/* Define as 'int' if <sys/types.h> doesn't define. */
 /* #undef uid_t */
 
 /* Define to the type of an unsigned integer type of width exactly 16 bits if
@@ -292,5 +292,5 @@
    such a type exists and the standard includes do not define it. */
 /* #undef uint8_t */
 
-/* Define as `fork' if `vfork' does not work. */
+/* Define as 'fork' if 'vfork' does not work. */
 /* #undef vfork */

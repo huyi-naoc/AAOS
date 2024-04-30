@@ -2319,7 +2319,7 @@ VirtualDetector_do_expose(void *arg)
     char *filename = NULL;
     int status = 0;
     
-    switch (detector->_.d_param.image_format) {
+    switch (detector->_.d_param.pixel_format) {
         case 8:
             bitpix = BYTE_IMG;
             datatype = TBYTE;

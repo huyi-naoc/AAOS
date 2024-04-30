@@ -9,6 +9,7 @@
 #ifndef _detector_r_h
 #define _detector_r_h
 
+#include "device_r.h"
 #include "object_r.h"
 #include "virtual_r.h"
 #include <pthread.h>
