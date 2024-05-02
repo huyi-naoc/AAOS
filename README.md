@@ -1,4 +1,4 @@
-# AAOS - Introduction
+#AAOS - Introduction
 
 Automatic Astronomical Observatory Operating System
 
@@ -17,11 +17,28 @@ The following packages are needed to build the software
 * libcurl >= 7.6 (optional, if your want ASCOM device support)
 * libglib == 2.0 (optional, for GIGaE camera)
 * libgsl >= 2.5 (optional, for cubic spline interpolation)
-* libsofa_c (optional, external IAU fundamental astronomy library for celetial coordinates transformation)  
+* libsofa_c (optional, external IAU fundamental astronomy library for celetial 
+  coordinates transformation)  
 * libudev >= 245 (optional, only available for Linux hosts)
 
-Compile with aravis, CFLAGS environment variable must be properly set.
+# Build
 
+```Bash
+cd AAOS
+./autogen.sh
+./configure
+make
+make install
+```
+If GenICAM driver is compiled, the CFLAGS must be set properly. For example, 
+if the libaravis-dev and libglib2.0-dev packages are installed using apt
+under Ubuntu 22.04,
+
+```Bash
+./configure CFLAGS="-I/usr/include/aravis-0.8\ 
+                    -I/usr/include/glib-2.0\ 
+                    -I/usr/lib/x86_64-linux-gnu/glib-2.0/include"
+```
 # License
 
 Copyright (C) 2015-2022 Free Software Foundation, Inc.
