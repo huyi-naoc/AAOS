@@ -21,7 +21,7 @@ Compile and link with *-laaoscore* *-laaosdriver*.
 DESCRIPTION
 ===========
 
-The **detector_delete_all_image**() function delete all the images in the directory. If there is no files in the directory, it will return immediately without error.
+The **detector_delete_all_image**() function deletes all the images in the directory. If there is no files in the directory, it will return immediately without error.
 
 
 RETURN VALUE

@@ -47,6 +47,7 @@ AC_CHECK_LIB([m], [main])
 #if test "x${OS}" = xLinux; then
 #    AC_CHECK_LIB([udev], [main])
 #fi
+AC_CHECK_LIB([cjson], [main])
 
 LIBS="$LIBS -pthread"
 # Checks for header files.
@@ -134,11 +135,11 @@ fi
     
 AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis], [Use aravis library for GiGE compatible cameras [default=yes]])], [aravis=${enableval}], [aravis=yes])
 if test x"${aravis}" = xyes; then
-    AC_CHECK_HEADERS([aravis-0.8/arv.h], [have_aravis=yes], [have_aravis=no])
+    AC_CHECK_HEADERS([aravis-0.8/arv.h glib-2.0/glib.h], [have_aravis=yes], [have_aravis=no])
     if test x"${have_aravis}" = xyes; then
         AC_SEARCH_LIBS([arv_camera_new], [aravis-0.8], [have_aravis_lib=yes], [have_aravis_lib=no])
         AC_SEARCH_LIBS([g_malloc], [glib-2.0], [have_glib_lib=yes], [have_glib_lib=no])
-	if test x"${have_aravis_lib}" = xyes && x"${have_glib_lib}" = xyes; then
+	if test x"${have_aravis_lib}" = xyes && test x"${have_glib_lib}" = xyes; then
 	    AC_DEFINE([__USE_ARAVIS__], , [use aravis library])
 	else
 	    AC_MSG_ERROR([libaravis-0.8 and libglib-2.0 required for --enable-aravis])

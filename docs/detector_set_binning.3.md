@@ -27,7 +27,7 @@ The **detector_set_binning**() function set the binning of the detector referenc
 RETURN VALUE
 ============
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+Upon successful completion, it shall return zero; otherwise, it shall return a non-zero integer to indicate the error.
 
 ERRORS
 ======

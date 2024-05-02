@@ -26,7 +26,7 @@ The **detector_abort**() function abort the previous expose command immediately.
 RETURN VALUE
 ============
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+Upon successful completion, **detector_abort**() shall return zero; otherwise, it shall return a non-zero integer to indicate the error.
 
 ERRORS
 ======

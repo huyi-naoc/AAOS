@@ -21,13 +21,13 @@ Compile and link with *-laaoscore* *-laaosdriver*.
 DESCRIPTION
 ===========
 
-The **detector_get_binning**() function get the binning of the detector referenced by *\*\_self*. The unit of *x_binning* and *y_binning* is in pixel.
+The **detector_get_binning**() function gets the binning of the detector referenced by *\*\_self*. The unit of *x_binning* and *y_binning* is in pixel.
 
 
 RETURN VALUE
 ============
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+Upon successful completion, **detetcor_get_binning**() shall return zero; otherwise, it shall return a non-zero integer to indicate the error.
 
 ERRORS
 ======

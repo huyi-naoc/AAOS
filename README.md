@@ -10,13 +10,17 @@ The following packages are needed to build the software
 * doxygen (for creating the documentation, not started yet)
 * pandoc (for creating the manpages, not started yet)
 * tar
+* libaravis >= 0.8 (optional, for GIGaE camera)
 * libcfitsio >= 3.4
 * libconfig >= 1.5 (for daemon servers)
-* libcjson >= 1.7 (optional, if your want ASCOM device support)
+* libcjson >= 1.7 (for serializtion)
 * libcurl >= 7.6 (optional, if your want ASCOM device support)
+* libglib == 2.0 (optional, for GIGaE camera)
 * libgsl >= 2.5 (optional, for cubic spline interpolation)
 * libsofa_c (optional, external IAU fundamental astronomy library for celetial coordinates transformation)  
 * libudev >= 245 (optional, only available for Linux hosts)
+
+Compile with aravis, CFLAGS environment variable must be properly set.
 
 # License
 

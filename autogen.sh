@@ -1,6 +1,7 @@
 #!/bin/bash
 
 AUTORECONF=`which autoreconf 2>/dev/null`
+AUTOMAKE=`which automake 2>/dev/null`
 if [ $? -ne 0 ]
 then
     echo "No 'autoreconf' found. You must install the autoconf package."
@@ -8,6 +9,7 @@ then
 fi
 
 $AUTORECONF -i
+$AUTOMAKE --add-missing
 
 echo
 echo "----------------------------------------------------------------"
