@@ -15,7 +15,7 @@ The following packages are needed to build the software
 * libconfig >= 1.5 (for daemon servers)
 * libcjson >= 1.7 (for serializtion)
 * libcurl >= 7.6 (optional, if your want ASCOM device support)
-* libglib == 2.0 (optional, for GIGaE camera)
+* libglib == 2.0 (optional, for GenICAM compatible detector)
 * libgsl >= 2.5 (optional, for cubic spline interpolation)
 * libsofa_c (optional, external IAU fundamental astronomy library for celetial 
   coordinates transformation)  

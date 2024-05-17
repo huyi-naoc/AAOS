@@ -1510,6 +1510,15 @@ world2pix_sip(double ra, double dec, double crval[2], double crpix[2], double CD
 }
 */
 
+double
+air_mass(double z)
+{
+    double secz = 1 / cos(z*PI/180.), secz_1 = secz - 1;
+
+    return secz - 0.0018167 * secz_1 - 0.002875 * secz_1 * secz_1 - 0.0008083 * secz_1 * secz_1 * secz_1;
+}
+
+
 #ifdef __USE_SOFA__
 static size_t
 read_iers_a(void)

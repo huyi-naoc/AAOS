@@ -21,7 +21,7 @@ Compile and link with *-laaoscore* *-laaosdriver*.
 DESCRIPTION
 ===========
 
-The **detector_get_image**() function copy the image in the image directory to the current work directory.
+The **detector_get_image**() function copies the image in the image directory to the current work directory.
 
 
 RETURN VALUE

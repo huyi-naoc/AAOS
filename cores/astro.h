@@ -44,6 +44,7 @@ char *lon_deg2dms(double, char *, size_t, const char *);
 char *lat_deg2dms(double, char *, size_t, const char *);
 double jd_tp(struct timespec *);
 double jd(double);
+double air_mass(double);
 #ifdef __USE_SOFA__
 double dut_iers_a(double jd);
 void xyp_iers_a(double jd, double *xp, double *yp);
