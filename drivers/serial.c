@@ -4493,10 +4493,10 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     KLTPSerial_print_data(self, buf);
 #endif
 
-    /*
-     * Create new files.
-     */
     if ((old_data_flag == KLTP_DATA_FLAG_IDLE || old_data_flag == KLTP_DATA_FLAG_AC) && self->data_flag == KLTP_DATA_FLAG_DC) {
+        /*
+         * Write the end time of AC data. 
+         */
         if (fp != NULL) {
             if (old_data_flag == KLTP_DATA_FLAG_AC) {
                 struct timespec tp;
@@ -4509,6 +4509,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             }
             fclose(fp);
         }
+
         char path[FILENAMESIZE], datetime[FILENAMESIZE];
         struct timespec tp;
         struct tm time_buf;
@@ -4518,6 +4519,19 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
         gmtime_r(&tloc, &time_buf);
         strftime(datetime, FILENAMESIZE, self->fmt, &time_buf);
         snprintf(path, FILENAMESIZE, "%s/%s_%s.dat", self->directory, self->prefix, datetime);
+
+        /*
+         * Create the header of the raw data file.
+         * First 32 bytes, 
+         * 0-3:     DC start time,
+         * 4-7:     DC end time, 
+         * 8-11:    number of DC data,
+         * 12-15:   zero-padding,
+         * 16-19:   AC start time, 
+         * 20-23:   AC end time,
+         * 24-27:   number of DC data,
+         * 28-31:   zero-padding.
+         */
         if ((fp = fopen(path, "r+")) != NULL) {
             uint32_t t[8];
             memset(t, '\0', sizeof(uint32_t) * 8);

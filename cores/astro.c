@@ -1696,29 +1696,34 @@ __destructor__(void)
 
 static void __constructor__(void) __attribute__ ((constructor(101)));
 
+extern int load_sofa_library;
+
 static void
 __constructor__(void)
 {
 #ifdef __USE_SOFA__
 #ifdef __USE_GSL__
-    size_t nlines;
-    nlines = read_iers_a();
-    pm_x_a_acc = gsl_interp_accel_alloc();
-    pm_x_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_x_a_spline, mjd, pm_x_a, nlines);
-    pm_y_a_acc = gsl_interp_accel_alloc();
-    pm_y_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_y_a_spline, mjd, pm_y_a, nlines);
-    ut1_utc_a_acc = gsl_interp_accel_alloc();
-    ut1_utc_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(ut1_utc_a_spline, mjd, ut1_utc_a, nlines);
-    dx_2000a_a_acc = gsl_interp_accel_alloc();
-    dx_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_x_a_spline, mjd, dx_2000a_a, nlines);
-    dy_2000a_a_acc = gsl_interp_accel_alloc();
-    dy_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
-    gsl_spline_init(pm_x_a_spline, mjd, dy_2000a_a, nlines);
-    gsl_set_error_handler_off();
+    if (load_sofa_library != 0) {
+        size_t nlines;
+        nlines = read_iers_a();
+        pm_x_a_acc = gsl_interp_accel_alloc();
+        pm_x_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_x_a_spline, mjd, pm_x_a, nlines);
+        pm_y_a_acc = gsl_interp_accel_alloc();
+        pm_y_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_y_a_spline, mjd, pm_y_a, nlines);
+        ut1_utc_a_acc = gsl_interp_accel_alloc();
+        ut1_utc_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(ut1_utc_a_spline, mjd, ut1_utc_a, nlines);
+        dx_2000a_a_acc = gsl_interp_accel_alloc();
+        dx_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_x_a_spline, mjd, dx_2000a_a, nlines);
+        dy_2000a_a_acc = gsl_interp_accel_alloc();
+        dy_2000a_a_spline = gsl_spline_alloc(gsl_interp_cspline, nlines);
+        gsl_spline_init(pm_x_a_spline, mjd, dy_2000a_a, nlines);
+        gsl_set_error_handler_off();
+    } 
+    
 #endif
 #endif
     regcomp(&preg_hms_1, pattern_hms_1, REG_EXTENDED | REG_NOSUB);
