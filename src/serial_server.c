@@ -108,7 +108,11 @@ read_configuration(void)
             } else if (strcmp(type, "RDSS") == 0) {
                 serials[i] = new(RDSSSerial(), name, path, "description", description, NULL);
             } else if (strcmp(type, "KLTP") == 0) {
-                serials[i] = new(KLTPSerial(), name, path, "description", description, NULL);
+                const char *directory = NULL, *prefix = NULL, *fmt = NULL;
+                config_setting_lookup_string(serial_setting, "directory", &directory);
+                config_setting_lookup_string(serial_setting, "prefix", &prefix);
+                config_setting_lookup_string(serial_setting, "format", &fmt);
+                serials[i] = new(KLTPSerial(), name, path, "description", description, NULL, "directory", directory, "prefix", prefix, "format", fmt,  NULL);
             } else {
             }
             config_setting_lookup_string(serial_setting, "inspect", &inspect);

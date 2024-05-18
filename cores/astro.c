@@ -18,6 +18,7 @@
 #include <regex.h>
 #include <unistd.h>
 #include "astro.h"
+#include "def.h"
 
 #ifdef __USE_SOFA__
 #include <sofa.h>
