@@ -3139,7 +3139,7 @@ Detector_execute_delete_image(struct Detector *self)
 {
     uint16_t index;
     void *detector;
-    char *buf, directory[FILENAMESIZE], filename[FILENAMESIZE];
+    char *buf, directory[FILENAMESIZE], filename[PATHSIZE];
     uint32_t length;
 
     protobuf_get(self, PACKET_INDEX, &index);
@@ -3181,7 +3181,7 @@ Detector_execute_delete_image(struct Detector *self)
     
     __detector_get_directory(detector, directory, FILENAMESIZE);
     
-    snprintf(filename, FILENAMESIZE, "%s/%s", directory, buf);
+    snprintf(filename, PATHSIZE, "%s/%s", directory, buf);
     
     Unlink(filename);
  
@@ -3195,7 +3195,7 @@ Detector_execute_delete_all_image(struct Detector *self)
 {
     uint16_t index;
     void *detector;
-    char directory[FILENAMESIZE], prefix[FILENAMESIZE], template[FILENAMESIZE], filename[FILENAMESIZE];
+    char directory[FILENAMESIZE], prefix[FILENAMESIZE], template[FILENAMESIZE], filename[PATHSIZE];
     DIR *dirp;
     struct dirent *dp;
 
@@ -3266,7 +3266,7 @@ Detector_execute_delete_all_image(struct Detector *self)
             }
             switch (dp->d_type) {
                 case DT_REG:
-                    snprintf(filename, FILENAMESIZE, "%s/%s", directory, dp->d_name);
+                    snprintf(filename, PATHSIZE, "%s/%s", directory, dp->d_name);
                     Unlink(filename);
                     break;
                 case DT_UNKNOWN:
@@ -3274,7 +3274,7 @@ Detector_execute_delete_all_image(struct Detector *self)
                     struct stat sb;
                     Stat(dp->d_name, &sb);
                     if (S_ISREG(sb.st_mode)) {
-                        snprintf(filename, FILENAMESIZE, "%s/%s", directory, dp->d_name);
+                        snprintf(filename, PATHSIZE, "%s/%s", directory, dp->d_name);
                         Unlink(filename);
                     }
                 }
@@ -3405,7 +3405,7 @@ Detector_execute_get_image(struct Detector *self)
 {
     uint16_t index;
     void *detector;
-    char *buf, directory[FILENAMESIZE], filename[FILENAMESIZE];
+    char *buf, directory[FILENAMESIZE], filename[PATHSIZE];
     uint32_t length;
     int fd, sockfd, ret;
     struct stat sb;
@@ -3452,7 +3452,7 @@ Detector_execute_get_image(struct Detector *self)
     
     __detector_get_directory(detector, directory, FILENAMESIZE);
     
-    snprintf(filename, FILENAMESIZE, "%s/%s", directory, buf);
+    snprintf(filename, PATHSIZE, "%s/%s", directory, buf);
     
     if ((ret = Stat(filename, &sb)) < 0) {
         switch (errno) {

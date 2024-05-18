@@ -74,11 +74,10 @@ AC_FUNC_REALLOC
 AC_FUNC_STRERROR_R
 AC_CHECK_FUNCS([atexit clock_gettime floor ftruncate memset mkdir munmap regcomp select socket strchr strerror strrchr strstr])
 
-AC_ARG_ENABLE([debug], [AS_HELP_STRING([--enable-debug], [Enable debug mode [default = no]])], [debug=${enableval}], [debug=no]))
+AC_ARG_ENABLE([debug], [AS_HELP_STRING([--enable-debug], [Enable debug mode [default = no]])], [debug=${enableval}], [ascom=no])
 if test x"${debug}" = xyes; then
-    AC_DEFINE([__DEBUG__], , [debug mode])
+    AC_DEFINE([DEBUG], , [enable debug mode])
 fi
-
 
 AC_ARG_ENABLE([ascom], [AS_HELP_STRING([--enable-ascom], [Enable ASCOM interface [default = no]])], [ascom=${enableval}], [ascom=no])
 if test x"${ascom}" = xyes; then

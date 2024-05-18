@@ -2772,7 +2772,7 @@ SitianCam_dtor(void *_self)
         delete(self->camera);
     }
 
-    return super_dtor(GenICam(), _self);
+    return super_dtor(SitianCam(), _self);
 }
 
 static void *

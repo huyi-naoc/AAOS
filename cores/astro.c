@@ -1696,8 +1696,6 @@ __destructor__(void)
 
 static void __constructor__(void) __attribute__ ((constructor(101)));
 
-extern int load_sofa_library;
-
 static void
 __constructor__(void)
 {

@@ -85,8 +85,10 @@ int __detector_expose(void *_self, double exposure_time, uint32_t n_frame, ...);
 
 const char *__detector_get_name(const void *_self);
 
+#ifdef __USE_ARAVIS__
 extern const void *GenICam(void);
 extern const void *GenICamClass(void);
+#endif
 
 extern const void *SitianCam(void);
 extern const void *SitianCamClass(void);

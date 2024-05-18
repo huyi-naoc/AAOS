@@ -4262,7 +4262,7 @@ KLTPSerial_ctor(void *_self, va_list *app)
     const char *key, *value;
     
     self->_._vtab= kltp_serial_virtual_table();
-    self->size = 1024;
+    self->size = 10240;
     self->length =32;
     self->output_len = 21;
 
@@ -4475,9 +4475,21 @@ static void KLTPSerial_print_data(struct KLTPSerial *self, unsigned char *buf)
     size_t i, n = self->output_len;
 
     for (i = 0; i < n - 1; i++) {
-        printf("%X ", buf[i])
+        printf("%X ", buf[i]);
     }
     printf("%X\n", buf[n - 1]);
+}
+#endif
+
+#ifdef DEBUG
+static
+void print_binary_bytes(const unsigned char *buf, size_t length)
+{
+    size_t i;
+    for (i = 0; i < length - 1; i++) {
+        printf("%02X ", buf[i]);
+    }
+    printf("%02X\n", buf[length - 1]);
 }
 #endif
 
@@ -4488,10 +4500,6 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     
     static FILE *fp = NULL;
     static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
-    
-#ifdef DEBUG
-    KLTPSerial_print_data(self, buf);
-#endif
 
     if ((old_data_flag == KLTP_DATA_FLAG_IDLE || old_data_flag == KLTP_DATA_FLAG_AC) && self->data_flag == KLTP_DATA_FLAG_DC) {
         /*
@@ -4510,7 +4518,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             fclose(fp);
         }
 
-        char path[FILENAMESIZE], datetime[FILENAMESIZE];
+        char path[PATHSIZE], datetime[FILENAMESIZE];
         struct timespec tp;
         struct tm time_buf;
         time_t tloc;
@@ -4518,7 +4526,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
         tloc = tp.tv_sec;
         gmtime_r(&tloc, &time_buf);
         strftime(datetime, FILENAMESIZE, self->fmt, &time_buf);
-        snprintf(path, FILENAMESIZE, "%s/%s_%s.dat", self->directory, self->prefix, datetime);
+        snprintf(path, PATHSIZE, "%s/%s_%s.dat", self->directory, self->prefix, datetime);
 
         /*
          * Create the header of the raw data file.
@@ -4633,16 +4641,15 @@ KLTPSerial_read_thr(void *arg)
 #ifdef BIGENDIAN
             crc2 = swap_uint16(crc2);
 #endif
-            if (crc == crc2) {
-                nleft = 0;
+            if (crc == crc2 && buf[0] == 0x55) {
                 threadsafe_circular_queue_push(self->queue, buf);
+		nleft = 0;
             } else {
                 ret = __Serial_read3(self, buf + output_len, output_len, &read_size);
                 if (ret == AAOS_OK) {
-                    nleft = output_len;
                     for (i = 1; i <= output_len; i++) {
                         nleft = output_len - i;
-                        memcpy(&crc, buf + output_len - 2, 2);
+                        memcpy(&crc, buf + i + output_len - 2, 2);
                         crc2 = MODBUS_CRC16_v3(buf + i, (unsigned int) output_len - 2);
 #ifdef BIGENDIAN
                         crc2 = swap_uint16(crc2);
@@ -4654,11 +4661,11 @@ KLTPSerial_read_thr(void *arg)
                         }
                     }
                 } else {
-                    nleft = 0;
+		    nleft = 0;
                 }
             }
         } else {
-            nleft = 0;
+	    nleft = 0;
         }
     }
 
@@ -4703,6 +4710,9 @@ KLTPSerial_init(void *_self)
     Pthread_create(&myself->tid, NULL, KLTPSerial_read_thr, myself);
     Pthread_create(&myself->tid2, NULL, KLTPSerial_process_thr, myself);
 
+#ifdef DEBUG
+    fprintf(stderr, "KLTP serial has been initialized successfully.\n");
+#endif
     return AAOS_OK;
 }
 
@@ -4713,8 +4723,11 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     struct KLTPSerial *myself = cast(KLTPSerial(), _self);
     
     int ret = AAOS_OK;
-    const unsigned char *buf = write_buffer;
-
+    unsigned char *buf;
+#ifdef DEBUG
+    fprintf(stderr, "KLTP extucte binary command: ");
+    print_binary_bytes((const unsigned char *) write_buffer, write_buffer_size);
+#endif
     /*
      * Send modbus-like command to the serial.
      */
@@ -4735,7 +4748,6 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
         Pthread_cond_wait(&self->cond, &self->mtx);
     }
 
-    unsigned char *buf;
     buf = (unsigned char *) Malloc(write_buffer_size + sizeof(uint16_t));
     memcpy(buf, write_buffer, write_buffer_size);
     uint16_t crc;
@@ -4743,13 +4755,16 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
 #ifdef BIGENDIAN
     crc = swap_uint16(crc);
 #endif
+#ifdef DEBUG
+    fprintf(stderr, "KLTP command CRC16 checksum: ");
+    print_binary_bytes((const unsigned char *)&crc, sizeof(uint16_t));
+#endif
     memcpy(buf + write_buffer_size, &crc, sizeof(uint16_t));
     if ((ret = __Serial_write(self, write_buffer, write_buffer_size + sizeof(uint16_t), write_size)) != AAOS_OK) {
         free(buf);
         Pthread_mutex_unlock(&self->mtx);
         return ret;
     }
-    free(buf);
     if (write_size != NULL) {
         write_size -= sizeof(uint16_t);
     }
@@ -4767,8 +4782,9 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
             myself->data_flag = KLTP_DATA_FLAG_DC;
         }
     }
-
+    free(buf);
     Pthread_mutex_unlock(&self->mtx);
+
     
     struct timespec tp;
     

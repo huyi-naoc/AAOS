@@ -317,8 +317,8 @@ ThreadsafeQueue(void)
 static void
 ThreadsafeCircularQueue_push(void *_self, void *data)
 {
+
     struct ThreadsafeCircularQueue *self = cast(ThreadsafeCircularQueue(), _self);
-    
     Pthread_mutex_lock(&self->mtx);
     memcpy((char *)self->data + self->put * self->length, data, self->length);
     if (++(self->put) == self->size) {
@@ -338,7 +338,7 @@ threadsafe_circular_queue_push(void *_self, void *data)
         return ((void (*)(void *, void *)) class->push.method)(_self, data);
     } else {
        
-        forward(_self, 0, (Method) threadsafe_queue_push, "push", _self, data);
+        forward(_self, 0, (Method) threadsafe_circular_queue_push, "push", _self, data);
     
     }
 }
@@ -362,14 +362,14 @@ ThreadsafeCircularQueue_pop(void *_self, void *data)
 void
 threadsafe_circular_queue_pop(void *_self, void *data)
 {
-    const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
+    const struct ThreadsafeCircularQueueClass *class = (const struct ThreadsafeCircularQueueClass *) classOf(_self);
     
     
-    if (isOf(class, ThreadsafeCircularQueueClass()) && class->push.method) {
-        return ((void (*)(void *, void *)) class->push.method)(_self, data);
+    if (isOf(class, ThreadsafeCircularQueueClass()) && class->pop.method) {
+        return ((void (*)(void *, void *)) class->pop.method)(_self, data);
     } else {
        
-        forward(_self, 0, (Method) threadsafe_queue_push, "push", _self, data);
+        forward(_self, 0, (Method) threadsafe_circular_queue_push, "pop", _self, data);
     
     }
 }
@@ -379,13 +379,13 @@ ThreadsafeCircularQueue_ctor(void *_self, va_list *app)
 {
     struct ThreadsafeCircularQueue *self = super_ctor(ThreadsafeCircularQueue(), _self, app);
     
+    
     self->size = va_arg(*app, size_t);
     self->length = va_arg(*app, size_t);
     self->data = Malloc(self->size * self->length);
     
     Pthread_mutex_init(&self->mtx, NULL);
     Pthread_cond_init(&self->cond, NULL);
-    
     return self;
 }
 
@@ -428,6 +428,7 @@ ThreadsafeCircularQueueClass_ctor(void *_self, va_list *app)
                 self->pop.selector = selector;
             }
             self->pop.method = method;
+	    continue;
         }
         if (selector == (Method) threadsafe_circular_queue_push) {
             if (tag) {
@@ -436,6 +437,7 @@ ThreadsafeCircularQueueClass_ctor(void *_self, va_list *app)
                 self->push.selector = selector;
             }
             self->push.method = method;
+	    continue;
         }
     }
     
@@ -487,7 +489,7 @@ ThreadsafeCircularQueue_destroy()
 static void
 ThreadsafeCircularQueue_initialize(void)
 {
-    _ThreadsafeCircularQueue = new(ThreadsafeCircularQueue(), "ThreadsafeCircularQueue", Object(), sizeof(struct ThreadsafeCircularQueue),
+    _ThreadsafeCircularQueue = new(ThreadsafeCircularQueueClass(), "ThreadsafeCircularQueue", Object(), sizeof(struct ThreadsafeCircularQueue),
                                    ctor, "ctor", ThreadsafeCircularQueue_ctor,
                                    dtor, "dtor", ThreadsafeCircularQueue_dtor,
                                    threadsafe_circular_queue_push, "push", ThreadsafeCircularQueue_push,

@@ -75,5 +75,5 @@ enum {AAOS_OK, AAOS_EACCES, AAOS_EAGAIN, AAOS_EBADF, AAOS_EBADMSG, AAOS_EBUSY, A
 #define AAOS_LEVEL3          106
 #define AAOS_LEVLE4          107
 
-int load_sofa_library = 0;
+extern int load_sofa_library;
 #endif /* def_h */
