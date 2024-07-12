@@ -461,7 +461,7 @@ Serial_raw(void *_self, const void *cmd, size_t cmd_size, void *res, size_t res_
                 snprintf(res, res_size, "%s", buf);
             }
             if (res_length != NULL) {
-                *res_length = strlen(res);
+                *res_length = length;
             }
         }
     }

@@ -392,7 +392,7 @@ main(int argc, char *argv[])
         if (binary) {
             size_t i;
             for (i = 0; i < res_len; i++) {
-                printf("%X", (unsigned char) buf[i]);
+                printf("%02X", (unsigned char) buf[i]);
             }
             printf("\n");
         } else {

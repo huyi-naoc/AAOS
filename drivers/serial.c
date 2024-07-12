@@ -4760,7 +4760,7 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     print_binary_bytes((const unsigned char *)&crc, sizeof(uint16_t));
 #endif
     memcpy(buf + write_buffer_size, &crc, sizeof(uint16_t));
-    if ((ret = __Serial_write(self, write_buffer, write_buffer_size + sizeof(uint16_t), write_size)) != AAOS_OK) {
+    if ((ret = __Serial_write(self, buf, write_buffer_size + sizeof(uint16_t), write_size)) != AAOS_OK) {
         free(buf);
         Pthread_mutex_unlock(&self->mtx);
         return ret;
@@ -4787,14 +4787,31 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
 
     
     struct timespec tp;
+    unsigned char *tmp = write_buffer;
     
     tp.tv_sec = 5.;
     tp.tv_nsec = 0.;
 
     Pthread_mutex_lock(&myself->mtx);
     while (myself->flag == 0) {
-        Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
+        ret = Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
+        if (ret == ETIMEDOUT) {
+            Pthread_mutex_unlock(&myself->mtx);
+            return ret;
+        }
     }
+
+    while (myself->read_buf[1] != tmp[1]) {
+        threadsafe_circular_queue_push(self->queue, tmp);
+        while (myself->flag == 0) {
+            ret = Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
+            if (ret == ETIMEDOUT) {
+                Pthread_mutex_unlock(&myself->mtx);
+                return ret;
+            }
+        }
+    }
+
     memcpy(read_buffer, myself->read_buf, min(read_buffer_size, myself->output_len));
     if (read_size != NULL) {
         *read_size = min(read_buffer_size, myself->output_len);
