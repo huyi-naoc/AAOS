@@ -4491,7 +4491,28 @@ void print_binary_bytes(const unsigned char *buf, size_t length)
     }
     printf("%02X\n", buf[length - 1]);
 }
+
+static void
+kltp_print_data(const unsigned char *buf)
+{
+    unsigned char high, low;
+    uint16_t tmp;
+    size_t i;
+    float value;
+
+    for (i=3; i<11; i++) {
+	    high = *(buf + i);
+	    low = *(buf + i + 8);
+	    tmp = high;
+	    tmp <<= 8;
+	    tmp |= low;
+	    value = tmp * 2500. / 32768.;
+	    printf("%.2f ", value);
+    }
+    printf("\n");
+}
 #endif
+
 
 static void
 KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
@@ -4501,6 +4522,14 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     static FILE *fp = NULL;
     static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
 
+
+#ifdef DEBUG
+    if (buf[0] == 0x55 && buf[1] == 0x55) {
+	kltp_print_data(buf);
+    } else {
+        print_binary_bytes(buf, self->output_len);
+    }
+#endif
     if ((old_data_flag == KLTP_DATA_FLAG_IDLE || old_data_flag == KLTP_DATA_FLAG_AC) && self->data_flag == KLTP_DATA_FLAG_DC) {
         /*
          * Write the end time of AC data. 
@@ -4725,7 +4754,7 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     int ret = AAOS_OK;
     unsigned char *buf;
 #ifdef DEBUG
-    fprintf(stderr, "KLTP extucte binary command: ");
+    fprintf(stderr, "%s extucte binary command: ", __func__);
     print_binary_bytes((const unsigned char *) write_buffer, write_buffer_size);
 #endif
     /*
@@ -4756,10 +4785,11 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     crc = swap_uint16(crc);
 #endif
 #ifdef DEBUG
-    fprintf(stderr, "KLTP command CRC16 checksum: ");
+    fprintf(stderr, "%s command CRC16 checksum: ", __func__);
     print_binary_bytes((const unsigned char *)&crc, sizeof(uint16_t));
 #endif
     memcpy(buf + write_buffer_size, &crc, sizeof(uint16_t));
+
     if ((ret = __Serial_write(self, buf, write_buffer_size + sizeof(uint16_t), write_size)) != AAOS_OK) {
         free(buf);
         Pthread_mutex_unlock(&self->mtx);
@@ -4769,49 +4799,25 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
         write_size -= sizeof(uint16_t);
     }
 
-    if (buf[1] == 0x05 & buf[3] == 0x02) {
-        if (buf[4] == 0x00) {
-            myself->data_flag = KLTP_DATA_FLAG_AC;
-        } else if (buf[4] == 0xFF) {
-            myself->data_flag = KLTP_DATA_FLAG_DC;
-        }
-    } else if (buf[1] == 0x05 & buf[3] == 0x00) {
-        if (buf[4] == 0x00) {
-            myself->data_flag = KLTP_DATA_FLAG_IDLE;
-        } else if (buf[4] == 0xFF) {
-            myself->data_flag = KLTP_DATA_FLAG_DC;
-        }
-    }
+    
     free(buf);
     Pthread_mutex_unlock(&self->mtx);
 
-    
     struct timespec tp;
-    unsigned char *tmp = write_buffer;
     
     tp.tv_sec = 5.;
     tp.tv_nsec = 0.;
 
     Pthread_mutex_lock(&myself->mtx);
     while (myself->flag == 0) {
+        tp.tv_sec = 5.;
+        tp.tv_nsec = 0.;
         ret = Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
-        if (ret == ETIMEDOUT) {
+        if (ret != 0) {
             Pthread_mutex_unlock(&myself->mtx);
-            return ret;
+            return AAOS_ETIMEDOUT;
         }
     }
-
-    while (myself->read_buf[1] != tmp[1]) {
-        threadsafe_circular_queue_push(self->queue, tmp);
-        while (myself->flag == 0) {
-            ret = Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
-            if (ret == ETIMEDOUT) {
-                Pthread_mutex_unlock(&myself->mtx);
-                return ret;
-            }
-        }
-    }
-
     memcpy(read_buffer, myself->read_buf, min(read_buffer_size, myself->output_len));
     if (read_size != NULL) {
         *read_size = min(read_buffer_size, myself->output_len);

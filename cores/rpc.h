@@ -40,4 +40,7 @@ extern const void *RPCServer(void);
 extern const void *RPCServerClass(void);
 extern const void *RPCServerVirtualTable(void);
 
+#define RPC_PER_THREAD      0x00
+#define RPC_PRE_THREADED    0x01
+
 #endif /* rpc_h */

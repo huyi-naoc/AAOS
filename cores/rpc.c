@@ -1184,7 +1184,25 @@ RPCServer_process_thr(void *arg)
     
     delete(arg);
     return NULL;
-} 
+}
+
+static void *
+RPCServer_process_thr2(void *arg)
+{
+    struct RPCServer *self = (struct RPCServer *) arg;
+
+    int lfd = tcp_server_get_lfd(self);
+
+    Fcntl(lfd, F_SETFL, O_NONBLOCK);
+
+#ifdef LINUX
+    int efd = epoll_create(1);
+    
+#endif 
+    return NULL;
+}
+
+
 
 void
 RPCServer_start(void *_self)
@@ -1201,9 +1219,20 @@ RPCServer_start(void *_self)
     
     self->_.lfd = Tcp_listen(NULL, self->_.port, NULL, NULL);
     
-    for (; ;) {
-        if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
-            Pthread_create(&tid, NULL, RPCServer_process_thr, client);
+    if (self->option&RPC_PRE_THREADED) {
+        pthread_t tids[8];
+        int i;
+        for (i = 0; i < 8; i++) {
+            Pthread_create(&tid[i], NULL, RPCServer_process_thr2, self);
+        }
+        for (i = 0; i < 8; i++) {
+            Pthread_join(tids[i], NULL);
+        }
+    } else {
+        for (; ;) {
+            if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
+                Pthread_create(&tid, NULL, RPCServer_process_thr, client);
+            }
         }
     }
 }

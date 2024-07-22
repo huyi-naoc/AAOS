@@ -44,6 +44,7 @@
 #define PROTO_SMS       7
 #define PROTO_DETECTOR  8
 #define PROTO_THERMAL   9
+#define PROTO_SCHEDULER 10
 #define PROTO_SYSTEM    0xFFFF   /* system error recovery */
 
 #define SYSTEM_COMMAND_REGISTER 0xFFFF
