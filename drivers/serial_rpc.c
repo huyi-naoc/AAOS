@@ -456,17 +456,9 @@ Serial_raw(void *_self, const void *cmd, size_t cmd_size, void *res, size_t res_
             }
         } else {
             char *buf;
-            uint32_t size;
-            protobuf_get(self, PACKET_OPTION, &option);
-            protobuf_get(self, PACKET_BUF, &buf, &size);
+            protobuf_get(self, PACKET_BUF, &buf, NULL);
             if (buf != res) {
-                if (!(option & SERIAL_OPTION_BINARY)) {
-                    snprintf(res, res_size, "%s", buf);
-                    length = strlen(res);
-                } else {
-                    memcpy(res, buf, min(res_size, size));
-                    length = size;
-                }
+                snprintf(res, res_size, "%s", buf);
             }
             if (res_length != NULL) {
                 *res_length = length;

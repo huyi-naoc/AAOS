@@ -1221,7 +1221,7 @@ RPCServer_start(void *_self)
         pthread_t tids[8];
         int i;
         for (i = 0; i < 8; i++) {
-            Pthread_create(&tid[i], NULL, RPCServer_process_thr2, self);
+            Pthread_create(&tids[i], NULL, RPCServer_process_thr2, self);
         }
         for (i = 0; i < 8; i++) {
             Pthread_join(tids[i], NULL);
