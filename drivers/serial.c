@@ -4251,6 +4251,8 @@ sms_serial_virtual_table(void)
  * Kunlun turbulence profiler serial.
  */
 
+static unsigned char KLTP_ACQ_ON[] =  {0x55, 0x05, 0x00, 0x00, 0xFF, 0x00};
+static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00};
 
 static const void *kltp_serial_virtual_table(void);
 
@@ -4522,6 +4524,45 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     static FILE *fp = NULL;
     static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
 
+    if (buf[2]&0x8000) {
+        /*
+         * When a client send a 55 05 00 00 00 00 to KLTP serial port to stop data acquisition,
+         * close the opened file, set old flag and current flag to IDLE.
+         */
+        self->data_flag = KLTP_DATA_FLAG_IDLE;
+        if (fp != NULL) {
+            if (old_data_flag == KLTP_DATA_FLAG_AC)  {
+                struct timespec tp;
+                uint32_t t[2];
+                Clock_gettime(CLOCK_REALTIME, &tp);
+                t[0] = (uint32_t) tp.tv_sec;
+                t[1] = ac_data_cnt;
+                fseek(fp, 20L, SEEK_SET);
+                fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
+            } else if (old_data_flag == KLTP_DATA_FLAG_DC) {
+                struct timespec tp;
+                uint32_t t[2];
+                Clock_gettime(CLOCK_REALTIME, &tp);
+                t[0] = (uint32_t) tp.tv_sec;
+                t[1] = dc_data_cnt;
+                fseek(fp, 4L, SEEK_SET);
+                fwrite(&t, sizeof(uint32_t) * 2, 1, fp);   
+            }
+            fclose(fp);
+            fp = NULL;
+        }
+        old_data_flag = self->flag;
+        return;
+    } else {
+        /*
+         * Check whether data flag is DC or AC according to the data.
+         */
+        if (buf[3]&0x8000) {
+            self->data_flag = KLTP_DATA_FLAG_DC;
+        } else {
+            self->data_flag = KLTP_DATA_FLAG_AC;
+        }
+    }
 
 #ifdef DEBUG
     if (buf[0] == 0x55 && buf[1] == 0x55) {
@@ -4530,9 +4571,10 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
         print_binary_bytes(buf, self->output_len);
     }
 #endif
-    if ((old_data_flag == KLTP_DATA_FLAG_IDLE || old_data_flag == KLTP_DATA_FLAG_AC) && self->data_flag == KLTP_DATA_FLAG_DC) {
-        /*
-         * Write the end time of AC data. 
+
+    if (old_data_flag == KLTP_DATA_FLAG_AC && self->data_flag == KLTP_DATA_FLAG_DC) {
+        /* Data flag is changed from AC to DC, which implies one observation of KLTP is completed. 
+         * Write the end time and the number of AC records to the data file. Then, created a new one. 
          */
         if (fp != NULL) {
             if (old_data_flag == KLTP_DATA_FLAG_AC) {
@@ -4587,7 +4629,8 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             uint32_t t[2];
             Clock_gettime(CLOCK_REALTIME, &tp);
             t[0] = (uint32_t) tp.tv_sec;
-            t[1] = ac_data_cnt;
+            t[1] = dc_data_cnt;
+
             fseek(fp, 4L, SEEK_SET);
             fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
             ac_data_cnt = 0;
@@ -4620,17 +4663,6 @@ KLTPSerial_process_thr(void *arg)
                 break;
             case 0x05:
                 KLTPSerial_fill_output(self, buf);
-                if (buf[2] == 0x00 && buf[3] == 0x02 && buf[4] == 00 && buf[5] == 00) {
-                    /*
-                     * DC
-                     */
-                    self->data_flag = KLTP_DATA_FLAG_DC;
-                } else if (buf[2] == 0x00 && buf[3] == 0x02 && buf[4] == 00 && buf[5] == 00) {
-                    /*
-                     * AC
-                     */
-                    self->data_flag = KLTP_DATA_FLAG_AC;
-                }
                 break;
             case 0x85:
                 KLTPSerial_fill_output(self, buf);
@@ -4798,15 +4830,14 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     if (write_size != NULL) {
         write_size -= sizeof(uint16_t);
     }
-
     
     free(buf);
     Pthread_mutex_unlock(&self->mtx);
 
     struct timespec tp;
     
-    tp.tv_sec = 5.;
-    tp.tv_nsec = 0.;
+    tp.tv_sec = floor(self->read_timeout);
+    tp.tv_nsec = (self->read_timeout - tv.tv_nsec) * 1000000000;
 
     Pthread_mutex_lock(&myself->mtx);
     while (myself->flag == 0) {
@@ -4825,6 +4856,10 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     myself->flag = 0;
     Pthread_mutex_unlock(&myself->mtx);
 
+    if (memcpy(KLTP_ACQ_OFF, write_buffer, 6) == 0) {
+        unsigned char mybuf = {0x55,0x05,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
+        threadsafe_circular_queue_push(myself->queue, mybuf);
+    }
     return AAOS_OK;
 }
 

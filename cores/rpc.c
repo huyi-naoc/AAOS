@@ -1197,12 +1197,10 @@ RPCServer_process_thr2(void *arg)
 
 #ifdef LINUX
     int efd = epoll_create(1);
-    
+
 #endif 
     return NULL;
 }
-
-
 
 void
 RPCServer_start(void *_self)
