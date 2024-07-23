@@ -4251,6 +4251,8 @@ sms_serial_virtual_table(void)
  * Kunlun turbulence profiler serial.
  */
 
+static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x1E};
+
 
 static const void *kltp_serial_virtual_table(void);
 
@@ -4706,7 +4708,7 @@ KLTPSerial_read_thr(void *arg)
 #endif
             if (crc == crc2 && buf[0] == 0x55) {
                 threadsafe_circular_queue_push(self->queue, buf);
-		nleft = 0;
+		        nleft = 0;
             } else {
                 ret = __Serial_read3(self, buf + output_len, output_len, &read_size);
                 if (ret == AAOS_OK) {
@@ -4724,16 +4726,56 @@ KLTPSerial_read_thr(void *arg)
                         }
                     }
                 } else {
-		    nleft = 0;
+                    nleft = 0;
                 }
             }
         } else {
-	    nleft = 0;
+            nleft = 0;
         }
     }
 
     return NULL;
 }
+
+static int KLTPSerial_aligned_read(struct KLTPSerial *self)
+{
+    unsigned char buf[self->length * 2];
+    int ret;
+    size_t i, read_size, output_len = self->output_len, nleft = 0;
+    uint16_t crc, crc2;
+
+    memset(buf, '\0', self->length * 2);
+
+    ret = __Serial_read3(self, buf + nleft, output_len - nleft, &read_size);
+    if (ret == AAOS_OK) {
+        memcpy(&crc, buf + output_len - 2, 2);
+#ifdef BIGENDIAN
+        crc2 = swap_uint16(crc2);
+#endif
+        if (crc == crc2 && buf[0] == 0x55) {
+            return AAOS_OK;
+        } else {
+            ret = __Serial_read3(self, buf + nleft, output_len - nleft, &read_size);
+            if (ret == AAOS_OK) {
+                for (i = 1; i <= output_len; i++) {
+                    nleft = output_len - i;
+                    memcpy(&crc, buf + i + output_len - 2, 2);
+                    crc2 = MODBUS_CRC16_v3(buf + i, (unsigned int) output_len - 2);
+                    if (crc == crc2 && buf[i] == 0x55) {
+                        memmove(buf, buf + i + output_len, nleft);
+                        return AAOS_OK;
+                        break;
+                    }
+                    return AAOS_ERROR;
+                }
+            } else {
+                return ret;
+            }
+        }
+    }
+    return ret;
+}
+
 
 static int
 KLTPSerial_init(void *_self)
@@ -4770,6 +4812,9 @@ KLTPSerial_init(void *_self)
 
     Tcsetattr(self->fd, TCSANOW, &termptr);
 
+    __Serial_write(self, KLTP_ACQ_OFF, 8, NULL);
+    KLTPSerial_aligned_read(myself);
+
     Pthread_create(&myself->tid, NULL, KLTPSerial_read_thr, myself);
     Pthread_create(&myself->tid2, NULL, KLTPSerial_process_thr, myself);
 
@@ -4778,8 +4823,6 @@ KLTPSerial_init(void *_self)
 #endif
     return AAOS_OK;
 }
-
-static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00};
 
 static int
 KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
@@ -4861,6 +4904,10 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     Pthread_mutex_unlock(&myself->mtx);
 
     if (memcmp(KLTP_ACQ_OFF, write_buffer, 6) == 0) {
+        /*
+         * Push a pseudo KLTP data record to inform the data process thread
+         * that a KLTP ACQ OFF command is send.
+         */
         unsigned char mybuf[] = {0x55,0x55,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
         threadsafe_circular_queue_push(myself->queue, mybuf);
     }

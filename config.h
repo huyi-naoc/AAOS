@@ -1,6 +1,9 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* enable debug mode */
+/* #undef DEBUG */
+
 /* Define to 1 if you have the <aravis-0.8/arv.h> header file. */
 /* #undef HAVE_ARAVIS_0_8_ARV_H */
 
@@ -38,6 +41,9 @@
 /* Define to 1 if you have the 'getpagesize' function. */
 #define HAVE_GETPAGESIZE 1
 
+/* Define to 1 if you have the <glib-2.0/glib.h> header file. */
+/* #undef HAVE_GLIB_2_0_GLIB_H */
+
 /* Define to 1 if you have the <gsl/gsl_errno.h> header file. */
 #define HAVE_GSL_GSL_ERRNO_H 1
 
@@ -49,6 +55,9 @@
 
 /* Define to 1 if you have the 'cfitsio' library (-lcfitsio). */
 #define HAVE_LIBCFITSIO 1
+
+/* Define to 1 if you have the 'cjson' library (-lcjson). */
+#define HAVE_LIBCJSON 1
 
 /* Define to 1 if you have the 'config' library (-lconfig). */
 #define HAVE_LIBCONFIG 1
