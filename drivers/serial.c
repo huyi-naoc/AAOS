@@ -4251,7 +4251,18 @@ sms_serial_virtual_table(void)
  * Kunlun turbulence profiler serial.
  */
 
+/*
+ * Data flag
+ */
+#define KLTP_DATA_FLAG_IDLE 0
+#define KLTP_DATA_FLAG_DC 1
+#define KLTP_DATA_FLAG_AC 2
+
 static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x1E};
+static unsigned char KLTP_ACQ_ON[] = {0x55, 0x05, 0x00, 0x00, 0xFF, 0x00, 0x81, 0xEE};
+static unsigned char KLTP_ACQ_AC[] = {0x55, 0x05, 0x00, 0x02, 0xFF, 0x00, 0x61, 0xDE};
+static unsigned char KLTP_ACQ_DC[] = {0x55, 0x05, 0x00, 0x02, 0xFF, 0x00, 0x20, 0x2E};
+
 
 
 static const void *kltp_serial_virtual_table(void);
@@ -4462,15 +4473,6 @@ KLTPSerial_fill_output(struct KLTPSerial *self, unsigned char *buf)
     Pthread_cond_signal(&self->cond);
 }
 
-/*
- * Data flag
- */
-#define KLTP_DATA_FLAG_IDLE 0
-#define KLTP_DATA_FLAG_DC 1
-#define KLTP_DATA_FLAG_AC 2
-
-//#include <fitsio2.h>
-
 #ifdef DEBUG
 static void KLTPSerial_print_data(struct KLTPSerial *self, unsigned char *buf)
 {
@@ -4503,17 +4505,44 @@ kltp_print_data(const unsigned char *buf)
     float value;
 
     for (i=3; i<11; i++) {
-	high = *(buf + i);
-	low = *(buf + i + 8);
-	tmp = high;
-	tmp <<= 8;
-	tmp |= low;
-	value = tmp * 2500. / 32768.;
-	printf("%.2f ", value);
+        high = *(buf + i);
+        low = *(buf + i + 8);
+        tmp = high;
+        tmp <<= 8;
+        tmp |= low;
+        if (high&0x80) {
+            tmp = (~tmp)+1;
+        }
+        value = tmp * 2500. / 32768.;
+        printf("%.2f ", value);
     }
     printf("\n");
 }
 #endif
+
+static int
+KLTPSerial_get_data_flag(struct KLTPSerial *self, unsigned char *buf)
+{
+    int data_flag;
+    if (buf == NULL) {
+        __atomic_load(&self->data_flag, &data_flag, __ATOMIC_SEQ_CST);
+    } else {
+        if (buf[2]&0x80) {
+            /*
+             * When a client send a 55 05 00 00 00 00 to KLTP serial port to stop data acquisition,
+             * close the opened file, set old flag and current flag to IDLE.
+             */
+            data_flag = KLTP_DATA_FLAG_IDLE;
+        } else {
+            if (buf[3]&0x80) {
+                data_flag = KLTP_DATA_FLAG_DC;
+            } else {
+                data_flag = KLTP_DATA_FLAG_AC;
+            }
+        }
+    }
+    return data_flag;
+} 
 
 static void
 KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
@@ -4523,15 +4552,8 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     static FILE *fp = NULL;
     static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
 
-    /*
-     * Get current data flag.
-     */
-    if (buf[2]&0x80) {
-        /*
-         * When a client send a 55 05 00 00 00 00 to KLTP serial port to stop data acquisition,
-         * close the opened file, set old flag and current flag to IDLE.
-         */
-        current_data_flag = KLTP_DATA_FLAG_IDLE;
+    current_data_flag = KLTPSerial_get_data_flag(self, NULL);
+    if (current_data_flag == KLTP_DATA_FLAG_IDLE) {
         if (fp != NULL) {
             if (old_data_flag == KLTP_DATA_FLAG_AC)  {
                 struct timespec tp;
@@ -4554,21 +4576,12 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             fp = NULL;
         }
         old_data_flag = current_data_flag;
-        return;
-    } else {
-        /*
-         * Check whether data flag is DC or AC according to the data.
-         */
-        if (buf[3]&0x8000) {
-            current_data_flag = KLTP_DATA_FLAG_DC;
-        } else {
-            current_data_flag = KLTP_DATA_FLAG_AC;
-        }
+          return;
     }
 
 #ifdef DEBUG
     if (buf[0] == 0x55 && buf[1] == 0x55) {
-	kltp_print_data(buf);
+        kltp_print_data(buf);
     } else {
         print_binary_bytes(buf, self->output_len);
     }
@@ -4784,6 +4797,7 @@ KLTPSerial_init(void *_self)
     struct KLTPSerial *myself = cast(KLTPSerial(), _self);
     struct termios termptr;
     int ibaud = B230400, obaud = B230400;
+    int data_flag;
 
     self->fd = Open(self->path, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (self->fd < 0) {
@@ -4812,7 +4826,15 @@ KLTPSerial_init(void *_self)
 
     Tcsetattr(self->fd, TCSANOW, &termptr);
 
+    /*
+     * Stop data acquistion and set to DC mode.
+     * May failed for the first time. 
+     */
     __Serial_write(self, KLTP_ACQ_OFF, 8, NULL);
+    KLTPSerial_aligned_read(myself);
+    data_flag = KLTP_DATA_FLAG_IDLE;
+    __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
+    __Serial_write(self, KLTP_ACQ_DC, 8, NULL);
     KLTPSerial_aligned_read(myself);
 
     Pthread_create(&myself->tid, NULL, KLTPSerial_read_thr, myself);
@@ -4832,6 +4854,7 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     
     int ret = AAOS_OK;
     unsigned char *buf;
+    int data_flag;
 #ifdef DEBUG
     fprintf(stderr, "%s extucte binary command: ", __func__);
     print_binary_bytes((const unsigned char *) write_buffer, write_buffer_size);
@@ -4910,6 +4933,14 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
          */
         unsigned char mybuf[] = {0x55,0x55,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
         threadsafe_circular_queue_push(myself->queue, mybuf);
+        data_flag = KLTP_DATA_FLAG_IDLE;
+        __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
+    } else if (memcmp(KLTP_ACQ_DC, write_buffer, 6) == 0) {
+        data_flag = KLTP_DATA_FLAG_DC;
+        __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
+    } else if (memcmp(KLTP_ACQ_AC, write_buffer, 6) == 0) {
+        data_flag = KLTP_DATA_FLAG_AC;
+         __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
     }
     return AAOS_OK;
 }
