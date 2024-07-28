@@ -4991,10 +4991,10 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     Pthread_mutex_unlock(&myself->mtx);
 
     if (memcmp(KLTP_ACQ_OFF, write_buffer, 6) == 0) {
-        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|(~KLTP_ACQ_ON_FLAG);
-        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));
         /*
          * Push a pseudo KLTP data record to inform the data process thread
          * that a KLTP ACQ OFF command is send.
@@ -5002,20 +5002,20 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
         unsigned char mybuf[] = {0x55,0x55,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
         threadsafe_circular_queue_push(myself->queue, mybuf);
     } else if (memcmp(KLTP_ACQ_ON, write_buffer, 6) == 0) {
-        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|KLTP_ACQ_ON_FLAG;
-        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));   
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));   
     } else if (memcmp(KLTP_ACQ_AC, write_buffer, 6) == 0) {
-        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|(~KLTP_ACQ_MODE_FLAG);
-        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
     } else if (memcmp(KLTP_ACQ_DC, write_buffer, 6) == 0) {
-        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|KLTP_ACQ_MODE_FLAG;
-        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
     }
     return AAOS_OK;
 }
