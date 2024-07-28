@@ -4551,7 +4551,7 @@ KLTPSerial_get_data_flag(struct KLTPSerial *self, unsigned char *buf)
 static void
 KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
 {
-    static int old_data_flag = 0x00, current_data_flag;
+    static int old_data_flag = (~KLTP_ACQ_ON_FLAG)&KLTP_ACQ_MODE_FLAG , current_data_flag;
     
     static FILE *fp = NULL;
     static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
@@ -4562,6 +4562,9 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
      * If old data flag is off, and the current data flag is still off, just return.
      */
     if (!(old_data_flag&KLTP_ACQ_ON_FLAG) && !(current_data_flag&KLTP_ACQ_ON_FLAG)) {
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition status is still off, do nothing.\n");
+#endif
         return;
     }
 
@@ -4572,6 +4575,9 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
      */
     if ((old_data_flag&KLTP_ACQ_ON_FLAG) && !(current_data_flag&KLTP_ACQ_ON_FLAG)) {
         if (fp != NULL) {
+#ifdef DEBUG
+            fprintf(stderr, "KLTP acquisition status is from off to on, update AC or DC header, close the file.\n");
+#endif
             if (!(old_data_flag&KLTP_ACQ_MODE_FLAG))  {
                 /*
                  * Old flag is AC, update AC data header.
@@ -4583,7 +4589,6 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
                 t[1] = ac_data_cnt;
                 fseek(fp, 20L, SEEK_SET);
                 fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
-                ac_data_cnt = 0;
             } else {
                 /*
                  * Old flag is DC, update DC data header.
@@ -4595,8 +4600,10 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
                 t[1] = dc_data_cnt;
                 fseek(fp, 4L, SEEK_SET);
                 fwrite(&t, sizeof(uint32_t) * 2, 1, fp);   
-                dc_data_cnt = 0;
+                
             }
+            dc_data_cnt = 0;
+            ac_data_cnt = 0;
             fclose(fp);
             fp = NULL;
         }
@@ -4617,6 +4624,9 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
      * just return.
      */
     if (!(old_data_flag == KLTP_ACQ_MODE_FLAG) &&  !(current_data_flag == KLTP_ACQ_MODE_FLAG) && fp == NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition mode is still AC, and file has not been opened yet, do nothing.\n");
+#endif
         return;
     }
 
@@ -4625,6 +4635,16 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
      * previous data acqquisition is completed. And close the file, set fp to NULL.
      */
     if (fp != NULL && !(old_data_flag&KLTP_ACQ_MODE_FLAG) && (current_data_flag&KLTP_ACQ_MODE_FLAG)) {
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition mode is from AC to DC, update AC header, and then close file.\n");
+#endif
+        struct timespec tp;
+        uint32_t t[2];
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        t[0] = (uint32_t) tp.tv_sec;
+        t[1] = ac_data_cnt;
+        fseek(fp, 20L, SEEK_SET);
+        fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
         fclose(fp);
         fp = NULL;
     }
@@ -4633,6 +4653,10 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
      * If fp is NULL, create a new file.
      */
     if (fp == NULL) {
+
+#ifdef DEBUG
+        fprintf(stderr, "Open a new file.\n");
+#endif
         char path[PATHSIZE], datetime[FILENAMESIZE];
         struct timespec tp;
         struct tm time_buf;
@@ -4661,9 +4685,9 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             fwrite(t, sizeof(uint32_t) * 8, 1, fp);
         }
         dc_data_cnt = 0;
+        ac_data_cnt = 0;
     }
 
-    
     if (current_data_flag&KLTP_ACQ_MODE_FLAG) {
         /*
          * DC mode, just write file.
@@ -4679,6 +4703,9 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             /*
              * If old data flag is DC, and current is AC, update DC header.
              */
+#ifdef DEBUG
+            fprintf(stderr, "KLTP acquisition mode is from DC to AC, update DC header.\n");
+#endif
             struct timespec tp;
             uint32_t t[2];
             Clock_gettime(CLOCK_REALTIME, &tp);
