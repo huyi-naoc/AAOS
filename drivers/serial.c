@@ -4254,9 +4254,13 @@ sms_serial_virtual_table(void)
 /*
  * Data flag
  */
-#define KLTP_DATA_FLAG_IDLE 0
-#define KLTP_DATA_FLAG_DC 1
-#define KLTP_DATA_FLAG_AC 2
+#define KLTP_DATA_FLAG_OFF  0x01
+#define KLTP_DATA_FLAG_IDLE 0x02
+#define KLTP_DATA_FLAG_DC   0x02
+#define KLTP_DATA_FLAG_AC   0x00
+
+#define KLTP_ACQ_ON_FLAG    0x01
+#define KLTP_ACQ_MODE_FLAG  0x02
 
 static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x1E};
 static unsigned char KLTP_ACQ_ON[] = {0x55, 0x05, 0x00, 0x00, 0xFF, 0x00, 0x81, 0xEE};
@@ -4547,15 +4551,31 @@ KLTPSerial_get_data_flag(struct KLTPSerial *self, unsigned char *buf)
 static void
 KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
 {
-    static int old_data_flag = KLTP_DATA_FLAG_IDLE, current_data_flag;
+    static int old_data_flag = 0x00, current_data_flag;
     
     static FILE *fp = NULL;
     static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
 
     current_data_flag = KLTPSerial_get_data_flag(self, NULL);
-    if (current_data_flag == KLTP_DATA_FLAG_IDLE) {
+
+    /*
+     * If old data flag is off, and the current data flag is still off, just return.
+     */
+    if (!(old_data_flag&KLTP_ACQ_ON_FLAG) && !(current_data_flag&KLTP_ACQ_ON_FLAG)) {
+        return;
+    }
+
+    /*
+     * If old data acquisition flag is on, but new data flag is off, and if file is opened,
+     * close the current file. After done that, set the old data flag to current data flag,
+     * then return.
+     */
+    if ((old_data_flag&KLTP_ACQ_ON_FLAG) && !(current_data_flag&KLTP_ACQ_ON_FLAG)) {
         if (fp != NULL) {
-            if (old_data_flag == KLTP_DATA_FLAG_AC)  {
+            if (!(old_data_flag&KLTP_ACQ_MODE_FLAG))  {
+                /*
+                 * Old flag is AC, update AC data header.
+                 */
                 struct timespec tp;
                 uint32_t t[2];
                 Clock_gettime(CLOCK_REALTIME, &tp);
@@ -4563,7 +4583,11 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
                 t[1] = ac_data_cnt;
                 fseek(fp, 20L, SEEK_SET);
                 fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
-            } else if (old_data_flag == KLTP_DATA_FLAG_DC) {
+                ac_data_cnt = 0;
+            } else {
+                /*
+                 * Old flag is DC, update DC data header.
+                 */
                 struct timespec tp;
                 uint32_t t[2];
                 Clock_gettime(CLOCK_REALTIME, &tp);
@@ -4571,12 +4595,13 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
                 t[1] = dc_data_cnt;
                 fseek(fp, 4L, SEEK_SET);
                 fwrite(&t, sizeof(uint32_t) * 2, 1, fp);   
+                dc_data_cnt = 0;
             }
             fclose(fp);
             fp = NULL;
         }
         old_data_flag = current_data_flag;
-          return;
+        return;
     }
 
 #ifdef DEBUG
@@ -4586,24 +4611,28 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
         print_binary_bytes(buf, self->output_len);
     }
 #endif
+    
+    /*
+     * If old data mode flag is off (AC mode) and current data mode flag is also off,
+     * just return.
+     */
+    if (!(old_data_flag == KLTP_ACQ_MODE_FLAG) &&  !(current_data_flag == KLTP_ACQ_MODE_FLAG) && fp == NULL) {
+        return;
+    }
 
-    if (old_data_flag == KLTP_DATA_FLAG_AC && current_data_flag == KLTP_DATA_FLAG_DC) {
-        /* Data flag is changed from AC to DC, which implies one observation of KLTP is completed. 
-         * Write the end time and the number of AC records to the data file. Then, created a new one. 
-         */
-        if (fp != NULL) {
-            if (old_data_flag == KLTP_DATA_FLAG_AC) {
-                struct timespec tp;
-                uint32_t t[2];
-                Clock_gettime(CLOCK_REALTIME, &tp);
-                t[0] = (uint32_t) tp.tv_sec;
-                t[1] = ac_data_cnt;
-                fseek(fp, 20L, SEEK_SET);
-                fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
-            }
-            fclose(fp);
-        }
+    /*
+     * If old data mode flag is off and current data mode flag is on, then it means 
+     * previous data acqquisition is completed. And close the file, set fp to NULL.
+     */
+    if (fp != NULL && !(old_data_flag&KLTP_ACQ_MODE_FLAG) && (current_data_flag&KLTP_ACQ_MODE_FLAG)) {
+        fclose(fp);
+        fp = NULL;
+    }
 
+    /*
+     * If fp is NULL, create a new file.
+     */
+    if (fp == NULL) {
         char path[PATHSIZE], datetime[FILENAMESIZE];
         struct timespec tp;
         struct tm time_buf;
@@ -4613,7 +4642,6 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
         gmtime_r(&tloc, &time_buf);
         strftime(datetime, FILENAMESIZE, self->fmt, &time_buf);
         snprintf(path, PATHSIZE, "%s/%s_%s.dat", self->directory, self->prefix, datetime);
-
         /*
          * Create the header of the raw data file.
          * First 32 bytes, 
@@ -4633,15 +4661,24 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             fwrite(t, sizeof(uint32_t) * 8, 1, fp);
         }
         dc_data_cnt = 0;
-    } else if (old_data_flag == KLTP_DATA_FLAG_IDLE && current_data_flag == KLTP_DATA_FLAG_AC) {
-        return;
     }
-        
-    if (current_data_flag == KLTP_DATA_FLAG_DC) {
+
+    
+    if (current_data_flag&KLTP_ACQ_MODE_FLAG) {
+        /*
+         * DC mode, just write file.
+         */
         dc_data_cnt++;
         fwrite(buf + 2, 17, 1, fp);
-    } else if (current_data_flag == KLTP_DATA_FLAG_AC) {
-        if (old_data_flag == KLTP_DATA_FLAG_DC) {
+    } else {
+        /*
+         * DC mode
+         */
+
+        if (old_data_flag&KLTP_ACQ_MODE_FLAG) {
+            /*
+             * If old data flag is DC, and current is AC, update DC header.
+             */
             struct timespec tp;
             uint32_t t[2];
             Clock_gettime(CLOCK_REALTIME, &tp);
@@ -4650,7 +4687,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
 
             fseek(fp, 4L, SEEK_SET);
             fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
-            ac_data_cnt = 0;
+            dc_data_cnt = 0;
             fseek(fp, 0L, SEEK_END);
         }
         ac_data_cnt++;
@@ -4854,7 +4891,7 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     
     int ret = AAOS_OK;
     unsigned char *buf;
-    int data_flag;
+    int expected, desired;
 #ifdef DEBUG
     fprintf(stderr, "%s extucte binary command: ", __func__);
     print_binary_bytes((const unsigned char *) write_buffer, write_buffer_size);
@@ -4927,20 +4964,31 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     Pthread_mutex_unlock(&myself->mtx);
 
     if (memcmp(KLTP_ACQ_OFF, write_buffer, 6) == 0) {
+        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        do {
+            desired = expected|(~KLTP_ACQ_ON_FLAG);
+        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));
         /*
          * Push a pseudo KLTP data record to inform the data process thread
          * that a KLTP ACQ OFF command is send.
          */
         unsigned char mybuf[] = {0x55,0x55,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
         threadsafe_circular_queue_push(myself->queue, mybuf);
-        data_flag = KLTP_DATA_FLAG_IDLE;
-        __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
-    } else if (memcmp(KLTP_ACQ_DC, write_buffer, 6) == 0) {
-        data_flag = KLTP_DATA_FLAG_DC;
-        __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
+    } else if (memcmp(KLTP_ACQ_ON, write_buffer, 6) == 0) {
+        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        do {
+            desired = expected|KLTP_ACQ_ON_FLAG;
+        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));   
     } else if (memcmp(KLTP_ACQ_AC, write_buffer, 6) == 0) {
-        data_flag = KLTP_DATA_FLAG_AC;
-         __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
+        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        do {
+            desired = expected|(~KLTP_ACQ_MODE_FLAG);
+        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
+    } else if (memcmp(KLTP_ACQ_DC, write_buffer, 6) == 0) {
+        __atomic_load(&self->data_flag, &expected, __ATOMIC_SEQ_CST);
+        do {
+            desired = expected|KLTP_ACQ_MODE_FLAG;
+        } while (!__atomic_compare_exchange(&self->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
     }
     return AAOS_OK;
 }
