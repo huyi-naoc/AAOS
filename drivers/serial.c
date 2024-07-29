@@ -4264,7 +4264,7 @@ sms_serial_virtual_table(void)
 
 static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x1E};
 static unsigned char KLTP_ACQ_ON[] = {0x55, 0x05, 0x00, 0x00, 0xFF, 0x00, 0x81, 0xEE};
-static unsigned char KLTP_ACQ_AC[] = {0x55, 0x05, 0x00, 0x02, 0xFF, 0x00, 0x61, 0xDE};
+static unsigned char KLTP_ACQ_AC[] = {0x55, 0x05, 0x00, 0x02, 0x00, 0x00, 0x61, 0xDE};
 static unsigned char KLTP_ACQ_DC[] = {0x55, 0x05, 0x00, 0x02, 0xFF, 0x00, 0x20, 0x2E};
 
 
@@ -4299,19 +4299,19 @@ KLTPSerial_ctor(void *_self, va_list *app)
         if (strcmp(key, "prefix") == 0) {
             value = va_arg(*app, const char *);
             self->prefix = (char *) Malloc(strlen(value) + 1);
-            snprintf(self->prefix, strlen(value), "%s", value);
+            snprintf(self->prefix, strlen(value) + 1, "%s", value);
             continue;
         }
         if (strcmp(key, "directory") == 0) {
             value = va_arg(*app, const char *);
             self->directory = (char *) Malloc(strlen(value) + 1);
-            snprintf(self->directory, strlen(value), "%s", value);
+            snprintf(self->directory, strlen(value) + 1, "%s", value);
             continue;
         }
         if (strcmp(key, "format") == 0) {
             value = va_arg(*app, const char *);
             self->fmt = (char *) Malloc(strlen(value) + 1);
-            snprintf(self->fmt, strlen(value), "%s", value);
+            snprintf(self->fmt, strlen(value) + 1, "%s", value);
             continue;
         }
     }
@@ -4678,11 +4678,15 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
          * 24-27:   number of DC data,
          * 28-31:   zero-padding.
          */
-        if ((fp = fopen(path, "r+")) != NULL) {
+        if ((fp = fopen(path, "w+")) != NULL) {
             uint32_t t[8];
             memset(t, '\0', sizeof(uint32_t) * 8);
             t[0] = (uint32_t) tp.tv_sec;
             fwrite(t, sizeof(uint32_t) * 8, 1, fp);
+        } else {
+#ifdef DEBUG
+        fprintf(stderr, "Creating file %s failed.\n", path);
+#endif
         }
         dc_data_cnt = 0;
         ac_data_cnt = 0;
@@ -4896,10 +4900,9 @@ KLTPSerial_init(void *_self)
      */
     __Serial_write(self, KLTP_ACQ_OFF, 8, NULL);
     KLTPSerial_aligned_read(myself);
-    data_flag = KLTP_DATA_FLAG_IDLE;
-    __atomic_store(&myself->data_flag, &data_flag, __ATOMIC_SEQ_CST);
     __Serial_write(self, KLTP_ACQ_DC, 8, NULL);
     KLTPSerial_aligned_read(myself);
+    myself->data_flag = (~KLTP_ACQ_ON_FLAG)&KLTP_ACQ_MODE_FLAG;
 
     Pthread_create(&myself->tid, NULL, KLTPSerial_read_thr, myself);
     Pthread_create(&myself->tid2, NULL, KLTPSerial_process_thr, myself);
@@ -4964,8 +4967,6 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     if (write_size != NULL) {
         write_size -= sizeof(uint16_t);
     }
-
-    free(buf);
     Pthread_mutex_unlock(&self->mtx);
 
     
@@ -4979,6 +4980,7 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
         ret = Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
         if (ret != 0) {
             Pthread_mutex_unlock(&myself->mtx);
+            free(buf);
             return AAOS_ETIMEDOUT;
         }
     }
@@ -4990,33 +4992,46 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     myself->flag = 0;
     Pthread_mutex_unlock(&myself->mtx);
 
-    if (memcmp(KLTP_ACQ_OFF, write_buffer, 6) == 0) {
+    if (memcmp(KLTP_ACQ_OFF, buf, 6) == 0) {
         __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|(~KLTP_ACQ_ON_FLAG);
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
         /*
          * Push a pseudo KLTP data record to inform the data process thread
          * that a KLTP ACQ OFF command is send.
          */
         unsigned char mybuf[] = {0x55,0x55,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
         threadsafe_circular_queue_push(myself->queue, mybuf);
-    } else if (memcmp(KLTP_ACQ_ON, write_buffer, 6) == 0) {
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition stop.\n");
+#endif
+    } else if (memcmp(KLTP_ACQ_ON, buf, 6) == 0) {
         __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|KLTP_ACQ_ON_FLAG;
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));   
-    } else if (memcmp(KLTP_ACQ_AC, write_buffer, 6) == 0) {
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition start.\n");
+#endif
+    } else if (memcmp(KLTP_ACQ_AC, buf, 6) == 0) {
         __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|(~KLTP_ACQ_MODE_FLAG);
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
-    } else if (memcmp(KLTP_ACQ_DC, write_buffer, 6) == 0) {
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition mode to AC.\n");
+#endif
+    } else if (memcmp(KLTP_ACQ_DC, buf, 6) == 0) {
         __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
             desired = expected|KLTP_ACQ_MODE_FLAG;
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, false, __ATOMIC_SEQ_CST));  
+        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition mode to DC.\n");
+#endif
     }
+    free(buf);
     return AAOS_OK;
 }
 
