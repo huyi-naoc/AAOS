@@ -4718,6 +4718,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
 
             fseek(fp, 4L, SEEK_SET);
             fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
+            fwrite(&t, sizeof(uint32_t), fp);
             dc_data_cnt = 0;
             fseek(fp, 0L, SEEK_END);
         }
@@ -4900,6 +4901,7 @@ KLTPSerial_init(void *_self)
      */
     __Serial_write(self, KLTP_ACQ_OFF, 8, NULL);
     KLTPSerial_aligned_read(myself);
+    Tcflush(self->fd, TCIOFLUSH);
     __Serial_write(self, KLTP_ACQ_DC, 8, NULL);
     KLTPSerial_aligned_read(myself);
     myself->data_flag = (~KLTP_ACQ_ON_FLAG)&KLTP_ACQ_MODE_FLAG;
@@ -4995,7 +4997,7 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     if (memcmp(KLTP_ACQ_OFF, buf, 6) == 0) {
         __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
-            desired = expected|(~KLTP_ACQ_ON_FLAG);
+            desired = expected&(~KLTP_ACQ_ON_FLAG);
         } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
         /*
          * Push a pseudo KLTP data record to inform the data process thread
@@ -5017,7 +5019,7 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     } else if (memcmp(KLTP_ACQ_AC, buf, 6) == 0) {
         __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
         do {
-            desired = expected|(~KLTP_ACQ_MODE_FLAG);
+            desired = expected&(~KLTP_ACQ_MODE_FLAG);
         } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
 #ifdef DEBUG
         fprintf(stderr, "KLTP acquisition mode to AC.\n");
