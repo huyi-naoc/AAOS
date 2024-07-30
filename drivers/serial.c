@@ -4254,11 +4254,6 @@ sms_serial_virtual_table(void)
 /*
  * Data flag
  */
-#define KLTP_DATA_FLAG_OFF  0x01
-#define KLTP_DATA_FLAG_IDLE 0x02
-#define KLTP_DATA_FLAG_DC   0x02
-#define KLTP_DATA_FLAG_AC   0x00
-
 #define KLTP_ACQ_ON_FLAG    0x01
 #define KLTP_ACQ_MODE_FLAG  0x02
 
@@ -4487,9 +4482,7 @@ static void KLTPSerial_print_data(struct KLTPSerial *self, unsigned char *buf)
     }
     printf("%X\n", buf[n - 1]);
 }
-#endif
 
-#ifdef DEBUG
 static
 void print_binary_bytes(const unsigned char *buf, size_t length)
 {
@@ -4522,6 +4515,28 @@ kltp_print_data(const unsigned char *buf)
     }
     printf("\n");
 }
+
+static void
+kltp_print_data_2(const unsigned char *buf)
+{
+    unsigned char high, low;
+    uint16_t tmp;
+    size_t i;
+    float value;
+
+    for (i=3;i<19;i+=2) {
+        high = buf[i];
+        low = buf[i+1];
+        tmp = high;
+        tmp <<= 8;
+        tmp |= low;
+        if (high&0x80) {
+            tmp = (~tmp)+1;
+        }
+        value = tmp * 2500. / 32768.;
+        printf("%.2f ", value);
+    }
+}
 #endif
 
 static int
@@ -4536,12 +4551,19 @@ KLTPSerial_get_data_flag(struct KLTPSerial *self, unsigned char *buf)
              * When a client send a 55 05 00 00 00 00 to KLTP serial port to stop data acquisition,
              * close the opened file, set old flag and current flag to IDLE.
              */
-            data_flag = KLTP_DATA_FLAG_IDLE;
+            data_flag = 0x00;
         } else {
+            data_flag = KLTP_ACQ_ON_FLAG;
             if (buf[3]&0x80) {
-                data_flag = KLTP_DATA_FLAG_DC;
+                /*
+                 * AC mode.
+                 */
+                data_flag &= (~KLTP_ACQ_MODE_FLAG);
             } else {
-                data_flag = KLTP_DATA_FLAG_AC;
+                /*
+                 * DC mode.
+                 */
+                data_flag |= KLTP_ACQ_MODE_FLAG;
             }
         }
     }
