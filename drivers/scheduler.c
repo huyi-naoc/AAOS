@@ -1520,3 +1520,295 @@ scheduler_virtual_table(void)
     
     return _scheduler_virtual_table;
 }
+
+/*
+ * Scheduler client class
+ */
+
+static const void *scheduler_client_virtual_table(void);
+
+static
+int SchedulerClient_connect(void *_self, void **client)
+{
+    struct SchedulerClient *self = cast(SchedulerClient(), _self);
+    
+    int cfd = Tcp_connect(self->_._.address, self->_._.port, NULL, NULL);
+    
+    if (cfd < 0) {
+        *client = NULL;
+        return AAOS_ERROR;
+    } else {
+        *client = new(Scheduler(), cfd);
+    }
+    
+    protobuf_set(*client, PACKET_PROTOCOL, PROTO_SCHEDULER);
+    
+    return AAOS_OK;
+}
+
+static void *
+SchedulerClient_ctor(void *_self, va_list *app)
+{
+    struct SchedulerClient *self = super_ctor(SchedulerClient(), _self, app);
+    
+    self->_._vtab = scheduler_client_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+SchedulerClient_dtor(void *_self)
+{
+    //struct RPC *self = cast(RPC(), _self);
+    
+    return super_dtor(SchedulerClient(), _self);
+}
+
+static void *
+SchedulerClientClass_ctor(void *_self, va_list *app)
+{
+    struct SchedulerClientClass *self = super_ctor(SchedulerClientClass(), _self, app);
+    
+    self->_.connect.method = (Method) 0;
+    
+    return self;
+}
+
+static void *_SchedulerClientClass;
+
+static void
+SchedulerClientClass_destroy(void)
+{
+    free((void *) _SchedulerClientClass);
+}
+
+static void
+SchedulerClientClass_initialize(void)
+{
+    _SchedulerClientClass = new(RPCClientClass(), "SchedulerClientClass", RPCClientClass(), sizeof(struct SchedulerClientClass),
+                                ctor, "ctor", SchedulerClientClass_ctor,
+                                (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SchedulerClientClass_destroy);
+#endif
+}
+
+const void *
+SchedulerClientClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, SchedulerClientClass_initialize);
+#endif
+    
+    return _SchedulerClientClass;
+}
+
+static void *_SchedulerClient;
+
+static void
+SchedulerClient_destroy(void)
+{
+    free((void *) _SchedulerClient);
+}
+
+static void
+SchedulerClient_initialize(void)
+{
+    _SchedulerClient = new(SchedulerClientClass(), "SchedulerClient", RPCClient(), sizeof(struct SchedulerClient),
+                        ctor, "ctor", SchedulerClient_ctor,
+                        dtor, "dtor", SchedulerClient_dtor,
+                        (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SchedulerClient_destroy);
+#endif
+}
+
+const void *
+SchedulerClient(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, SchedulerClient_initialize);
+#endif
+    
+    return _SchedulerClient;
+}
+
+static const void *_scheduler_client_virtual_table;
+
+static void
+scheduler_client_virtual_table_destroy(void)
+{
+    delete((void *) _scheduler_client_virtual_table);
+}
+
+static void
+scheduler_client_virtual_table_initialize(void)
+{
+    _scheduler_client_virtual_table = new(RPCClientVirtualTable(),
+                                       rpc_client_connect, "connect", SchedulerClient_connect,
+                                       (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(scheduler_client_virtual_table_destroy);
+#endif
+}
+
+static const void *
+scheduler_client_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, scheduler_client_virtual_table_initialize);
+#endif
+    
+    return _scheduler_client_virtual_table;
+}
+
+
+/*
+ * Scheduler server class
+ */
+
+static const void *scheduler_server_virtual_table(void);
+
+static int
+SchedulerServer_accept(void *_self, void **client)
+{
+    struct RPCServer *self = cast(RPCServer(), _self);
+    
+    int lfd, cfd;
+    
+    lfd = tcp_server_get_lfd(self);
+    cfd = Accept(lfd, NULL, NULL);
+    if (cfd < 0) {
+        *client = NULL;
+        return AAOS_ERROR;
+    } else {
+        if ((*client = new(Scheduler(), cfd)) == NULL) {
+            Close(cfd);
+            return AAOS_ERROR;
+        }
+        return AAOS_OK;
+    }
+}
+
+static void *
+SchedulerServer_ctor(void *_self, va_list *app)
+{
+    struct SchedulerServer *self = super_ctor(SchedulerServer(), _self, app);
+    
+    self->_._vtab = scheduler_server_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+SchedulerServer_dtor(void *_self)
+{
+    //struct RPC *self = cast(RPC(), _self);
+    
+    return super_dtor(SchedulerServer(), _self);
+}
+
+static void *
+SchedulerServerClass_ctor(void *_self, va_list *app)
+{
+    struct SchedulerServerClass *self = super_ctor(SchedulerServerClass(), _self, app);
+    
+    self->_.accept.method = (Method) 0;
+    
+    return self;
+}
+
+static void *_SchedulerServerClass;
+
+static void
+SchedulerServerClass_destroy(void)
+{
+    free((void *) _SchedulerServerClass);
+}
+
+static void
+SchedulerServerClass_initialize(void)
+{
+    _SchedulerServerClass = new(RPCServerClass(), "SchedulerServerClass", RPCServerClass(), sizeof(struct SchedulerServerClass),
+                             ctor, "ctor", SchedulerServerClass_ctor,
+                             (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SchedulerServerClass_destroy);
+#endif
+}
+
+const void *
+SchedulerServerClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, SchedulerServerClass_initialize);
+#endif
+    
+    return _SchedulerServerClass;
+}
+
+static void *_SchedulerServer;
+
+static void
+SchedulerServer_destroy(void)
+{
+    free((void *) _SchedulerServer);
+}
+
+static void
+SchedulerServer_initialize(void)
+{
+    _SchedulerServer = new(SchedulerServerClass(), "SchedulerServer", RPCServer(), sizeof(struct SchedulerServer),
+                        ctor, "ctor", SchedulerServer_ctor,
+                        dtor, "dtor", SchedulerServer_dtor,
+                        (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SchedulerServer_destroy);
+#endif
+}
+
+const void *
+SchedulerServer(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, SchedulerServer_initialize);
+#endif
+    
+    return _SchedulerServer;
+}
+
+static const void *_scheduler_server_virtual_table;
+
+static void
+scheduler_server_virtual_table_destroy(void)
+{
+    delete((void *) _scheduler_server_virtual_table);
+}
+
+static void
+scheduler_server_virtual_table_initialize(void)
+{
+
+    _scheduler_server_virtual_table = new(RPCServerVirtualTable(),
+                                        rpc_server_accept, "accept", SchedulerServer_accept,
+                                        (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(scheduler_server_virtual_table_destroy);
+#endif
+}
+
+static const void *
+scheduler_server_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, scheduler_server_virtual_table_initialize);
+#endif
+    
+    return _scheduler_server_virtual_table;
+}

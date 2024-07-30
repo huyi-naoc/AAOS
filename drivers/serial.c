@@ -4740,7 +4740,8 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
 
             fseek(fp, 4L, SEEK_SET);
             fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
-            fwrite(&t, sizeof(uint32_t), fp);
+            fseek(fp, 16L, SEEK_SET);
+            fwrite(&t, sizeof(uint32_t), 1, fp);
             dc_data_cnt = 0;
             fseek(fp, 0L, SEEK_END);
         }
