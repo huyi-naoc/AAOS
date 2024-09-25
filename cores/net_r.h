@@ -66,8 +66,11 @@ struct TCPServer {
     char *address;
     char *port;
     int backlog;
-    unsigned int option; /* for future use */
     int lfd;
+    size_t n_threads;
+    size_t max_events;
+    unsigned int option; /* for future use */
+    double timeout;
 };
 
 struct TCPServerClass {
@@ -75,6 +78,8 @@ struct TCPServerClass {
     struct Method accept;
     struct Method start;
     struct Method get_lfd;
+    struct Method get_option;
+    struct Method set_option;
 };
 
 #endif /* net_r_h */

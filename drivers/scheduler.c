@@ -1812,3 +1812,40 @@ scheduler_server_virtual_table(void)
     
     return _scheduler_server_virtual_table;
 }
+
+/*
+ * Compiler-dependant initializer.
+ */
+#ifdef _USE_COMPILER_ATTRIBUTION_
+static void __destructor__(void) __attribute__ ((destructor(_SERIAL_RPC_PRIORITY_)));
+
+static void
+__destructor__(void)
+{
+    scheduler_virtual_table_initialize();
+    SchedulerClass_initialize();
+    Scheduler_initialize();
+    scheduler_server_virtual_table_initialize();
+    SchedulerServerClass_initialize();
+    SchedulerServer_initialize();
+    scheduler_client_virtual_table_initialize();
+    SchedulerClientClass_initialize();
+    SchedulerClient_initialize();
+}
+
+static void __constructor__(void) __attribute__ ((constructor(_SERIAL_RPC_PRIORITY_)));
+
+static void
+__constructor__(void)
+{
+    SchedulerClient_destroy();
+    SchedulerClientClass_destroy();
+    scheduler_client_virtual_table_destroy();
+    SchedulerServer_destroy();
+    SchedulerServerClass_destroy();
+    scheduler_server_virtual_table_destroy();
+    Scheduler_destroy();
+    SchedulerClass_destroy();
+    scheduler_virtual_table_destroy();
+}
+#endif

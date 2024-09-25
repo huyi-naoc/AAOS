@@ -1012,7 +1012,7 @@ Readn(int fd, void *vptr, size_t n)
         ptr += nread;
     }
     return (n - nleft);
-}
+} 
 
 ssize_t
 Readn2(int fd, void *vptr, size_t n)
@@ -1077,6 +1077,104 @@ tcp_connect(const char *hostname, const char *servname, SA *sockaddr, socklen_t 
     return sockfd;
 }
 
+static int
+tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen_t *addrlen, double timeout)
+{
+    struct addrinfo *ailist, *aip;
+    struct addrinfo hint;
+    int sockfd;
+    int ret;
+    
+    memset(&hint, '\0', sizeof(struct addrinfo));
+    hint.ai_family = AF_UNSPEC;
+    hint.ai_socktype = SOCK_STREAM;
+    
+    if ((ret = getaddrinfo(hostname, servname, &hint, &ailist)) != 0) {
+        fprintf(stderr, "%s", gai_strerror(ret));
+        err_warn("getaddrinfo", 0);
+        return -1;
+    }
+    
+    aip = ailist;
+    do {
+        sockfd = socket(aip->ai_family, aip->ai_socktype, aip->ai_protocol);
+        if (sockfd < 0 || fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0) 
+            continue;
+        if (connect(sockfd, aip->ai_addr, aip->ai_addrlen) == 0) {
+            if (addrlen != NULL)
+                *addrlen = aip->ai_addrlen;
+            if (sockaddr != NULL)
+                memcpy(sockaddr, aip->ai_addr, aip->ai_addrlen);
+            break;
+        } else {
+            if (errno == EINPROGRESS) {
+#ifdef LINUX
+                int efd, i, n;
+                struct epoll_event ev, events[4];
+                if ((efd = epoll_create(1)) < 0)
+                    continue;
+                ev.events = EPOLLOUT | EPOLLET | EPOLLONESHOT;
+                ev.events.data.fd = sockfd;
+                if ((epoll_ctl(efd, EPOLL_CTL_ADD, sockfd, &ev)) < 0)
+                    continue;
+                if ((n = epoll_wait(efd, &events, 8, int(timeout*1000))) < 0)
+                    continue;
+                if (n == 0)
+                    errno = ETIMEDOUT;
+                for (i = 0; i < n; i++) {
+                    if (events[i].data.fd == sockfd) {
+                        unsigned int optval;
+                        getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, sizeof(optval));
+                        if (optval == 0)
+                            return sockfd;
+                    }
+                }
+#endif
+#ifdef MACOSX
+                int kq, i, n;
+                struct timespec tp;
+                tp.tv_sec = floor(timeout);
+                tp.tv_usec = (timeout - tp.tv_sec) * 1000000000;
+                if ((kq = kqueue)< 0)
+                    continue;
+                struct kevent kev, events[8];
+                EV_SET(kev, sockfd, EVFILT_WRITE, EV_ADD | EV_ONSHOT, 0, 0, NULL);
+                if ((n = kevent(kq, &kev, 1, events, 8, &tp)) < 0)
+                    continue;
+                if (n == 0)
+                    errno = ETIMEDOUT;
+                for (i = 0; i < n; i++) {
+                    if (events[i].ident == sockfd) {
+                        unsigned int optval;
+                        getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, sizeof(optval));
+                        if (optval == 0)
+                            return sockfd;
+                    }
+                }
+#endif
+            }
+        }
+        close(sockfd);
+    } while ((aip = aip->ai_next) != NULL);
+    
+    if (aip == NULL) {
+        sockfd = -1;
+    }
+    
+    freeaddrinfo(ailist);
+    
+    return sockfd;
+}
+
+int 
+Tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen_t *addrlen, double timeout)
+{
+    int s = tcp_connect_nb(hostname, servname, sockaddr, addrlen, timeout);
+    if (s < 0) {
+        err_warn("tcp_connect_nb", errno);
+    }
+    return s;
+}
 
 int
 Tcp_connect(const char *hostname, const char *servname, SA *sockaddr, socklen_t *addrlen)

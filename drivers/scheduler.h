@@ -36,6 +36,18 @@
 
 #define SCHEDULER_FORMAT_JSON           1
 
+#define SCHEDULER_TYPE_GLOBAL                       1
+#define SCHEDULER_TYPE_SITE                         2
+#define SCHEDULER_TYPE_UNIT                         3
+
+
+struct SchedulerInfo {
+    char *addr;
+    char *port;
+    char *name;
+    void *scheduler;
+}; 
+
 
 /**
  *  Get task to observe.

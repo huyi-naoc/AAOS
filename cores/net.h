@@ -15,6 +15,12 @@
 #define TCPSOCKET_OPTION_DO_NOT_RESTART_ON_SIGNAL 0x01
 #define TCPSOCKET_OPTION_NOBLOCKING 0x02
 
+#define TCPSERVER_OPTION_DEFAULT                    0x00
+#define TCPSERVER_OPTION_BLOCK_PERTHREAD    `       0x00
+#define TCPSERVER_OPTION_NONBLOCK_PERTHREAD         0x01
+#define TCPSERVER_OPTION_BLOCK_PRETHEADED           0x02
+#define TCPSERVER_OPTION_NONBLOCK_PRETHEADED        0x03 
+
 int tcp_socket_get_sockfd(const void *_self);
 int tcp_socket_read(void *_self, void *read_buffer, size_t request_size, size_t *read_size);
 int tcp_socket_read_until(void *_self, void *read_buffer, size_t request_size, size_t *read_size, const char *delim);
@@ -31,6 +37,8 @@ extern const void *TCPClientClass(void);
 extern const void *TCPClientVirtualTable(void);
 
 int tcp_server_get_lfd(const void *_self);
+int tcp_server_set_option(void *_self, unsigned int option);
+int tcp_server_get_option(const void *_self, unsigned int *option);
 int tcp_server_accept(void *_self, void **client);
 void tcp_server_start(void *_self);
 

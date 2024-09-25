@@ -135,6 +135,9 @@ TCPSocket_read(const void *_self, void *read_buffer, size_t request_size, size_t
             case ETIMEDOUT:
                 return AAOS_ETIMEDOUT;
                 break;
+            case EAGAIN:
+                return AAOS_EAGAIN;
+                break;
             default:
                 return AAOS_ERROR;
                 break;
@@ -882,6 +885,58 @@ TCPServer_get_lfd(const void *_self)
     return self->lfd;
 }
 
+int
+tcp_server_get_option(const void *_self, unsigned int *option)
+{
+    const struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, TCPServerClass()) && class->get_option.method) {
+        result = ((int (*)(const void *, unsigned int *)) class->get_lfd.method)( _self, option);
+    } else {
+        forward(_self, &result, (Method) tcp_server_get_option, "get_option", _self, option);
+    }
+    
+    return result;
+}
+
+static int
+TCPServer_get_option(const void *_self, unsigned int *option)
+{
+    const struct TCPServer *self = cast(TCPServer(), _self);
+
+    if (option != NULL) {
+        *option = self->option;
+        return AAOS_OK;
+    } else {
+        return AAOS_EINVAL;
+    }
+}
+
+int
+tcp_server_set_option(void *_self, unsigned int option)
+{
+    struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, TCPServerClass()) && class->set_option.method) {
+        result = ((int (*)(void *, unsigned int)) class->get_lfd.method)( _self, option);
+    } else {
+        forward(_self, &result, (Method) tcp_server_set_option, "set_option", _self, option);
+    }
+    
+    return result;
+}
+
+static int
+TCPServer_set_option(const void *_self, unsigned int option)
+{
+    struct TCPServer *self = cast(TCPServer(), _self);
+
+    self->option = option;
+
+    return AAOS_OK;
+}
 
 void
 tcp_server_start(void *_self)
@@ -1018,6 +1073,22 @@ TCPServerClass_ctor(void *_self, va_list *app)
             self->get_lfd.method = method;
             continue;
         }
+        if (selector == (Method) tcp_server_get_option) {
+            if (tag) {
+                self->get_option.tag = tag;
+                self->get_option.selector = selector;
+            }
+            self->get_option.method = method;
+            continue;
+        }
+        if (selector == (Method) tcp_server_set_option) {
+            if (tag) {
+                self->set_option.tag = tag;
+                self->set_option.selector = selector;
+            }
+            self->set_option.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -1073,6 +1144,8 @@ TCPServer_initialize(void)
                      forward, "forward", TCPServer_forward,
                      tcp_server_accept, "accept", TCPServer_accept,
                      tcp_server_get_lfd, "get_lfd", TCPServer_get_lfd,
+                     tcp_server_get_option, "get_option", TCPServer_get_option,
+                     tcp_server_set_option, "set_option", TCPServer_set_option,
                      tcp_server_start, "start", TCPServer_start,
                      (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_

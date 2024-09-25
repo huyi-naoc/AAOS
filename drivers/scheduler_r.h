@@ -2,6 +2,10 @@
 
 struct Scheduler {
     struct RPC _;
+    unsigned int type;
+    void *global_list;
+    void *site_list;
+    void *unit_list;
 };
 
 struct SchedulerClass {

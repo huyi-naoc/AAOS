@@ -1191,14 +1191,102 @@ RPCServer_process_thr2(void *arg)
 {
     struct RPCServer *self = (struct RPCServer *) arg;
 
-    int lfd = tcp_server_get_lfd(self);
-
-    Fcntl(lfd, F_SETFL, O_NONBLOCK);
+    int lfd = self->_.lfd, sockfd, ret, n_events;
+    size_t i;
 
 #ifdef LINUX
     int efd = epoll_create(1);
+    struct epoll_event ev, *events;
 
+    events = (struct epoll_event *) Malloc(sizeof(struct epoll_event) * self->_.max_events);
+    ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
+    ev.data.ptr = self;
+    epoll_ctl(efd, EPOLL_CTL_ADD, lfd, &ev);
+    int timeout = self->_.timeout * 1000;
+    for (;;) {
+        n_events = epoll_wait(efd, events, self->_.max_events, timeout);
+        for (i = 0; i < n_events; i++) {
+            if (events[i].data.ptr == self) {
+                void *client;
+                for (;;) {
+                    ret = rpc_server_accept(self, &client);
+                    if (ret != AAOS_OK) {
+                        break;
+                    }
+                    ev.events = EPOLLIN | EPOLLET;
+                    ev.data.ptr = client;
+                    sockfd = tcp_socket_get_sockfd(client);
+                    epoll_ctl(efd, EPOLL_CTL_ADD, sockfd, &ev);
+                }
+            } else {
+                for (;;) {
+                    ret = rpc_process(events[i].data.ptr);
+                    if (ret == AAOS_OK) {
+                        continue;
+                    } else if (ret == AAOS_EAGAIN) {
+                        break;
+                    } else {
+                        sockfd = tcp_socket_get_sockfd(events[i].data.ptr);
+                        epoll_ctl(efd, EPOLL_CTL_DEL, sockfd, NULL);
+                        delete(events[i].data.ptr);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+error:
+    Close(efd);
+    free(events);
 #endif 
+
+#ifdef MACOSX
+    int kq, cfd, j = 1;
+    struct kevent *changelist, *eventlist;
+    struct timespec tp;
+
+    tp.tv_sec = floor(self->_.timeout);
+    tp.tv_nsec = (self->_.timeout - tp.tv_sec) * 1000000000;
+
+    kq = kqueue();
+    eventlist = (struct kevent *) Malloc(sizeof(struct kevent) * self-_.max_events);
+    changelist = (struct kevent *) Malloc(sizeof(struct kevent) * self-_.max_events);
+    EV_SET(&changelist[0], lfd, EVFILT_READ, EV_ADD, 0,  &self);
+    for (;;) {
+        n_events = kevent(kq, changelist, j, eventlist, self->_.max_events, &tp);
+        for (i = 0; i < n_evnets; i++) {
+            if (eventlist[i].udata == self) {
+                for (j = 1; j < self-_.max_events; j++) {
+                    ret = rpc_server_accept(self, &client);
+                    if (ret != AAOS_OK) {
+                        break;
+                    }
+                    cfd = tcp_socket_get_sockfd(client);
+                    EV_SET(&changelist[j], cfd, EVFILT_READ, EV_ADD, 0, client);
+                }
+            } else {
+                for (;;) {
+                    ret = rpc_process(changelist[i].udata);
+                    if (ret == AAOS_OK) {
+                        continue;
+                    } else if (ret == AAOS_EAGAIN) {
+                        break;
+                    } else {
+                        delete(changelist[i].udata);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+error:
+    free(changelist);
+    free(eventlist);
+    Close(kq);
+    free(eventlist);
+#endif
+
     return NULL;
 }
 
@@ -1206,17 +1294,44 @@ void
 RPCServer_start(void *_self)
 {
     struct RPCServer *self = cast(RPCServer(), _self);
+    
     void *client;
-    pthread_t tid;
+    pthread_t tid, *tids;
     sigset_t set;
     int ret;
-    
+    size_t i;
+
     sigemptyset(&set);
     sigaddset(&set, SIGPIPE);
     Pthread_sigmask(SIG_BLOCK, &set, NULL);
     
     self->_.lfd = Tcp_listen(NULL, self->_.port, NULL, NULL);
-    
+
+    switch (self->_.option) {
+        case TCPSERVER_OPTION_DEFAULT:
+            for (;;) {
+                if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
+                    Pthread_create(&tid, NULL, RPCServer_process_thr, client);
+                }
+            }
+            break;
+        case TCPSERVER_OPTION_NONBLOCK_PRETHEADED:
+            Fcntl(self->_.lfd, F_SETFL, O_NONBLOCK);
+            tids = (pthread_t *) Malloc(sizeof(pthread_t) * self->_.n_threads);
+            for (i = 0; i < self->_.n_threads; i ++) {
+                Pthread_create(&tids[i], NULL, RPCServer_process_thr2, self);
+            }
+            for (i = 0; i < self->_.n_threads; i++) {
+                Pthread_wait(tids[i], NULL);
+            }
+            free(tids);
+            break;
+        default:
+            break;
+    }
+
+    /*
+     *
     if (self->option&RPC_PRE_THREADED) {
         pthread_t tids[8];
         int i;
@@ -1233,6 +1348,7 @@ RPCServer_start(void *_self)
             }
         }
     }
+    */
 }
 
 static void

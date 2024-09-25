@@ -57,11 +57,13 @@
 #include <sys/uio.h>
 
 #ifdef MACOSX
+#include <sys/event.h>
 #include <uuid/uuid.h>
 #endif
 
 #ifdef LINUX
 #include <mntent.h>
+#include <sys/epoll.h>
 #endif
 
 typedef struct sockaddr SA;
@@ -154,7 +156,7 @@ ssize_t Writen2(int, const void *, size_t);
 ssize_t Readn2(int, void *, size_t);
 ssize_t Sendfile(int, int, off_t, off_t *, struct sf_hdtr *, int);
 int Tcp_connect(const char *, const char *, SA *, socklen_t *);
+int Tcp_connect_nb(const char *, const char *, SA *, socklen_t *, double);
 int Tcp_listen(const char *, const char *, SA *, socklen_t *);
-
 
 #endif /* wrapper_h */
