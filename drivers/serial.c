@@ -4259,8 +4259,8 @@ sms_serial_virtual_table(void)
 
 static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x1E};
 static unsigned char KLTP_ACQ_ON[] = {0x55, 0x05, 0x00, 0x00, 0xFF, 0x00, 0x81, 0xEE};
-static unsigned char KLTP_ACQ_AC[] = {0x55, 0x05, 0x00, 0x02, 0x00, 0x00, 0x61, 0xDE};
-static unsigned char KLTP_ACQ_DC[] = {0x55, 0x05, 0x00, 0x02, 0xFF, 0x00, 0x20, 0x2E};
+static unsigned char KLTP_ACQ_DC[] = {0x55, 0x05, 0x00, 0x02, 0x00, 0x00, 0x61, 0xDE};
+static unsigned char KLTP_ACQ_AC[] = {0x55, 0x05, 0x00, 0x02, 0xFF, 0x00, 0x20, 0x2E};
 
 
 
@@ -4523,6 +4523,7 @@ kltp_print_data_2(const unsigned char *buf)
     uint16_t tmp;
     size_t i;
     float value;
+    int sign;
 
     for (i=3;i<19;i+=2) {
         high = buf[i];
@@ -4532,8 +4533,11 @@ kltp_print_data_2(const unsigned char *buf)
         tmp |= low;
         if (high&0x80) {
             tmp = (~tmp)+1;
+            sign = -1;
+        } else {
+            sign = 1;
         }
-        value = tmp * 2500. / 32768.;
+        value = sign * tmp * 5000. / 32768.;
         printf("%.2f ", value);
     }
 }
@@ -4621,8 +4625,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
                 t[0] = (uint32_t) tp.tv_sec;
                 t[1] = dc_data_cnt;
                 fseek(fp, 4L, SEEK_SET);
-                fwrite(&t, sizeof(uint32_t) * 2, 1, fp);   
-                
+                fwrite(&t, sizeof(uint32_t) * 2, 1, fp);
             }
             dc_data_cnt = 0;
             ac_data_cnt = 0;
@@ -4939,7 +4942,7 @@ KLTPSerial_init(void *_self)
 }
 
 static int
-KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+KLTPSerial_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
 {
     struct __Serial *self = cast(__Serial(), _self);
     struct KLTPSerial *myself = cast(KLTPSerial(), _self);
@@ -5016,6 +5019,24 @@ KLTPSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t
     }
     myself->flag = 0;
     Pthread_mutex_unlock(&myself->mtx);
+
+    if (memcmp(buf, read_buffer, 2) != 0) {
+        Pthread_mutex_lock(&myself->mtx);
+        while (myself->flag == 0) {
+            ret = Pthread_cond_timedwait(&myself->cond, &myself->mtx, &tp);
+            if (ret != 0) {
+                Pthread_mutex_unlock(&myself->mtx);
+                free(buf);
+                return AAOS_ETIMEDOUT;
+            }
+        }
+        memcpy(read_buffer, myself->read_buf, min(read_buffer_size, myself->output_len));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, myself->output_len);
+        }
+        myself->flag = 0;
+        Pthread_mutex_unlock(&myself->mtx);
+    }
 
     if (memcmp(KLTP_ACQ_OFF, buf, 6) == 0) {
         __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);

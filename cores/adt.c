@@ -631,7 +631,7 @@ ThreadsafeList_find_first_if(void *_self, predict pred, va_list *app)
         if (pred(next->data, *app)) {
             result = next->data;
             Pthread_mutex_unlock(mutex_next);
-            return result;;
+            return result;
         }
 #endif
         current = next;

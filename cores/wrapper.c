@@ -863,6 +863,50 @@ Pthread_sigmask(int how, const sigset_t *set, sigset_t *oset)
     return s;
 }
 
+int 
+Pthread_rwlock_destroy(pthread_rwlock_t *lock)
+{
+    int s;
+    s = pthread_rwlock_destroy(lock, attr);
+    if (s != 0) {
+        err_warn("pthread_rwlock_destroy", s);
+    }
+    return s;
+}
+
+int 
+Pthread_rwlock_init(pthread_rwlock_t *lock, const pthread_rwlockattr_t *attr)
+{
+    int s;
+    s = pthread_rwlock_init(lock, attr);
+    if (s != 0) {
+        err_warn("pthread_rwlock_init", s);
+    }
+    return s;
+}
+
+int
+Pthread_rwlock_rdlock(pthread_rwlock_t *lock)
+{
+    int s;
+    s = pthread_rwlock_rdlock(lock);
+    if (s != 0) {
+        err_warn("pthread_rwlock_rdlock", s);
+    }
+    return s;
+}
+
+int
+Pthread_rwlock_wrlock(pthread_rwlock_t *lock)
+{
+    int s;
+    s = pthread_rwlock_wrlock(lock);
+    if (s != 0) {
+        err_warn("pthread_rwlock_wrlock", s);
+    }
+    return s;
+}
+
 /*
  * User library functions.
  */
@@ -1110,14 +1154,14 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
             if (errno == EINPROGRESS) {
 #ifdef LINUX
                 int efd, i, n;
-                struct epoll_event ev, events[4];
+                struct epoll_event ev, events[8];
                 if ((efd = epoll_create(1)) < 0)
                     continue;
                 ev.events = EPOLLOUT | EPOLLET | EPOLLONESHOT;
-                ev.events.data.fd = sockfd;
+                ev.data.fd = sockfd;
                 if ((epoll_ctl(efd, EPOLL_CTL_ADD, sockfd, &ev)) < 0)
                     continue;
-                if ((n = epoll_wait(efd, &events, 8, int(timeout*1000))) < 0)
+                if ((n = epoll_wait(efd, events, 8, (int) timeout*1000)) < 0)
                     continue;
                 if (n == 0)
                     errno = ETIMEDOUT;
@@ -1227,7 +1271,7 @@ tcp_listen(const char *hostname, const char *servname, SA *sockaddr, socklen_t *
         lfd = socket(aip->ai_family, aip->ai_socktype, aip->ai_protocol);
         if (lfd < 0)
             continue;
-        Setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+        Setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &optval, (socklen_t) sizeof(optval));
         if (bind(lfd, aip->ai_addr, aip->ai_addrlen) == 0) {
             if (addrlen != NULL) {
                 *addrlen = aip->ai_addrlen;

@@ -55,6 +55,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/un.h>
 
 #ifdef MACOSX
 #include <sys/event.h>
@@ -146,6 +147,11 @@ int Pthread_mutex_unlock(pthread_mutex_t *);
 int Pthread_once(pthread_once_t *, void (*)(void));
 int Pthread_setcancelstate(int state, int *oldstate);
 int Pthread_sigmask(int, const sigset_t *, sigset_t *);
+int Pthread_rwlock_destroy(pthread_rwlock_t *);
+int Pthread_rwlock_init(pthread_rwlock_t *, const pthread_rwlockattr_t *);
+int Pthread_rwlock_rdlock(pthread_rwlock_t *);
+int Pthread_rwlock_wrlock(pthread_rwlock_t *);
+
 
 int Getidbyname(const char *, uid_t *, gid_t *);
 void mkdirp(const char *);

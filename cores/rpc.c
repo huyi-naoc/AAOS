@@ -1322,7 +1322,7 @@ RPCServer_start(void *_self)
                 Pthread_create(&tids[i], NULL, RPCServer_process_thr2, self);
             }
             for (i = 0; i < self->_.n_threads; i++) {
-                Pthread_wait(tids[i], NULL);
+                Pthread_join(tids[i], NULL);
             }
             free(tids);
             break;

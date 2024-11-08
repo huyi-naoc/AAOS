@@ -6,1811 +6,1613 @@
 //  Copyright © 2024 National Astronomical Observatories, Chinese Academy of Sciences. All rights reserved.
 //
 
-
+#include "adt.h"
 #include "def.h"
 #include "scheduler.h"
 #include "scheduler_r.h"
 #include "wrapper.h"
 
-int
-scheduler_get_task_by_id(void *_self, int identifier , char *result, size_t size, size_t *length, int *type)
+#include <cjson/cJSON.h>
+#include <mysql.h>
+
+struct SchedulerInfo {
+    char *addr;
+    char *port;
+    char *name;
+    void *scheduler;
+};
+
+struct TaskInfo {
+    uint64_t identifier;
+    uint64_t nside;
+    uint64_t targ_id;
+    int status;
+    char *description; /* JSON */
+};
+
+struct TelescopeInfo {
+    uint64_t identifier;
+    uint64_t site_id;
+    int status;
+    char *name;
+    char *description; /* JSON */
+    void *rpc;
+};
+
+struct TargetInfo {
+    uint32_t nside;
+    uint64_t identifier;
+    double ra;
+    double dec;
+    int status;
+    char *name;
+    char *description; /* JSON */
+    void *rpc;
+};
+
+struct SiteInfo {
+    uint64_t identifier;
+    int status;
+    char *name;
+    char *description; /* JSON */
+    void *rpc;
+};
+
+typedef int (*database_cb_t)(struct __Scheduler *, MYSQL_RES *);
+
+/*
+ * Scheduler Class.
+ */
+
+static void 
+_scheduler_create_sql(int command, uint64_t identifier, const char *table, char *sql, size_t size, ...)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-    
-    if (isOf(class, SchedulerClass()) && class->get_task_by_id.method) {
-        return ((int (*)(void *, int, char *, size_t, size_t *, int *)) class->get_task_by_id.method)(_self, identifier, result, size, length, type);
-    } else {
-        int result;
-        forward(_self, &result, (Method) scheduler_get_task_by_id, "get_task_by_id", _self, identifier, result, size, type);
-        return result;
-    }
-}
-
-static int
-Scheduler_get_task_by_id(void *_self, int identifier , char *result, size_t size, size_t *length, int *type)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    char buf[BUFSIZE], *res = NULL;
-    struct timespec tp;
-    uint32_t len;
-    uint16_t errorcode, option;
-
-    int ret = AAOS_OK;
-
-    Clock_gettime(CLOCK_REALTIME, &tp);
-
-    if (type==NULL || *type == SCHEDULER_FORMAT_JSON) {
-        snprintf(buf, BUFSIZE, "{\"GENERAL-INFO\":{\"operate\":\"request\",\"timestam\":%d},\"TELESCOPE-INFO\":{\"tel_id=%d\"}}", tp.tv_sec, identifier);
-    } else {
-        return AAOS_ENOTSUP;
-    }
-    len = strlen(buf);
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_GET_TASK_BY_ID);
-    protobuf_set(self, PACKET_BUF, buf, len);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-        if (*type != NULL) {
-            protobuf_get(self, PACKET_OPTION, &option);
-            *type = option;
-        }
-        protobuf_get(self, PACKET_BUF, &res, &len);
-        if (result != res) {
-            snprintf(result, size, "%s", res);
-        }
-        if (length != NULL) {
-            *length = strlen(result);
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-int
-scheduler_get_task_by_name(void *_self, const char *name, char *result, size_t size, size_t *length, int *type)
-{
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-    
-    if (isOf(class, SchedulerClass()) && class->get_task_by_id.method) {
-        return ((int (*)(void *, const char *, char *, size_t, size_t *, int *)) class->get_task_by_name.method)(_self, name, result, size, length, type);
-    } else {
-        int result;
-        forward(_self, &result, (Method) scheduler_get_task_by_name, "get_task_by_name", _self, name, result, size, type);
-        return result;
-    }
-}
-
-static int
-Scheduler_get_task_by_name(void *_self, const char *name , char *result, size_t size, size_t *length, int *type)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    char buf[BUFSIZE], *res = NULL;
-    struct timespec tp;
-    uint32_t len;
-    uint16_t errorcode, option;
-
-    int ret = AAOS_OK;
-
-    Clock_gettime(CLOCK_REALTIME, &tp);
-
-    if (type==NULL || *type == SCHEDULER_FORMAT_JSON) {
-        snprintf(buf, BUFSIZE, "{\"GENERAL-INFO\":{\"operate\":\"request\",\"timestam\":%d},\"TELESCOPE-INFO\":{\"telescop=%s\"}}", tp.tv_sec, name);
-    } else {
-        return AAOS_ENOTSUP;
-    }
-    len = strlen(buf);
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_GET_TASK_BY_ID);
-    protobuf_set(self, PACKET_BUF, buf, len);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-        if (*type != NULL) {
-            protobuf_get(self, PACKET_OPTION, &option);
-            *type = option;
-        }
-        protobuf_get(self, PACKET_BUF, &res, &len);
-        if (result != res) {
-            snprintf(result, size, "%s", res);
-        }
-        if (length != NULL) {
-            *length = strlen(result);
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-int
-scheduler_list_telescope(void *_self, char *result, size_t size, size_t length, int *type)
-{
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-    
-    if (isOf(class, SchedulerClass()) && class->list_telescope.method) {
-        return ((int (*)(void *, char *, size_t, size_t *, int *)) class->get_task_by_name.method)(_self, result, size, length, type);
-    } else {
-        int result;
-        forward(_self, &result, (Method) scheduler_list_telescope, "list_telescope", _self, result, size, type);
-        return result;
-    }
-}
-
-static int
-Scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length, int *type)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    char *res = NULL;
-    uint32_t len;
-    uint16_t errorcode, option;
-
-    int ret = AAOS_OK;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_LIST_TELESCOPE);
-   
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-        if (*type != NULL) {
-            protobuf_get(self, PACKET_OPTION, &option);
-            *type = option;
-        }
-        protobuf_get(self, PACKET_BUF, &res, &len);
-        if (result != res) {
-            snprintf(result, size, "%s", res);
-        }
-        if (length != NULL) {
-            *length = strlen(result);
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-int
-scheduler_add_telescope(void *_self, ...)
-{
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-
-    int result;
     va_list ap;
-    va_start(ap, _self);
-    if (isOf(class, SchedulerClass()) && class->add_telescope.method) {
-        result = ((int (*)(void *, va_list *)) class->add_telescope.method)(_self, &ap);
-    } else {
-        forward(_self, &result, (Method) scheduler_add_telescope, "add_telescope", _self, &ap);
-        
-    }
-    va_end(ap);
-    return result;
-}
+    va_start(ap, size);
 
-int
-Scheduler_add_telescope(void *_self, va_list *app)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    int type;
-    uint16_t option, errorcode;
-    const char *telescope;
-    int ret = AAOS_OK;
+    double timestamp;
 
-    type = va_arg(*app, int);
-    option = type;
-    telescope = va_arg(*app, const char *);
+    if (command == SCHEDULER_DELETE_TELESCOPE_BY_ID) {
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%ld", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+    } else if (command == SCHEDULER_MASK_TELESCOPE_BY_ID) {
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%ld", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+    } else if (command == SCHEDULER_UNMASK_TELESCOPE_BY_ID) {
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%ld", table, SCHEDULER_STATUS_OK, timestamp, identifier);   
+    } else if (command == SCHEDULER_ADD_TELESCOPE) {
+        uint64_t tel_id, site_id;
+        const char *name, *description;
+        int status = SCHEDULER_STATUS_OK;
+        name = va_arg(ap, const char *);
+        tel_id = va_arg(ap, uint64_t);
+        site_id = va_arg(ap, uint64_t);
+        description = va_arg(ap, const char *);
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestamp) VALUES (\"%s\", %ld, %ld, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
+    } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%ld", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+    } else if (command == SCHEDULER_MASK_SITE_BY_ID) {
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%ld", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+    } else if (command == SCHEDULER_UNMASK_SITE_BY_ID) {
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%ld", table, SCHEDULER_STATUS_OK, timestamp, identifier);   
+    } else if (command == SCHEDULER_ADD_SITE) {
+        uint64_t site_id;
+        const char *name;
+        int status = SCHEDULER_STATUS_OK;
+        double site_lon, site_lat, site_alt, timestamp;
+        name = va_arg(ap, const char *);
+        site_id = va_arg(ap, uint64_t);
+        site_lon = va_arg(ap, double);
+        site_lat = va_arg(ap, double);
+        site_alt = va_arg(ap, double);
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestamp) VALUES (\"%s\", %ld, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
+    } if (command == SCHEDULER_DELETE_TARGET_BY_ID) {
+        uint32_t nside = va_arg(ap, uint32_t);
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%ld AND nside=%u", table, SCHEDULER_STATUS_DELETE, timestamp, identifier, nside);
+    } else if (command == SCHEDULER_MASK_TARGET_BY_ID) {
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%ld AND nside=%u", table, SCHEDULER_STATUS_MASKED, timestamp, identifier, nside);
+    } else if (command == SCHEDULER_UNMASK_TARGET_BY_ID) {
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%ld AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);   
+    } else if (command == SCHEDULER_ADD_TARGET) {
+        uint32_t nside;
+        uint64_t targ_id;
+        const char *name, *description;
+        int status = SCHEDULER_STATUS_OK, priority = 0;
+        double ra, dec;
 
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_ADD_TELESCOPE);
-    protobuf_set(self, PACKET_BUF, telescope, strlen(telescope)+1);
-    protobuf_set(self, PACKET_OPTION, option);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
+        name = va_arg(ap, const char *);
+        targ_id = va_arg(ap, uint64_t);
+        nside = va_arg(ap, uint32_t);
+        ra = va_arg(ap, double);
+        dec = va_arg(ap, double);
+        timestamp = va_arg(ap, double);
+        if (name != NULL) {
+            snprintf(sql, size, "INSERT INTO %s (targname, targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (\"%s\", %ld, %u, %lf, %lf, %d, %d, %lf)", table, name, targ_id, nside, ra, dec, status, priority, timestamp);
+        } else {
+            snprintf(sql, size, "INSERT INTO %s (targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (%ld, %u, %lf, %lf, %d, %d, %lf)", table, targ_id, nside, ra, dec, status, priority, timestamp);
         }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    } else if (command == SCHEDULER_ADD_TASK_RECORD) {
+        uint64_t site_id, tel_id, targ_id, task_id;
+        uint32_t nside;
+        int status;
+        const char *description;
+        double obstime;
+        task_id = va_arg(ap, uint64_t);
+        targ_id = va_arg(ap, uint64_t);
+        nside = va_arg(ap, uint32_t);
+        tel_id = va_arg(ap, uint64_t);
+        site_id = va_arg(ap, uint64_t);
+        status = va_arg(ap, int);
+        description = va_arg(ap, const char *);
+        obstime = va_arg(ap, double);
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "INSERT INTO %s (task_id, targ_id, nside, tel_id, site_id, status, task_des, obstime, timestamp) VALUES (%ld, %ld, %u, %ld, %ld, %d, \"%s\", %lf, %lf)", table, task_id, targ_id, nside, tel_id, site_id, status, description, obstime, timestamp);
+    } else if (command == SCHEDULER_UPDATE_TASK_STATUS) {
+        int status = va_arg(ap, int);
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE task_id=%ld", table, status, timestamp, identifier); 
     }
 
-    return ret;
+    va_end(ap);
+}
+
+static predict 
+telescope_by_id(struct TelescopeInfo *telescope_info, va_list *app)
+{
+    uint64_t identifier = va_arg(*app, uint64_t);
+
+    if (telescope_info->identifier == identifier) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static predict 
+telescope_by_name(struct TelescopeInfo *telescope_info, va_list *app)
+{
+    const char *name = va_arg(*app, const char *);
+
+    if (telescope_info->name == name) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static predict 
+site_by_id(struct SiteInfo *site_info, va_list *app)
+{
+    uint64_t identifier = va_arg(*app, uint64_t);
+
+    if (site_info->identifier == identifier) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static predict 
+site_by_name(struct SiteInfo *site_info, va_list *app)
+{
+    const char *name;
+
+    name = va_arg(*app,  const char *);
+
+    if (strcmp(site_info->name, name) == 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static predict 
+target_by_id(struct TargetInfo *target_info, va_list *app)
+{
+    uint64_t identifier = va_arg(*app, uint64_t);
+    uint32_t nside = va_arg(*app, uint32_t);
+
+    identifier = va_arg(*app, unsigned int);
+
+    if (target_info->identifier == identifier && target_info->nside == nside) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static predict 
+target_by_name(struct Target *target_info, va_list *app)
+{
+    const char *name;
+
+    name = va_arg(*app,  const char *);
+
+    if (strcmp(target_info->name, name) == 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static char *
+__Scheduler_create_request_json_string(unsigned int command, ...)
+{
+    struct timespec tp;
+    double timestamp;
+    cJSON *root_json, *general_json, *site_json, *telescope_json, *value_json;
+    char *json_string;
+    va_list ap;
+
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
+
+    va_start(ap, command);
+    root_json = cJSON_CreateObject();
+    if (command == SCHEDULER_GET_TASK_BY_TELESCOPE_ID) {
+        unsigned int identifier = va_arg(ap, uint64_t);
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("request");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        telescope_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "TELESCOPE-INFO", telescope_json);
+        value_json = cJSON_CreateNumber(identifier);
+        cJSON_AddItemToObject(telescope_json, "tel_id", value_json);
+        json_string = cJSON_Print(root_json);
+    } else if (command == SCHEDULER_GET_TASK_BY_TELESCOPE_NAME) {
+        const char  *name = va_arg(ap, const char *);
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("request");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        telescope_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "TELESCOPE-INFO", telescope_json);
+        value_json = cJSON_CreateString(name);
+        cJSON_AddItemToObject(telescope_json, "telescop", value_json);
+        json_string = cJSON_Print(root_json);
+    } else if (command == SCHEDULER_POP_TASK_BLOCK) {
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("request");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_Delete(root_json);
+        json_string = cJSON_Print(root_json);
+    } else if (command == SCHEDULER_TASK_BLOCK_ACK) {
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("acknowledge");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_Delete(root_json);
+        json_string = cJSON_Print(root_json);
+    } else if (command == SCHEDULER_PUSH_TASK_BLOCK) {
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("request");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_Delete(root_json);
+        json_string = cJSON_Print(root_json);
+    } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
+        unsigned int identifier, status;
+        identifier = va_arg(ap, uint64_t);
+        status = SCHEDULER_STATUS_DELETE;
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("update");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        site_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
+        value_json = cJSON_CreateNumber(identifier);
+        cJSON_AddItemToObject(site_json, "site_id", value_json);
+        value_json = cJSON_CreateNumber(status);
+        cJSON_AddItemToObject(site_json, "status", value_json);
+        cJSON_Delete(root_json);
+        json_string = cJSON_Print(root_json);
+    } else if (command == SCHEDULER_MASK_SITE_BY_ID) {
+        unsigned int identifier, status;
+        identifier = va_arg(ap, uint64_t);
+        status = SCHEDULER_STATUS_MASK;
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("update");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        site_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
+        value_json = cJSON_CreateNumber(identifier);
+        cJSON_AddItemToObject(site_json, "site_id", value_json);
+        value_json = cJSON_CreateNumber(status);
+        cJSON_AddItemToObject(site_json, "status", value_json);
+        cJSON_Delete(root_json);
+        json_string = cJSON_Print(root_json);
+    } else if (command == SCHEDULER_UNMASK_SITE_BY_ID) {
+        unsigned int identifier, status;
+        identifier = va_arg(ap, uint64_t);
+        status = SCHEDULER_STATUS_OK;
+        general_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        value_json = cJSON_CreateString("update");
+        cJSON_AddItemToObject(general_json, "operate", value_json);
+        value_json = cJSON_CreateNumber(timestamp);
+        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        site_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
+        value_json = cJSON_CreateNumber(identifier);
+        cJSON_AddItemToObject(site_json, "site_id", value_json);
+        value_json = cJSON_CreateNumber(status);
+        cJSON_AddItemToObject(site_json, "status", value_json);
+        cJSON_Delete(root_json);
+        json_string = cJSON_Print(root_json);
+    }
+
+    cJSON_Delete(root_json);
+    va_end(ap);
+    return json_string;
 }
 
 int
-scheduler_delete_telescope_by_id(void *_self, int identifier)
+__Scheduler_ipc_write(struct __Scheduler *self, const char *string)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    int sockfd, cfd;
+    uint32_t length;
+    ssize_t nwrite;
+    char buf[BUFSIZE];
+    struct sockaddr_un addr;
+   
+    memset(&addr, '\0', sizeof(struct sockaddr_un));
+    addr.sun_family  = AF_UNIX;
+    snprintf(addr.sun_path, PATHSIZE, "%s", self->socket_file);
+
+    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        return AAOS_ERROR;
+    }
+
+    if ((cfd = connect(sockfd, (struct sockadd *)&addr, sizeof(struct sockadd_un))) < 0) {
+        close(sockfd);
+        return AAOS_ERROR;
+    }
+
+    length = strlen(string);
+    memcpy(buf, &length, sizeof(uint32_t));
+    snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", string);
+
+    if ((nwrite = Writen(cfd)) < 0) {
+        close(cfd);
+        close(sockfd);
+    }
+
+    close(cfd);
+    close(sockfd);    
+    return AAOS_OK;
+}
+
+static int
+__Scheduler_ipc_write_and_read(struct __Scheduler *self, const char *string, char *res, size_t size, size_t *len)
+{
+    int sockfd, cfd;
+    uint32_t length;
+    ssize_t nread, nwrite;
+    char buf[BUFSIZE];
+    struct sockaddr_un addr;
+
+    memset(&addr, '\0', sizeof(struct sockaddr_un));
+    addr.sun_family  = AF_UNIX;
+    snprintf(addr.sun_path, PATHSIZE, "%s", self->socket_file);
+
+    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        return AAOS_ERROR;
+    }
+
+    if ((cfd = connect(sockfd, (struct sockadd *)&addr, sizeof(struct sockadd_un))) < 0) {
+        close(sockfd);
+        return AAOS_ERROR;
+    }
+
+    length = strlen(string);
+    memcpy(buf, &length, sizeof(uint32_t));
+    snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", string);
+
+    if ((nwrite = Writen(cfd, buf, length + sizeof(uint32_t))) < 0) {
+        close(cfd);
+        close(sockfd);
+    }
+
+    if ((nread = Readn(cfd, &length, sizeof(uint32_t))) < 0) {
+        close(cfd);
+        close(sockfd);
+    }
+    if ((nread = Readn(cfd, res, length)) < 0) {
+        close(cfd);
+        close(sockfd);
+    }
+
+    if (len != NULL) {
+        *len = length;
+    }
+
+    close(cfd);
+    close(sockfd);    
+    return AAOS_OK;
+}
+
+static void 
+cleanup_site_info(void *site)
+{
+    struct SiteInfo *site_ = (struct SiteInfo *) site;
+
+    free(site_->name);
+    free(site_->description);
+
+    if (site_->rpc != NULL) {
+        delete(site_->rpc);
+    }
+    free(site);
+}
+
+static int
+Scheduler_database_initialize_site_list(struct __Scheduler *self, MYSQL_RES *res)
+{
+    MYSQL_ROW row;
+    self->site_list = new(ThreadsafeList(), cleanup_site_info);
+
+    while ((row = mysql_fetch_row(res)) != NULL) {
+
+    }
+
+
+    return AAOS_OK;
+}
+
+ static int
+ Scheduler_database_query(struct __Scheduler *self, const char *stmt_str, database_cb_t cb)
+ {
+    MYSQL *mysql;
     
-    if (isOf(class, SchedulerClass()) && class->delete_telescope_by_id.method) {
-        return ((int (*)(void *, int)) class->delete_telescope_by_id.method)(_self, identifier);
+    if ((mysql = mysql_init(NULL)) == NULL) {
+        return AAOS_ENOMEM;
+    }
+
+    if ((mysql_real_connect(mysql, self->db_host, self->db_user, self->db_passwd, self->db_name, 0, NULL, 0)) == NULL) {
+        mysql_close(mysql);
+        return AAOS_ERROR;
+    }
+
+    if (mysql_query(mysql, stmt_str) != 0) {
+        mysql_close(mysql);
+        return AAOS_ERROR;
+    }
+
+    if (cb != NULL) {
+        MYSQL_RES *res = mysql_store_result(mysql);
+        if (res == NULL) {
+            if (mysql_errno(mysql) != 0) {
+                return AAOS_ERROR;
+            } else {
+                return AAOS_OK;
+            }
+        }
+        return cb(self, res);
+    }
+
+    return AAOS_OK;
+ }
+
+
+int
+__scheduler_get_task_by_telescope_id(void *_self, unsigned  identifier, char *result, size_t size, size_t *length, unsigned int *type)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->get_task_by_telescope_id.method) {
+        return ((int (*)(void *, unsigned int, char *, size_t, size_t *, unsigned  *)) class->get_task_by_telescope_id.method)(_self, identifier, result, size, length, type);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_delete_telescope_by_id, "delete_telescope_by_id", _self, identifier);
+        forward(_self, &result, (Method) __scheduler_get_task_by_telescope_id, "get_task_by_telescope_id", _self, identifier, result, size, type);
         return result;
     }
 }
 
-int
-Scheduler_delete_telescope_by_id(void *_self, int identifier)
+static int
+__Scheduler_get_task_by_telescope_id(void *_self, unsigned int identifier , char *result, size_t size, size_t *length, unsigned int *type)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
-    
-    int ret = AAOS_OK;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
 
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TELESCOPE_BY_ID);
-    protobuf_set(self, PACKET_U32F0, identifier);
-    protobuf_set(self, PACKET_LENGTH, 0);
+    struct TelescopeInfo *telescope;
+    uint32_t length;
+    char *json_string;
+    int ret;
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
+    if (self->type == SCHEDULER_TYPE_SITE) {
+        telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_id, identifier);
+        if (telescope == NULL) {
+            return AAOS_ENOTFOUND;
+        }
+        if (strcmp(self->ipc_model, "unix_stream") == 0) {
+            json_string = __Scheduler_create_request_json_string(SCHEDULER_GET_TASK_BY_TELESCOPE_ID, identifier);
+            ret = __Scheduler_ipc_write_and_read(self, json_string, result, size, length);
+            free(json_string);
+            if (type != NULL) {
+                *type = SCHEDULER_FORMAT_JSON;
+            }
+            return ret;
         }
     } else {
-        return -1 * ret; /*Networking error.*/
+        return AAOS_ENOTSUP;
+    }
+}
+
+int
+__scheduler_get_task_by_telescope_name(void *_self, const char *name, char *result, size_t size, size_t *length, unsigned int *type)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->get_task_by_telescope_name.method) {
+        return ((int (*)(void *, const char *, char *, size_t, size_t *, unsigned  *)) class->get_task_by_telescope_id.method)(_self, name, result, size, length, type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_get_task_by_telescope_name, "get_task_by_telescope_name", _self, name, result, size, type);
+        return result;
+    }
+}
+
+static int
+__Scheduler_get_task_by_telescope_name(void *_self, unsigned int name, char *result, size_t size, size_t *length, unsigned int *type)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct TelescopeInfo *telescope;
+    uint32_t length;
+    char *json_string;
+    int ret;
+
+    if (self->type == SCHEDULER_TYPE_SITE) {
+        telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_name, name);
+        if (telescope == NULL) {
+            return AAOS_ENOTFOUND;
+        }
+        if (strcmp(self->ipc_model, "unix_stream") == 0) {
+            json_string = __Scheduler_create_request_json_string(SCHEDULER_GET_TASK_BY_TELESCOPE_NAME, name);
+            ret = __Scheduler_ipc_write_and_read(self, json_string, result, size, length);
+            free(json_string);
+            if (type != NULL) {
+                *type = SCHEDULER_FORMAT_JSON;
+            }
+            return ret;
+        }
+    } else {
+        return AAOS_ENOTSUP;
+    }
+}
+
+int
+__scheduler_pop_task_block(void *_self)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->pop_task_block.method) {
+        return (int (*)(void *) class->pop_task_block.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_pop_task_block, "pop_task_block", _self);
+        return result;
+    }
+}
+
+static int
+__Scheduler_pop_task_block(void *_self)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    int sockfd, cfd;
+    uint32_t length;
+    ssize_t nread, nwrite;
+    char buf[BUFSIZE], *block_buf;
+    struct sockaddr_un addr;
+    char *json_string;
+
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    block_buf = (char *) Malloc(BUFSIZE * self->max_task_in_block);
+    for (;;) {
+        memset(&addr, '\0', sizeof(struct sockaddr_un));
+        addr.sun_family  = AF_UNIX;
+        snprintf(addr.sun_path, PATHSIZE, "%s", self->socket_file);
+        if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+            continue;
+        }
+        if ((cfd = connect(sockfd, (struct sockadd *)&addr, sizeof(struct sockadd_un))) < 0) {
+            close(sockfd);
+            continue;
+        }
+        json_string = __Scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
+        length = strlen(json_string) + 1;
+        memcpy(buf, &length, sizeof(uint32_t));
+        snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
+        free(json_string);
+        if ((nwrite = Writen(cfd, buf, length + sizeof(uint32_t))) < 0) {
+            close(cfd);
+            close(sockfd);
+            continue;
+        }
+        for (;;) {
+            if ((nread = Readn(cfd, &length, sizeof(uint32_t))) < 0) {
+                close(cfd);
+                close(sockfd);
+                break;
+            }
+            if ((nread = Readn(cfd, block_buf, length)) < 0) {
+                close(cfd);
+                close(sockfd);
+                break;
+            }
+            json_string =  __Scheduler_create_request_json_string(SCHEDULER_TASK_BLOCK_ACK);
+            length = strlen(json_string) + 1;
+            memcpy(buf, &length, sizeof(uint32_t));
+            snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
+            free(json_string);
+            if ((nrwite = Writen(cfd, buf, length)) < 0) {
+                close(cfd);
+                close(sockfd);
+                break;
+            }
+            /*
+             * Parse block_buf, and push task block to 
+             */
+        }
+        continue;
+    }
+    free(block_buf);
+
+    return AAOS_OK;
+}
+
+int
+__scheduler_push_task_block(void *_self, const char *buf, unsigned int type)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->push_task_block.method) {
+        return ((int (*)(void *, const char *, unsigned int)) class->push_task_block.method)(_self, buf, type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_push_task_block, "push_task_block", _self, result, type);
+        return result;
+    }
+}
+
+static int
+__Scheduler_push_task_block(void *_self, const char *block_buf, unsigned int type)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    int ret;
+    uint32_t length;
+    char *buf;
+
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    if (type == SCHEDULER_FORMAT_JSON) {
+        length = strlen(block_buf) + 1; 
+        buf = (char *) Malloc(length + sizeof(uint32_t));
+        memcpy(buf, &length, sizeof(uint32_t));
+        snprintf(buf + sizeof(uint32_t), length, "%s", block_buf);
+        ret = __Scheduler_ipc_write(self, block_buf);
+        free(buf);
+    } else {
+        return AAOS_ENOTSUP;
     }
 
     return ret;
 }
 
 int
-scheduler_delete_telescope_by_name(void *_self, const char *name)
+__scheduler_update_status(void *_self, const char *buf, unsigned int type)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->delete_telescope_by_name.method) {
+    if (isOf(class, __SchedulerClass()) && class->update_status.method) {
+        return ((int (*)(void *, const char *, unsigned int)) class->update_status.method)(_self, buf, type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_update_status, "update_status", _self, result, type);
+        return result;
+    }
+}
+
+static int
+__Scheduler_update_status(void *_self, const char *string, unsigned int type)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    int ret;
+    uint32_t length;
+    char buf[BUFSIZE];
+
+    if (type == SCHEDULER_FORMAT_JSON) {
+        cJSON *root_json;
+        const cJSON *sites_json, *telescopes_json, *targets_json, *tasks_json, *site_json, *telescope_json, *target_json, *task_json;
+
+        if ((root_json = cJSON_Parse(string)) == NULL) {
+            return AAOS_EBADCMD;
+        }
+        length = strlen(string) + 1;
+        memcpy(buf, &length, sizeof(uint32_t));
+        snprintf(buf + sizeof(uint32_t), length, "%s", string);
+        if (self->type == SCHEDULER_TYPE_GLOBAL && (sites_json = cJSON_GetObjectItemCaseSensitive("SITE-INFO", root_json)) != NULL) {
+            struct SiteInfo *site;
+            const cJSON *id, *status;
+            if (cJSON_IsArray(sites_json)) {
+                cJSON_ArrayForEach(site_json, sites_json) {
+                    id = cJSON_GetObjectItemCaseSensitive(site_json, "site_id");
+                    status = cJSON_GetObjectItemCaseSensitive(site_json, "status");
+                    if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                        site = threadsafe_list_find_first_if(self->site_list, site_by_id, id->valueint);
+                        if (site != NULL) {
+                            /*
+                             * TODO, lock for threadsafe update!
+                             */
+                            site->status = status->valueint;
+                        }
+                    }
+                }
+            } else {
+                site_json = sites_json;
+                id = cJSON_GetObjectItemCaseSensitive(site_json, "site_id");
+                status = cJSON_GetObjectItemCaseSensitive(site_json, "status");
+                if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                    site = threadsafe_list_find_first_if(self->site_list, site_by_id, id->valueint);
+                    if (site != NULL) {
+                        site->status = status->valueint;
+                    }
+                }
+            }
+        }
+        if (self->type != SCHEDULER_TYPE_UNIT && (telescopes_json = cJSON_GetObjectItemCaseSensitive("TELESCOPE-INFO", root_json)) != NULL) {
+            struct TelescopeIfo *telescope;
+            const cJSON *id, *status;
+            if (cJSON_IsArray(telescopes_json)) {
+                cJSON_ArrayForEach(telescope_json, telescopes_json) {
+                    id = cJSON_GetObjectItemCaseSensitive(telescope_json, "tel_id");
+                    status = cJSON_GetObjectItemCaseSensitive(telescope_json, "status");
+                    if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                        telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_id, id->valueint);
+                        if (telescope != NULL) {
+                            /*
+                             * TODO, lock for threadsafe update!
+                             */
+                            telescope->status = status->valueint;
+                        }
+                    }
+                }
+            } else {
+                telescope_json = telescopes_json;
+                id = cJSON_GetObjectItemCaseSensitive(telescope_json, "site_id");
+                status = cJSON_GetObjectItemCaseSensitive(telescope_json, "status");
+                if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                    telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_id, id->valueint);
+                    if (telescope = NULL) {
+                        telescope->status = status->valueint;
+                    }
+                }
+            }
+        }
+        if (self->type != SCHEDULER_TYPE_UNIT && (targets_json = cJSON_GetObjectItemCaseSensitive("TARGET-INFO", root_json)) != NULL) {
+            struct TargetInfo *target;
+            const cJSON *id, *status;
+            if (cJSON_IsArray(targets_json)) {
+                cJSON_ArrayForEach(target_json, targets_json) {
+                    id = cJSON_GetObjectItemCaseSensitive(target_json, "targ_id");
+                    status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
+                    if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                        telescope = threadsafe_list_find_first_if(self->target_list, target_by_id, id->valueint);
+                        if (telescope != NULL) {
+                            /*
+                             * TODO, lock for threadsafe update!
+                             */
+                            telescope->status = status->valueint;
+                        }
+                    }
+                }
+            } else {
+                target_json = targets_json;
+                id = cJSON_GetObjectItemCaseSensitive(target_json, "site_id");
+                status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
+                if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                    target = threadsafe_list_find_first_if(self->target_list, target_by_id, id->valueint);
+                    if (target = NULL) {
+                        target->status = status->valueint;
+                    }
+                }
+            }
+        }
+        if (self->type != SCHEDULER_TYPE_UNIT && (tasks_json = cJSON_GetObjectItemCaseSensitive("TASK-INFO", root_json)) != NULL) {
+            const cJSON *id, *status;
+            if (cJSON_IsArray(targets_json)) {
+                cJSON_ArrayForEach(target_json, targets_json) {
+                    id = cJSON_GetObjectItemCaseSensitive(target_json, "targ_id");
+                    status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
+                    if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                        /*
+                         * update database here. 
+                         */
+                    }
+                }
+            } else {
+                target_json = targets_json;
+                id = cJSON_GetObjectItemCaseSensitive(target_json, "site_id");
+                status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
+                if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
+                    /*
+                     * update database here. 
+                     */
+                }
+            }
+        }
+        cJSON_Delete(root_json);
+    } else {
+        return AAOS_ENOTSUP;
+    }
+    
+    return ret;
+}
+
+
+
+int
+__scheduler_delete_site_by_id(void *_self, unsigned int identifier)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->delete_site_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->delete_site_by_id.method)(_self, identifier);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_delete_site_by_id, "delete_site_by_id", _self, identifier);
+        return result;
+    }
+}
+
+static int
+__Scheduler_delete_site_by_id(void *_self, unsigned int identifier)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    char *json_string;
+    int ret;
+
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_DELETE_SITE_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
+
+    return ret;
+}
+
+int
+__scheduler_delete_site_by_name(void *_self, const char *name)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->delete_site_by_name.method) {
+        return ((int (*)(void *, const char *)) class->delete_site_by_name.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_delete_site_by_name, "delete_site_by_name", _self, name);
+        return result;
+    }
+}
+
+static int
+__Scheduler_delete_site_by_name(void *_self, const char *name)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *site;
+    unsigned int identifier;
+    
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    site = threadsafe_list_find_first_if(self->site_list, site_by_name, name);
+    if (site == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    identifier = site->identifier;
+
+    return __Scheduler_delete_site_by_id(self, identifier);
+}
+
+int
+__scheduler_mask_site_by_id(void *_self, unsigned int identifier)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->mask_site_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->mask_site_by_id.method)(_self, identifier);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_mask_site_by_id, "mask_site_by_id", _self, identifier);
+        return result;
+    }
+}
+
+static int
+__Scheduler_mask_site_by_id(void *_self, unsigned int identifier)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    char *json_string;
+    int ret;
+
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_MASK_SITE_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
+
+    return ret;
+}
+
+int
+__scheduler_mask_site_by_name(void *_self, const char *name)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->mask_site_by_name.method) {
+        return ((int (*)(void *, const char *)) class->mask_site_by_name.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_mask_site_by_name, "mask_site_by_name", _self, name);
+        return result;
+    }
+}
+
+static int
+__Scheduler_mask_site_by_name(void *_self, const char *name)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *site;
+    unsigned int identifier;
+    
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    site = threadsafe_list_find_first_if(self->site_list, site_by_name, name);
+    if (site == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    identifier = site->identifier;
+
+    return __Scheduler_mask_site_by_id(self, identifier);
+}
+
+int
+__scheduler_unmask_site_by_id(void *_self, unsigned int identifier)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->unmask_site_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->unmask_site_by_id.method)(_self, identifier);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_unmask_site_by_id, "unmask_site_by_id", _self, identifier);
+        return result;
+    }
+}
+
+static int
+__Scheduler_unmask_site_by_id(void *_self, unsigned int identifier)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    char *json_string;
+    int ret;
+
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_UNMASK_SITE_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
+
+    return ret;
+}
+
+int
+__scheduler_unmask_site_by_name(void *_self, const char *name)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->unmask_site_by_name.method) {
+        return ((int (*)(void *, const char *)) class->unmask_site_by_name.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_unmask_site_by_name, "unmask_site_by_name", _self, name);
+        return result;
+    }
+}
+
+static int
+__Scheduler_unmask_site_by_name(void *_self, const char *name)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *site;
+    unsigned int identifier;
+    
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
+    }
+
+    site = threadsafe_list_find_first_if(self->site_list, site_by_name, name);
+    if (site == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    identifier = site->identifier;
+
+    return __Scheduler_unmask_site_by_id(self, identifier);
+}
+
+int
+__scheduler_add_telescope(void *_self, const char *info)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->add_telescope.method) {
+        return ((int (*)(void *, const char *)) class->add_telescope.method)(_self, info);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_add_telescope, "add_telescope", _self, info);
+        return result;
+    }
+}
+
+static int
+__Scheduler_add_telescope(void *_self, const char *info)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+    cJSON *telescope_json, *value_json;
+    int ret = AAOS_OK;
+    uint64_t site_id, tel_id, status;
+    double timestamp;
+    struct timespec tp;
+
+    if (self->type == SCHEDULER_TYPE_UNIT) {
+        return AAOS_ENOTSUP;
+    }
+
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
+
+    telescope_json = cJSON_Parse(info);
+
+    if (self->type == SCHEDULER_TYPE_SITE) {
+        void *site;
+        value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "site_id");
+        if (value_json != NULL && cJSON_IsString(value_json)) {
+            site_id = value_json->valueint;
+        } else {
+            ret = AAOS_EBADCMD;
+            goto end;
+        }
+        value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "tel_id");
+        if (value_json != NULL && cJSON_IsString(value_json)) {
+            tel_id = value_json->valueint;
+        } else {
+            ret = AAOS_EBADCMD;
+            goto end;
+        }
+        status = 0;
+        if ((site = threadsafe_list_find_first_if(self->site_list, site_by_id, site_id)) == NULL) {
+            ret = AAOS_ENOTFOUND;
+            goto end;
+        }
+    } else {
+        struct SiteInfo *site = self->site;
+        value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "site_id");
+        if (value_json != NULL && cJSON_IsString(value_json)) {
+            site_id = value_json->valueint;
+        } else {
+            site_id = site->identifier;
+            cJSON_AddNumberToObject(telescope_json, "site_id", site_id);
+        }
+        tel_id = self->max_telescope_id + 1;
+        self->max_telescope_id++;
+        tel_id &= (site_id<<16);
+        cJSON_AddNumberToObject(telescope_json, "tel_id", tel_id);
+        status = 0;
+    }
+
+    value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "telescop");
+    if (value_json != NULL && cJSON_IsString(value_json)) {
+        telescope->name = (char *) Malloc(strlen(value_json->valuestring) + 1);
+        snprintf(telescope->name, strlen(value_json->valuestring) + 1, "%s", value_json->valuestring);
+    }
+
+    value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "site_id");
+    if (value_json != NULL && cJSON_IsString(value_json)) {
+        uint64_t site_id = value_json->valueint;
+        tel_id = self->max_telescope_id + 1;
+        self->max_telescope_id++;
+        tel_id &= (site_id<<16);
+    } else {
+        if (self->type == SCHEDULER_TYPE_GLOBAL) {
+            free(telescope);
+            return AAOS_EBADCMD;
+        } else {
+            tel_id = self->max_telescope_id + 1;
+            self->max_telescope_id++;
+        }
+    }
+    cJSON_AddNumberToObject(telescope_json, "tel_id", tel_id);
+
+    if (self->type == SCHEDULER_TYPE_SITE) {
+        threadsafe_list_push_front(self->telescope_list, telescope);
+    } else {
+        free(telescope);
+    }
+end: 
+    cJSON_Delete(telescope_json);
+    return ret;
+}
+
+int
+__scheduler_delete_telescope_by_id(void *_self, unsigned int identifier)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->delete_telescope_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->delete_telescope_by_id.method)(_self, identifier);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_delete_telescope_by_id, "delete_telescope_by_id", _self, identifier);
+        return result;
+    }
+}
+
+static int
+__Scheduler_delete_telescope_by_id(void *_self, unsigned int identifier)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    char *json_string;
+    int ret;
+
+    if (self->type == SCHEDULER_TYPE_UNIT) {
+        return AAOS_ENOTSUP;
+    }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_DELETE_TARGET_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
+
+    return ret;
+}
+
+int
+__scheduler_delete_telescope_by_name(void *_self, const char *name)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->delete_telescope_by_name.method) {
         return ((int (*)(void *, const char *)) class->delete_telescope_by_name.method)(_self, name);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_delete_telescope_by_name, "delete_telescope_by_name", _self, name);
+        forward(_self, &result, (Method) __scheduler_delete_telescope_by_name, "delete_telescope_by_name", _self, name);
         return result;
     }
 }
 
-int
-Scheduler_delete_telescope_by_name(void *_self, const char *name)
+static int
+__Scheduler_delete_telescope_by_name(void *_self, const char *name)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *telescope;
+    unsigned int identifier;
     
-    int ret = AAOS_OK;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TELESCOPE_BY_NAME);
-    if (strlen(name) < PACKETPARAMETERSIZE - 1) {
-        protobuf_set(self, PACKET_STR, name);
-        protobuf_set(self, PACKET_LENGTH, 0);
-    } else {
-        char *buf;
-        protobuf_get(self, PACKET_BUF, &buf, NULL);
-        if (name != buf) {
-            protobuf_set(self, PACKET_BUF, name, strlen(name) + 1);
-        }
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_name, name);
+    if (telescope == NULL) {
+        return AAOS_ENOTFOUND;
     }
+    identifier = telescope->identifier;
 
-    return ret;
+    return __Scheduler_delete_telescope_by_id(self, identifier);
 }
 
 int
-scheduler_mask_telescope_by_id(void *_self, int identifier)
+__scheduler_mask_telescope_by_id(void *_self, unsigned int identifier)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->mask_telescope_by_id.method) {
-        return ((int (*)(void *, int)) class->mask_telescope_by_id.method)(_self, identifier);
+    if (isOf(class, __SchedulerClass()) && class->mask_telescope_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->mask_telescope_by_id.method)(_self, identifier);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_mask_telescope_by_id, "mask_telescope_by_id", _self, identifier);
+        forward(_self, &result, (Method) __scheduler_mask_telescope_by_id, "mask_telescope_by_id", _self, identifier);
         return result;
     }
 }
 
-int
-Scheduler_mask_telescope_by_id(void *_self, int identifier)
+static int
+__Scheduler_mask_telescope_by_id(void *_self, unsigned int identifier)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
-    
-    int ret = AAOS_OK;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
 
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TELESCOPE_BY_ID);
-    protobuf_set(self, PACKET_U32F0, identifier);
-    protobuf_set(self, PACKET_LENGTH, 0);
+    char *json_string;
+    int ret;
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_MASK_TARGET_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
 
     return ret;
 }
 
 int
-scheduler_mask_telescope_by_name(void *_self, const char *name)
+__scheduler_mask_telescope_by_name(void *_self, const char *name)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->mask_telescope_by_name.method) {
+    if (isOf(class, __SchedulerClass()) && class->mask_telescope_by_name.method) {
         return ((int (*)(void *, const char *)) class->mask_telescope_by_name.method)(_self, name);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_mask_telescope_by_name, "mask_telescope_by_name", _self, name);
+        forward(_self, &result, (Method) __scheduler_mask_telescope_by_name, "mask_telescope_by_name", _self, name);
         return result;
     }
 }
 
-int
-Scheduler_mask_telescope_by_name(void *_self, const char *name)
+static int
+__Scheduler_mask_telescope_by_name(void *_self, const char *name)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *telescope;
+    unsigned int identifier;
     
-    int ret = AAOS_OK;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TELESCOPE_BY_NAME);
-    if (strlen(name) < PACKETPARAMETERSIZE - 1) {
-        protobuf_set(self, PACKET_STR, name);
-        protobuf_set(self, PACKET_LENGTH, 0);
-    } else {
-        char *buf;
-        protobuf_get(self, PACKET_BUF, &buf, NULL);
-        if (name != buf) {
-            protobuf_set(self, PACKET_BUF, name, strlen(name) + 1);
-        }
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_name, name);
+    if (telescope == NULL) {
+        return AAOS_ENOTFOUND;
     }
+    identifier = telescope->identifier;
 
-    return ret;
+    return __Scheduler_mask_telescope_by_id(self, identifier);
 }
 
 int
-scheduler_unmask_telescope_by_id(void *_self, int identifier)
+__scheduler_unmask_telescope_by_id(void *_self, unsigned int identifier)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->unmask_telescope_by_id.method) {
-        return ((int (*)(void *, int)) class->unmask_telescope_by_id.method)(_self, identifier);
+    if (isOf(class, __SchedulerClass()) && class->unmask_telescope_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->unmask_telescope_by_id.method)(_self, identifier);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_unmask_telescope_by_id, "unmask_telescope_by_id", _self, identifier);
+        forward(_self, &result, (Method) __scheduler_unmask_telescope_by_id, "unmask_telescope_by_id", _self, identifier);
         return result;
     }
 }
 
-int
-Scheduler_unmask_telescope_by_id(void *_self, int identifier)
+static int
+__Scheduler_unmask_telescope_by_id(void *_self, unsigned int identifier)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
-    
-    int ret = AAOS_OK;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
 
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TELESCOPE_BY_ID);
-    protobuf_set(self, PACKET_U32F0, identifier);
-    protobuf_set(self, PACKET_LENGTH, 0);
+    char *json_string;
+    int ret;
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_UNMASK_TARGET_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
 
     return ret;
 }
 
 int
-scheduler_unmask_telescope_by_name(void *_self, const char *name)
+__scheduler_unmask_telescope_by_name(void *_self, const char *name)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->unmask_telescope_by_name.method) {
+    if (isOf(class, __SchedulerClass()) && class->unmask_telescope_by_name.method) {
         return ((int (*)(void *, const char *)) class->unmask_telescope_by_name.method)(_self, name);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_unmask_telescope_by_name, "mask_untelescope_by_name", _self, name);
+        forward(_self, &result, (Method) __scheduler_unmask_telescope_by_name, "unmask_telescope_by_name", _self, name);
         return result;
     }
 }
 
-int
-Scheduler_unmask_telescope_by_name(void *_self, const char *name)
+static int
+__Scheduler_unmask_telescope_by_name(void *_self, const char *name)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *telescope;
+    unsigned int identifier;
     
-    int ret = AAOS_OK;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TELESCOPE_BY_NAME);
-    if (strlen(name) < PACKETPARAMETERSIZE - 1) {
-        protobuf_set(self, PACKET_STR, name);
-        protobuf_set(self, PACKET_LENGTH, 0);
-    } else {
-        char *buf;
-        protobuf_get(self, PACKET_BUF, &buf, NULL);
-        if (name != buf) {
-            protobuf_set(self, PACKET_BUF, name, strlen(name) + 1);
-        }
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_name, name);
+    if (telescope == NULL) {
+        return AAOS_ENOTFOUND;
     }
+    identifier = telescope->identifier;
 
-    return ret;
+    return __Scheduler_unmask_telescope_by_id(self, identifier);
 }
 
 int
-scheduler_add_target(void *_self, ...)
+__scheduler_delete_target_by_id(void *_self, unint64_t identifier, uint32_t nside)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-
-    int result;
-    va_list ap;
-    va_start(ap, _self);
-    if (isOf(class, SchedulerClass()) && class->add_target.method) {
-        result = ((int (*)(void *, va_list *)) class->add_target.method)(_self, &ap);
-    } else {
-        forward(_self, &result, (Method) scheduler_add_target, "add_target", _self, &ap);
-        
-    }
-    va_end(ap);
-    return result;
-}
-
-int
-Scheduler_add_target(void *_self, va_list *app)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    int type;
-    uint16_t option, errorcode;
-    const char *target;
-    int ret = AAOS_OK;
-
-    type = va_arg(*app, int);
-    option = type;
-    target = va_arg(*app, const char *);
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_ADD_TARGET);
-    protobuf_set(self, PACKET_BUF, target, strlen(target)+1);
-    protobuf_set(self, PACKET_OPTION, option);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-int
-scheduler_delete_target(void *_self, ...)
-{
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-
-    int result;
-    va_list ap;
-    va_start(ap, _self);
-    if (isOf(class, SchedulerClass()) && class->delete_target.method) {
-        result = ((int (*)(void *, va_list *)) class->delete_target.method)(_self, &ap);
-    } else {
-        forward(_self, &result, (Method) scheduler_delete_target, "delete_target", _self, &ap);
-        
-    }
-    va_end(ap);
-    return result;
-}
-
-int
-Scheduler_delete_target(void *_self, va_list *app)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    int type;
-    uint16_t option, errorcode;
-    const char *target;
-    int ret = AAOS_OK;
-
-    type = va_arg(*app, int);
-    option = type;
-    target = va_arg(*app, const char *);
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TARGET);
-    protobuf_set(self, PACKET_BUF, target, strlen(target)+1);
-    protobuf_set(self, PACKET_OPTION, option);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-int
-scheduler_mask_target(void *_self, ...)
-{
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-
-    int result;
-    va_list ap;
-    va_start(ap, _self);
-    if (isOf(class, SchedulerClass()) && class->mask_target.method) {
-        result = ((int (*)(void *, va_list *)) class->mask_target.method)(_self, &ap);
-    } else {
-        forward(_self, &result, (Method) scheduler_mask_target, "mask_target", _self, &ap);
-        
-    }
-    va_end(ap);
-    return result;
-}
-
-int
-Scheduler_mask_target(void *_self, va_list *app)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    int type;
-    uint16_t option, errorcode;
-    const char *target;
-    int ret = AAOS_OK;
-
-    type = va_arg(*app, int);
-    option = type;
-    target = va_arg(*app, const char *);
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TARGET);
-    protobuf_set(self, PACKET_BUF, target, strlen(target)+1);
-    protobuf_set(self, PACKET_OPTION, option);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-int
-scheduler_unmask_target(void *_self, ...)
-{
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-
-    int result;
-    va_list ap;
-    va_start(ap, _self);
-    if (isOf(class, SchedulerClass()) && class->unmask_target.method) {
-        result = ((int (*)(void *, va_list *)) class->unmask_target.method)(_self, &ap);
-    } else {
-        forward(_self, &result, (Method) scheduler_unmask_target, "unmask_target", _self, &ap);
-        
-    }
-    va_end(ap);
-    return result;
-}
-
-int
-Scheduler_unmask_target(void *_self, va_list *app)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-    int type;
-    uint16_t option, errorcode;
-    const char *target;
-    int ret = AAOS_OK;
-
-    type = va_arg(*app, int);
-    option = type;
-    target = va_arg(*app, const char *);
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TARGET);
-    protobuf_set(self, PACKET_BUF, target, strlen(target)+1);
-    protobuf_set(self, PACKET_OPTION, option);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-int
-scheduler_delete_target_by_id(void *_self, int identifier)
-{
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->delete_target_by_id.method) {
-        return ((int (*)(void *, int)) class->delete_target_by_id.method)(_self, identifier);
+    if (isOf(class, __SchedulerClass()) && class->delete_target_by_id.method) {
+        return ((int (*)(void *, uint64_t, uint32_t)) class->delete_target_by_id.method)(_self, identifier, nside);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_delete_target_by_id, "delete_target_by_id", _self, identifier);
+        forward(_self, &result, (Method) __scheduler_delete_target_by_id, "delete_target_by_id", _self, identifier, nside);
         return result;
     }
 }
 
-int
-Scheduler_delete_target_by_id(void *_self, int identifier)
+static int
+__Scheduler_delete_target_by_id(void *_self, unint64_t identifier, uint32_t nside)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
-    
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
     int ret = AAOS_OK;
 
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TARGET_BY_ID);
-    protobuf_set(self, PACKET_U32F0, identifier);
-    protobuf_set(self, PACKET_LENGTH, 0);
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    if (self->type == SCHEDULER_TYPE_UNIT) {
+        return AAOS_ENOTSUP;
     }
+    /*
+     * update 
+     */
 
     return ret;
 }
 
 int
-scheduler_delete_target_by_name(void *_self, const char *name)
+__scheduler_delete_target_by_name(void *_self, const char *name)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->delete_target_by_name.method) {
+    if (isOf(class, __SchedulerClass()) && class->delete_target_by_name.method) {
         return ((int (*)(void *, const char *)) class->delete_target_by_name.method)(_self, name);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_delete_target_by_name, "delete_target_by_name", _self, name);
+        forward(_self, &result, (Method) __scheduler_delete_target_by_name, "delete_target_by_name", _self, name);
         return result;
     }
 }
 
-int
-Scheduler_delete_target_by_name(void *_self, const char *name)
+static int
+__Scheduler_delete_target_by_name(void *_self, const char *name)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *target;
+    unsigned int identifier;
     
-    int ret = AAOS_OK;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TARGET_BY_NAME);
-    if (strlen(name) < PACKETPARAMETERSIZE - 1) {
-        protobuf_set(self, PACKET_STR, name);
-        protobuf_set(self, PACKET_LENGTH, 0);
-    } else {
-        char *buf;
-        protobuf_get(self, PACKET_BUF, &buf, NULL);
-        if (name != buf) {
-            protobuf_set(self, PACKET_BUF, name, strlen(name) + 1);
-        }
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    target = threadsafe_list_find_first_if(self->target_list, target_by_name, name);
+    if (target == NULL) {
+        return AAOS_ENOTFOUND;
     }
+    identifier = target->identifier;
 
-    return ret;
+    return __Scheduler_delete_target_by_id(self, identifier);
 }
 
 int
-scheduler_mask_target_by_id(void *_self, int identifier)
+__scheduler_mask_target_by_id(void *_self, unsigned int identifier)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->mask_target_by_id.method) {
-        return ((int (*)(void *, int)) class->mask_target_by_id.method)(_self, identifier);
+    if (isOf(class, __SchedulerClass()) && class->mask_target_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->mask_target_by_id.method)(_self, identifier);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_mask_target_by_id, "mask_target_by_id", _self, identifier);
+        forward(_self, &result, (Method) __scheduler_mask_target_by_id, "mask_target_by_id", _self, identifier);
         return result;
     }
 }
 
-int
-Scheduler_mask_target_by_id(void *_self, int identifier)
+static int
+__Scheduler_mask_target_by_id(void *_self, unsigned int identifier)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
-    
-    int ret = AAOS_OK;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
 
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TARGET_BY_ID);
-    protobuf_set(self, PACKET_U32F0, identifier);
-    protobuf_set(self, PACKET_LENGTH, 0);
+    char *json_string;
+    int ret;
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_MASK_TARGET_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
 
     return ret;
 }
 
 int
-scheduler_mask_target_by_name(void *_self, const char *name)
+__scheduler_mask_target_by_name(void *_self, const char *name)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->mask_target_by_name.method) {
+    if (isOf(class, __SchedulerClass()) && class->mask_target_by_name.method) {
         return ((int (*)(void *, const char *)) class->mask_target_by_name.method)(_self, name);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_mask_target_by_name, "mask_target_by_name", _self, name);
+        forward(_self, &result, (Method) __scheduler_mask_target_by_name, "mask_target_by_name", _self, name);
         return result;
     }
 }
 
-int
-Scheduler_mask_target_by_name(void *_self, const char *name)
+static int
+__Scheduler_mask_target_by_name(void *_self, const char *name)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *target;
+    unsigned int identifier;
     
-    int ret = AAOS_OK;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TARGET_BY_NAME);
-    if (strlen(name) < PACKETPARAMETERSIZE - 1) {
-        protobuf_set(self, PACKET_STR, name);
-        protobuf_set(self, PACKET_LENGTH, 0);
-    } else {
-        char *buf;
-        protobuf_get(self, PACKET_BUF, &buf, NULL);
-        if (name != buf) {
-            protobuf_set(self, PACKET_BUF, name, strlen(name) + 1);
-        }
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    target = threadsafe_list_find_first_if(self->target_list, target_by_name, name);
+    if (target == NULL) {
+        return AAOS_ENOTFOUND;
     }
+    identifier = target->identifier;
 
-    return ret;
+    return __Scheduler_mask_target_by_id(self, identifier);
 }
 
 int
-scheduler_unmask_target_by_id(void *_self, int identifier)
+__scheduler_unmask_target_by_id(void *_self, unsigned int identifier)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->unmask_target_by_id.method) {
-        return ((int (*)(void *, int)) class->unmask_target_by_id.method)(_self, identifier);
+    if (isOf(class, __SchedulerClass()) && class->unmask_target_by_id.method) {
+        return ((int (*)(void *, unsigned int)) class->unmask_target_by_id.method)(_self, identifier);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_unmask_target_by_id, "unmask_target_by_id", _self, identifier);
+        forward(_self, &result, (Method) __scheduler_unmask_target_by_id, "unmask_target_by_id", _self, identifier);
         return result;
     }
 }
 
-int
-Scheduler_unmask_target_by_id(void *_self, int identifier)
+static int
+__Scheduler_unmask_target_by_id(void *_self, unsigned int identifier)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
-    
-    int ret = AAOS_OK;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
 
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TARGET_BY_ID);
-    protobuf_set(self, PACKET_U32F0, identifier);
-    protobuf_set(self, PACKET_LENGTH, 0);
+    char *json_string;
+    int ret;
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
+
+    json_string = __Scheduler_create_request_json_string(SCHEDULER_UNMASK_TARGET_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
 
     return ret;
 }
 
 int
-scheduler_unmask_target_by_name(void *_self, const char *name)
+__scheduler_unmask_target_by_name(void *_self, const char *name)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->unmask_target_by_name.method) {
+    if (isOf(class, __SchedulerClass()) && class->unmask_target_by_name.method) {
         return ((int (*)(void *, const char *)) class->unmask_target_by_name.method)(_self, name);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_unmask_target_by_name, "mask_untarget_by_name", _self, name);
+        forward(_self, &result, (Method) __scheduler_unmask_target_by_name, "unmask_target_by_name", _self, name);
         return result;
     }
 }
 
-int
-Scheduler_unmask_target_by_name(void *_self, const char *name)
+static int
+__Scheduler_unmask_target_by_name(void *_self, const char *name)
 {
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode;
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    struct SiteInfo *target;
+    unsigned int identifier;
     
-    int ret = AAOS_OK;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TARGET_BY_NAME);
-    if (strlen(name) < PACKETPARAMETERSIZE - 1) {
-        protobuf_set(self, PACKET_STR, name);
-        protobuf_set(self, PACKET_LENGTH, 0);
-    } else {
-        char *buf;
-        protobuf_get(self, PACKET_BUF, &buf, NULL);
-        if (name != buf) {
-            protobuf_set(self, PACKET_BUF, name, strlen(name) + 1);
-        }
+    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+        return AAOS_ENOTSUP;
     }
 
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
+    target = threadsafe_list_find_first_if(self->target_list, target_by_name, name);
+    if (target == NULL) {
+        return AAOS_ENOTFOUND;
     }
+    identifier = target->identifier;
 
-    return ret;
+    return __Scheduler_unmask_target_by_id(self, identifier);
 }
 
-int 
-scheduler_push_target_block(void *_self, const char *name, const char *target_block, int type)
+int
+__scheduler_init(void *_self)
 {
-    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->push_task_block.method) {
-        return ((int (*)(void *, const char *, const char *, int)) class->push_task_block.method)(_self, name, target_block, type);
+    if (isOf(class, __SchedulerClass()) && class->init.method) {
+        return ((int (*)(void *)) class->init.method)(_self);
     } else {
         int result;
-        forward(_self, &result, (Method) scheduler_push_target_block, "push_target_block", _self, name, target_block, type);
+        forward(_self, &result, (Method) __scheduler_init, "init", _self);
         return result;
     }
 }
 
-int
-Scheduler_push_target_block(void *_self, const char *name, const char *target_block, int type)
-{
-    struct Scheduler *self = cast(Scheduler(), _self);
-   
-    uint16_t errorcode, option;
-    option = type;
-    int ret = AAOS_OK;
-
-    char *buf;
-
-    protobuf_set(self, PACKET_COMMAND, SCHEDULER_PUSH_TARGET_BLOCK);
-    protobuf_set(self, PACKET_OPTION, option);
-    protobuf_get(self, PACKET_BUF, &buf, NULL);
-    if (target_block != buf) {
-        protobuf_set(self, PACKET_BUF, strlen(target_block) + 1);
-    }
-
-    if ((ret = rpc_call(self)) == AAOS_OK) {
-        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-        if (errorcode != AAOS_OK) {
-            return errorcode;
-        }
-    } else {
-        return -1 * ret; /*Networking error.*/
-    }
-
-    return ret;
-}
-
-
-static const void *scheduler_virtual_table(void);
-
 static int
-Scheduler_execute_get_task_by_id(struct Scheduler *self)
+__Scheduler_init(void *_self)
 {
-    uint16_t option;
-
-    protobuf_get(self, PACKET_OPTION, &option);
-    if (option == SCHEDULER_FORMAT_JSON) {
-
-    } else {
-        return AAOS_ENOTSUP;
-    }
-
-
+    struct __Scheduler *self = cast(__Scheduler(), _self);
 
     return AAOS_OK;
-}
-
-static int
-Scheduler_execute_get_task_by_name(struct Scheduler *self)
-{
-
-    uint16_t option;
-
-    protobuf_get(self, PACKET_OPTION, &option);
-    if (option == SCHEDULER_FORMAT_JSON) {
-
-    } else {
-        return AAOS_ENOTSUP;
-    }
-
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_list_telescope(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_add_telescope(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_delete_telescope_by_id(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_delete_telescope_by_name(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_mask_telescope_by_id(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_mask_telescope_by_name(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_unmask_telescope_by_id(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_unmask_telescope_by_name(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_add_target(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_delete_target(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_mask_target(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_unmask_target(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_delete_target_by_id(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_delete_target_by_name(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_mask_target_by_id(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_mask_target_by_name(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_unmask_target_by_id(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_unmask_target_by_name(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute_push_target_block(struct Scheduler *self)
-{   
-    return AAOS_OK;
-}
-
-static int
-Scheduler_execute(void *self)
-{
-
-    uint16_t command;
-    protobuf_get(self, PACKET_COMMAND, &command);
-    int ret;
-
-    switch (command) {
-        case SCHEDULER_GET_TASK_BY_ID:
-            ret = Scheduler_execute_get_target_by_id(self); 
-            break;
-        case SCHEDULER_GET_TASK_BY_NAME:
-            ret = Scheduler_execute_get_target_by_id(self); 
-            break;
-        case SCHEDULER_ADD_TELESCOPE:
-            ret = Scheduler_execute_add_telescope(self); 
-            break;
-        case SCHEDULER_DELETE_TELESCOPE_BY_ID:
-            ret = Scheduler_execute_delete_telescope_by_id(self); 
-            break;
-        case SCHEDULER_MASK_TELESCOPE_BY_ID:
-            ret = Scheduler_execute_mask_telescope_by_id(self); 
-            break;
-        case SCHEDULER_UNMASK_TELESCOPE_BY_ID:
-            ret = Scheduler_execute_unmask_telescope_by_id(self); 
-            break;
-        case SCHEDULER_DELETE_TELESCOPE_BY_NAME:
-            ret = Scheduler_execute_delete_telescope_by_name(self); 
-            break;
-        case SCHEDULER_MASK_TELESCOPE_BY_NAME:
-            ret = Scheduler_execute_mask_telescope_by_name(self); 
-            break;
-        case SCHEDULER_UNMASK_TELESCOPE_BY_NAME:
-            ret = Scheduler_execute_unmask_telescope_by_name(self); 
-            break;
-        case SCHEDULER_ADD_TARGET:
-            ret = Scheduler_execute_add_target(self); 
-            break;
-        case SCHEDULER_DELETE_TARGET:
-            ret = Scheduler_execute_delete_target(self); 
-            break;
-        case SCHEDULER_MASK_TARGET:
-            ret = Scheduler_execute_mask_target(self); 
-            break;
-        case SCHEDULER_UNMASK_TARGET:
-            ret = Scheduler_execute_unmask_target(self); 
-            break;
-        case SCHEDULER_DELETE_TARGET_BY_ID:
-            ret = Scheduler_execute_delete_target_by_id(self); 
-            break;
-        case SCHEDULER_MASK_TARGET_BY_ID:
-            ret = Scheduler_execute_mask_target_by_id(self); 
-            break;
-        case SCHEDULER_UNMASK_TARGET_BY_ID:
-            ret = Scheduler_execute_unmask_target_by_id(self); 
-            break;
-        case SCHEDULER_DELETE_TARGET_BY_NAME:
-            ret = Scheduler_execute_delete_target_by_name(self); 
-            break;
-        case SCHEDULER_MASK_TARGET_BY_NAME:
-            ret = Scheduler_execute_mask_target_by_name(self); 
-            break;
-        case SCHEDULER_UNMASK_TARGET_BY_NAME:
-            ret = Scheduler_execute_unmask_target_by_name(self); 
-            break;
-        default:
-            ret = AAOS_EBADCMD;
-    }
-
-    return ret;
-}
-
-
-static void *
-Scheduler_ctor(void *_self, va_list *app)
-{
-    struct Scheduler *self = super_ctor(Scheduler(), _self, app);
-    
-    self->_._vtab = scheduler_virtual_table();
-    
-    return (void *) self;
-}
-
-static void *
-Scheduler_dtor(void *_self)
-{
-    //struct RPC *self = cast(RPC(), _self);
-    
-    return super_dtor(Scheduler(), _self);
-}
-
-static void *
-SchedulerClass_ctor(void *_self, va_list *app)
-{
-    struct SchedulerClass *self = super_ctor(SchedulerClass(), _self, app);
-    Method selector;
-    
-#ifdef va_copy
-    va_list ap;
-    va_copy(ap, *app);
-#else
-    va_list ap = *app;
-#endif
-    
-    while ((selector = va_arg(ap, Method))) {
-        const char *tag = va_arg(ap, const char *);
-        Method method = va_arg(ap, Method);
-        
-        if (selector == (Method) scheduler_get_task_by_id) {
-            if (tag) {
-                self->get_task_by_id.tag = tag;
-                self->get_task_by_id.selector = selector;
-            }
-            self->get_task_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_get_task_by_name) {
-            if (tag) {
-                self->get_task_by_name.tag = tag;
-                self->get_task_by_name.selector = selector;
-            }
-            self->get_task_by_name.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_list_telescope) {
-            if (tag) {
-                self->list_telescope.tag = tag;
-                self->list_telescope.selector = selector;
-            }
-            self->list_telescope.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_add_telescope) {
-            if (tag) {
-                self->add_telescope.tag = tag;
-                self->add_telescope.selector = selector;
-            }
-            self->add_telescope.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_delete_telescope_by_id) {
-            if (tag) {
-                self->delete_telescope_by_id.tag = tag;
-                self->delete_telescope_by_id.selector = selector;
-            }
-            self->delete_telescope_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) Scheduler_mask_telescope_by_id) {
-            if (tag) {
-                self->mask_telescope_by_id.tag = tag;
-                self->mask_telescope_by_id.selector = selector;
-            }
-            self->mask_telescope_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_unmask_telescope_by_id) {
-            if (tag) {
-                self->unmask_telescope_by_id.tag = tag;
-                self->unmask_telescope_by_id.selector = selector;
-            }
-            self->unmask_telescope_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_delete_telescope_by_id) {
-            if (tag) {
-                self->delete_telescope_by_id.tag = tag;
-                self->delete_telescope_by_id.selector = selector;
-            }
-            self->delete_telescope_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) Scheduler_mask_telescope_by_name) {
-            if (tag) {
-                self->mask_telescope_by_name.tag = tag;
-                self->mask_telescope_by_name.selector = selector;
-            }
-            self->mask_telescope_by_name.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_unmask_telescope_by_name) {
-            if (tag) {
-                self->unmask_telescope_by_name.tag = tag;
-                self->unmask_telescope_by_name.selector = selector;
-            }
-            self->unmask_telescope_by_name.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_add_target) {
-            if (tag) {
-                self->add_target.tag = tag;
-                self->add_target.selector = selector;
-            }
-            self->add_target.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_delete_target) {
-            if (tag) {
-                self->delete_target.tag = tag;
-                self->delete_target.selector = selector;
-            }
-            self->delete_target.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_mask_target) {
-            if (tag) {
-                self->mask_target.tag = tag;
-                self->mask_target.selector = selector;
-            }
-            self->mask_target.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_unmask_target) {
-            if (tag) {
-                self->unmask_target.tag = tag;
-                self->unmask_target.selector = selector;
-            }
-            self->unmask_target.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_delete_target_by_id) {
-            if (tag) {
-                self->delete_target_by_id.tag = tag;
-                self->delete_target_by_id.selector = selector;
-            }
-            self->delete_target_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) Scheduler_mask_target_by_id) {
-            if (tag) {
-                self->mask_target_by_id.tag = tag;
-                self->mask_target_by_id.selector = selector;
-            }
-            self->mask_target_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_unmask_target_by_id) {
-            if (tag) {
-                self->unmask_target_by_id.tag = tag;
-                self->unmask_target_by_id.selector = selector;
-            }
-            self->unmask_target_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_delete_target_by_id) {
-            if (tag) {
-                self->delete_target_by_id.tag = tag;
-                self->delete_target_by_id.selector = selector;
-            }
-            self->delete_target_by_id.method = method;
-            continue;
-        }
-        if (selector == (Method) Scheduler_mask_target_by_name) {
-            if (tag) {
-                self->mask_target_by_name.tag = tag;
-                self->mask_target_by_name.selector = selector;
-            }
-            self->mask_target_by_name.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_unmask_target_by_name) {
-            if (tag) {
-                self->unmask_target_by_name.tag = tag;
-                self->unmask_target_by_name.selector = selector;
-            }
-            self->unmask_target_by_name.method = method;
-            continue;
-        }
-    }
-    
-#ifdef va_copy
-    va_end(ap);
-#endif
-    
-    self->_.execute.method = (Method) 0;
-    
-    return self;
-}
-
-static void *_SchedulerClass;
-
-static void
-SchedulerClass_destroy(void)
-{
-    free((void *) _SchedulerClass);
-}
-
-static void
-SchedulerClass_initialize(void)
-{
-    _SchedulerClass = new(RPCClass(), "SchedulerClass", RPCClass(), sizeof(struct SchedulerClass),
-                        ctor, "ctor", SchedulerClass_ctor,
-    
-                        (void *) 0);
-    
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(SchedulerClass_destroy);
-#endif
-}
-
-const void *
-SchedulerClass(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, SchedulerClass_initialize);
-#endif
-    
-    return _SchedulerClass;
-}
-
-static void *_Scheduler;
-
-static void
-Scheduler_destroy(void)
-{
-    free((void *) _Scheduler);
-}
-
-static void
-Scheduler_initialize(void)
-{
-    _Scheduler = new(SchedulerClass(), "Scheduler", RPC(), sizeof(struct Scheduler),
-                    ctor, "ctor", Scheduler_ctor,
-                    dtor, "dtor", Scheduler_dtor,
-                    dtor, "dtor", Scheduler_dtor,
-                    scheduler_get_task_by_id, "get_task_by_id", Scheduler_get_task_by_id,
-                    scheduler_get_task_by_name, "get_task_by_name", Scheduler_get_task_by_name,
-                    scheduler_list_telescope, "list_telescope", Scheduler_list_telescope,
-                    scheduler_add_telescope, "add_telescope", Scheduler_add_telescope,
-                    scheduler_delete_telescope_by_id, "delete_telescope_by_id", Scheduler_delete_telescope_by_id,
-                    scheduler_mask_telescope_by_id, "mask_telescope_by_id", Scheduler_mask_telescope_by_id,
-                    scheduler_unmask_telescope_by_id, "unmask_telescope_by_id", Scheduler_unmask_telescope_by_id,
-                    scheduler_delete_telescope_by_name, "delete_telescope_by_name", Scheduler_delete_telescope_by_name,
-                    scheduler_mask_telescope_by_name, "mask_telescope_by_name", Scheduler_mask_telescope_by_name,
-                    scheduler_unmask_telescope_by_name, "unmask_telescope_by_name", Scheduler_unmask_telescope_by_name,
-                    scheduler_add_target, "add_target", Scheduler_add_target,
-                    scheduler_delete_target, "delete_target", Scheduler_delete_target,
-                    scheduler_mask_target, "mask_target", Scheduler_mask_target,
-                    scheduler_unmask_target, "unmask_target", Scheduler_unmask_target,
-                    scheduler_delete_target_by_id, "delete_target_by_id", Scheduler_delete_target_by_id,
-                    scheduler_mask_target_by_id, "mask_target_by_id", Scheduler_mask_target_by_id,
-                    scheduler_unmask_target_by_id, "unmask_target_by_id", Scheduler_unmask_target_by_id,
-                    scheduler_delete_target_by_name, "delete_target_by_name", Scheduler_delete_target_by_name,
-                    scheduler_mask_target_by_name, "mask_target_by_name", Scheduler_mask_target_by_name,
-                    scheduler_unmask_target_by_name, "unmask_target_by_name", Scheduler_unmask_target_by_name,
-                    (void *) 0);
-    
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(Scheduler_destroy);
-#endif
-
-}
-
-const void *
-Scheduler(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, Scheduler_initialize);
-#endif
-    
-    return _Scheduler;
-}
-
-static const void *_scheduler_virtual_table;
-
-static void
-scheduler_virtual_table_destroy(void)
-{
-    delete((void *) _scheduler_virtual_table);
-}
-
-static void
-scheduler_virtual_table_initialize(void)
-{
-    _scheduler_virtual_table = new(RPCVirtualTable(),
-                                rpc_execute, "execute", Scheduler_execute,
-                                (void *)0);
-    
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(scheduler_virtual_table_destroy);
-#endif
-}
-
-static const void *
-scheduler_virtual_table(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-    Pthread_once(&once_control, scheduler_virtual_table_initialize);
-#endif
-    
-    return _scheduler_virtual_table;
-}
-
-/*
- * Scheduler client class
- */
-
-static const void *scheduler_client_virtual_table(void);
-
-static
-int SchedulerClient_connect(void *_self, void **client)
-{
-    struct SchedulerClient *self = cast(SchedulerClient(), _self);
-    
-    int cfd = Tcp_connect(self->_._.address, self->_._.port, NULL, NULL);
-    
-    if (cfd < 0) {
-        *client = NULL;
-        return AAOS_ERROR;
-    } else {
-        *client = new(Scheduler(), cfd);
-    }
-    
-    protobuf_set(*client, PACKET_PROTOCOL, PROTO_SCHEDULER);
-    
-    return AAOS_OK;
-}
-
-static void *
-SchedulerClient_ctor(void *_self, va_list *app)
-{
-    struct SchedulerClient *self = super_ctor(SchedulerClient(), _self, app);
-    
-    self->_._vtab = scheduler_client_virtual_table();
-    
-    return (void *) self;
-}
-
-static void *
-SchedulerClient_dtor(void *_self)
-{
-    //struct RPC *self = cast(RPC(), _self);
-    
-    return super_dtor(SchedulerClient(), _self);
-}
-
-static void *
-SchedulerClientClass_ctor(void *_self, va_list *app)
-{
-    struct SchedulerClientClass *self = super_ctor(SchedulerClientClass(), _self, app);
-    
-    self->_.connect.method = (Method) 0;
-    
-    return self;
-}
-
-static void *_SchedulerClientClass;
-
-static void
-SchedulerClientClass_destroy(void)
-{
-    free((void *) _SchedulerClientClass);
-}
-
-static void
-SchedulerClientClass_initialize(void)
-{
-    _SchedulerClientClass = new(RPCClientClass(), "SchedulerClientClass", RPCClientClass(), sizeof(struct SchedulerClientClass),
-                                ctor, "ctor", SchedulerClientClass_ctor,
-                                (void *) 0);
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(SchedulerClientClass_destroy);
-#endif
-}
-
-const void *
-SchedulerClientClass(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, SchedulerClientClass_initialize);
-#endif
-    
-    return _SchedulerClientClass;
-}
-
-static void *_SchedulerClient;
-
-static void
-SchedulerClient_destroy(void)
-{
-    free((void *) _SchedulerClient);
-}
-
-static void
-SchedulerClient_initialize(void)
-{
-    _SchedulerClient = new(SchedulerClientClass(), "SchedulerClient", RPCClient(), sizeof(struct SchedulerClient),
-                        ctor, "ctor", SchedulerClient_ctor,
-                        dtor, "dtor", SchedulerClient_dtor,
-                        (void *) 0);
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(SchedulerClient_destroy);
-#endif
-}
-
-const void *
-SchedulerClient(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, SchedulerClient_initialize);
-#endif
-    
-    return _SchedulerClient;
-}
-
-static const void *_scheduler_client_virtual_table;
-
-static void
-scheduler_client_virtual_table_destroy(void)
-{
-    delete((void *) _scheduler_client_virtual_table);
-}
-
-static void
-scheduler_client_virtual_table_initialize(void)
-{
-    _scheduler_client_virtual_table = new(RPCClientVirtualTable(),
-                                       rpc_client_connect, "connect", SchedulerClient_connect,
-                                       (void *)0);
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(scheduler_client_virtual_table_destroy);
-#endif
-}
-
-static const void *
-scheduler_client_virtual_table(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-    Pthread_once(&once_control, scheduler_client_virtual_table_initialize);
-#endif
-    
-    return _scheduler_client_virtual_table;
-}
-
-
-/*
- * Scheduler server class
- */
-
-static const void *scheduler_server_virtual_table(void);
-
-static int
-SchedulerServer_accept(void *_self, void **client)
-{
-    struct RPCServer *self = cast(RPCServer(), _self);
-    
-    int lfd, cfd;
-    
-    lfd = tcp_server_get_lfd(self);
-    cfd = Accept(lfd, NULL, NULL);
-    if (cfd < 0) {
-        *client = NULL;
-        return AAOS_ERROR;
-    } else {
-        if ((*client = new(Scheduler(), cfd)) == NULL) {
-            Close(cfd);
-            return AAOS_ERROR;
-        }
-        return AAOS_OK;
-    }
-}
-
-static void *
-SchedulerServer_ctor(void *_self, va_list *app)
-{
-    struct SchedulerServer *self = super_ctor(SchedulerServer(), _self, app);
-    
-    self->_._vtab = scheduler_server_virtual_table();
-    
-    return (void *) self;
-}
-
-static void *
-SchedulerServer_dtor(void *_self)
-{
-    //struct RPC *self = cast(RPC(), _self);
-    
-    return super_dtor(SchedulerServer(), _self);
-}
-
-static void *
-SchedulerServerClass_ctor(void *_self, va_list *app)
-{
-    struct SchedulerServerClass *self = super_ctor(SchedulerServerClass(), _self, app);
-    
-    self->_.accept.method = (Method) 0;
-    
-    return self;
-}
-
-static void *_SchedulerServerClass;
-
-static void
-SchedulerServerClass_destroy(void)
-{
-    free((void *) _SchedulerServerClass);
-}
-
-static void
-SchedulerServerClass_initialize(void)
-{
-    _SchedulerServerClass = new(RPCServerClass(), "SchedulerServerClass", RPCServerClass(), sizeof(struct SchedulerServerClass),
-                             ctor, "ctor", SchedulerServerClass_ctor,
-                             (void *) 0);
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(SchedulerServerClass_destroy);
-#endif
-}
-
-const void *
-SchedulerServerClass(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, SchedulerServerClass_initialize);
-#endif
-    
-    return _SchedulerServerClass;
-}
-
-static void *_SchedulerServer;
-
-static void
-SchedulerServer_destroy(void)
-{
-    free((void *) _SchedulerServer);
-}
-
-static void
-SchedulerServer_initialize(void)
-{
-    _SchedulerServer = new(SchedulerServerClass(), "SchedulerServer", RPCServer(), sizeof(struct SchedulerServer),
-                        ctor, "ctor", SchedulerServer_ctor,
-                        dtor, "dtor", SchedulerServer_dtor,
-                        (void *) 0);
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(SchedulerServer_destroy);
-#endif
-}
-
-const void *
-SchedulerServer(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, SchedulerServer_initialize);
-#endif
-    
-    return _SchedulerServer;
-}
-
-static const void *_scheduler_server_virtual_table;
-
-static void
-scheduler_server_virtual_table_destroy(void)
-{
-    delete((void *) _scheduler_server_virtual_table);
-}
-
-static void
-scheduler_server_virtual_table_initialize(void)
-{
-
-    _scheduler_server_virtual_table = new(RPCServerVirtualTable(),
-                                        rpc_server_accept, "accept", SchedulerServer_accept,
-                                        (void *)0);
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    atexit(scheduler_server_virtual_table_destroy);
-#endif
-}
-
-static const void *
-scheduler_server_virtual_table(void)
-{
-#ifndef _USE_COMPILER_ATTRIBUTION_
-    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-    Pthread_once(&once_control, scheduler_server_virtual_table_initialize);
-#endif
-    
-    return _scheduler_server_virtual_table;
 }
 
 /*

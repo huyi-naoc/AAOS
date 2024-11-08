@@ -13,6 +13,11 @@
 #include "wrapper.h"
 #include <libconfig.h>
 
+extern void *site_list;
+extern void *target_list;
+extern void *telescope_list;
+extern void *thread_list;
+
 static void *d;
 static void *server;
 static const char *config_path = "/usr/local/aaos/etc/schedulerd.cfg";
@@ -64,8 +69,6 @@ read_configuration(void)
     } else {
         const char *port;
         config_setting_lookup_string(setting, "port", &port);
-        server = new(SerialServer(), port);
-    }
-
-    
+        server = new(SchedulerServer(), port);
+    }    
 }
