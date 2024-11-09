@@ -1,64 +1,61 @@
 //
-//  schedule.h
+//  scheduler.h
 //  AAOS
 //
 //  Created by Hu Yi on 2023/12/11.
 //  Copyright © 2023 NAOC. All rights reserved.
 //
 
-#ifndef schedule_h
-#define schedule_h
-#include "rpc.h"
+#ifndef scheduler_h
+#define scheduler_h
 
-#define SCHEDULER_STATUS_OK     0
-#define SCHEDULER_STATUS_DELETE 1
-#define SCHEDULER_STATUS_MASKED 2
+#include <stdint.h>
+#include <string.h>
 
-#define SCHEDULER_GET_TASK_BY_ID                    1
-#define SCHEDULER_GET_TASK_BY_TELESCOPE_ID          1
-#define SCHEDULER_GET_TASK_BY_NAME                  2
-#define SCHEDULER_GET_TASK_BY_TELESCOPE_NAME        2
-#define SCHEDULER_LIST_TELESCOPE                    3
-#define SCHEDULER_ADD_TELESCOPE                     4
-#define SCHEDULER_DELETE_TELESCOPE_BY_ID            5
-#define SCHEDULER_DELETE_TELESCOPE_BY_NAME          6
-#define SCHEDULER_MASK_TELESCOPE_BY_ID              7
-#define SCHEDULER_MASK_TELESCOPE_BY_NAME            8
-#define SCHEDULER_UNMASK_TELESCOPE_BY_ID            9
-#define SCHEDULER_UNMASK_TELESCOPE_BY_NAME          10
-#define SCHEDULER_ADD_TARGET                        11
-#define SCHEDULER_DELETE_TARGET                     12
-#define SCHEDULER_MASK_TARGET                       13
-#define SCHEDULER_UNMASK_TARGET                     14
-#define SCHEDULER_DELETE_TARGET_BY_ID               15
-#define SCHEDULER_DELETE_TARGET_BY_NAME             16
-#define SCHEDULER_MASK_TARGET_BY_ID                 17
-#define SCHEDULER_MASK_TARGET_BY_NAME               18
-#define SCHEDULER_UNMASK_TARGET_BY_ID               19
-#define SCHEDULER_UNMASK_TARGET_BY_NAME             20
-#define SCHEDULER_SET_TARGET_PRIORITY               21
-#define SCHEDULER_ADD_SITE                          22
-#define SCHEDULER_DELETE_SITE_BY_ID                 23
-#define SCHEDULER_DELETE_SITE_BY_NAME               24
-#define SCHEDULER_MASK_SITE_BY_ID                   25
-#define SCHEDULER_MASK_SITE_BY_NAME                 26
-#define SCHEDULER_UNMASK_SITE_BY_ID                 27
-#define SCHEDULER_UNMASK_SITE_BY_NAME               28
-#define SCHEDULER_ADD_TASK_RECORD                   29
-#define SCHEDULER_UPDATE_TASK_STATUS                30
+#include "object.h"
 
-#define SCHEDULER_TASK_BLOCK_ACK                  38
-#define SCHEDULER_POP_TASK_BLOCK                  39
-#define SCHEDULER_PUSH_TASK_BLOCK                 40
+#ifndef PI
+#define PI 3.141592653589793
+#endif
+
+int __scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *result, size_t size, size_t *length, unsigned int *type);
+int __scheduler_get_task_by_telescope_name(void *_self, const char *name, char *result, size_t size, size_t *length, unsigned int *type);
+int __scheduler_pop_task_block(void *_self);
+int __scheduler_push_task_block(void *_self, const char *block_buf, unsigned int type);
+
+int __scheduler_update_status(void *_self, const char *string, unsigned int type);
+
+int __scheduler_list_site(void *_self, char *buf, size_t size, unsigned int *type);
+int __scheduler_add_site(void *_self, const char *info, unsigned int type);
+int __scheduler_delete_site_by_id(void *_self, uint64_t identifier);
+int __scheduler_delete_site_by_name(void *_self, const char *name);
+int __scheduler_mask_site_by_id(void *_self, uint64_t identifier);
+int __scheduler_mask_site_by_name(void *_self, const char *name);
+int __scheduler_unmask_site_by_id(void *_self, uint64_t identifier);
+int __scheduler_unmask_site_by_name(void *_self, const char *name);
 
 
-#define SCHEDULER_FORMAT_JSON           1
+int __scheduler_list_telescope(void *_self, char *buf, size_t size, unsigned int *type);
+int __scheduler_add_telescope(void *_self, const char *info, unsigned int type);
+int __scheduler_delete_telescope_by_id(void *_self, uint64_t identifier);
+int __scheduler_delete_telescope_by_name(void *_self, const char *name);
+int __scheduler_mask_telescope_by_id(void *_self, uint64_t identifier);
+int __scheduler_mask_telescope_by_name(void *_self, const char *name);
+int __scheduler_unmask_telescope_by_id(void *_self, uint64_t identifier);
+int __scheduler_unmask_telescope_by_name(void *_self, const char *name);
 
-#define SCHEDULER_TYPE_GLOBAL                       1
-#define SCHEDULER_TYPE_SITE                         2
-#define SCHEDULER_TYPE_UNIT                         3
+int __scheduler_list_target(void *_self, char *buf, size_t size, unsigned int *type);
+int __scheduler_add_target(void *_self, const char *info, unsigned int type);
+int __scheduler_delete_target_by_id(void *_self, uint64_t identifier, uint32_t nside);
+int __scheduler_delete_target_by_name(void *_self, const char *name);
+int __scheduler_mask_target_by_id(void *_self, uint64_t identifier, uint32_t nside);
+int __scheduler_mask_target_by_name(void *_self, const char *name);
+int __scheduler_unmask_target_by_id(void *_self, uint64_t identifier, uint32_t nside);
+int __scheduler_unmask_target_by_name(void *_self, const char *name);
 
+int __scheduler_add_task_record(void *_self, int status, const char *info, unsigned int type);
+int __scheduler_update_task_record(void *_self, uint64_t identifier, const char *info);
 
 extern const void *__Scheduler(void);
 extern const void *__SchedulerClass(void);
-#endif /* schedule_h */
+#endif /* scheduler_h */

@@ -14,6 +14,7 @@ struct __Scheduler {
     struct Object _;
     
     unsigned int type;
+    char *description;
 
     char *db_host;
     char *db_user;
@@ -27,8 +28,17 @@ struct __Scheduler {
     void *site_list;
     void *telescope_list;
     void *target_list;
+
+    char *global_addr;
+    char *global_port;
     void *site;
+    char *site_addr;
+    char *site_port;
     void *telescope;
+
+    char *ipc_model;
+    char *algorithm;
+    char *sock_file;
 
     uint64_t max_site_id;
     uint64_t max_telescope_id;
