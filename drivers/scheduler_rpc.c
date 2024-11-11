@@ -16,7 +16,6 @@
 
 #include "wrapper.h"
 
-
 int 
 scheduler_update_status(void *_self, const char *info, unsigned int type)
 {
@@ -1317,7 +1316,7 @@ int
 scheduler_update_task_record(void *_self, uint64_t identifier, const char *info, unsigned int type)
 {
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
-    
+
     if (isOf(class, SchedulerClass()) && class->update_task_record.method) {
         return ((int (*)(void *, uint64_t,  char *, unsigned int)) class->update_task_record.method)(_self, identifier, info, type);
     } else {

@@ -18,6 +18,7 @@ The following packages are needed to build the software
 * libcurl >= 7.6 (optional, if your want ASCOM device support)
 * libglib == 2.0 (optional, for GenICAM compatible detector)
 * libgsl >= 2.5 (optional, for cubic spline interpolation)
+* libmysqlclient >= 11.5 (MariaDB, for operating with databases)
 * libsofa_c (optional, external IAU fundamental astronomy library for celetial 
   coordinates transformation)  
 * libudev >= 245 (optional, only available for Linux hosts)
