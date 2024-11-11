@@ -48,6 +48,7 @@ AC_CHECK_LIB([m], [main])
 #    AC_CHECK_LIB([udev], [main])
 #fi
 AC_CHECK_LIB([cjson], [main])
+AC_CHECK_LIB([chealpix], [main])
 
 LIBS="$LIBS -pthread"
 # Checks for header files.
@@ -77,6 +78,23 @@ AC_CHECK_FUNCS([atexit clock_gettime floor ftruncate memset mkdir munmap regcomp
 AC_ARG_ENABLE([debug], [AS_HELP_STRING([--enable-debug], [Enable debug mode [default = no]])], [debug=${enableval}], [ascom=no])
 if test x"${debug}" = xyes; then
     AC_DEFINE([DEBUG], , [enable debug mode])
+fi
+
+AC_ARG_ENABLE([mysql], [AS_HELP_STRING([--enable-mysql], [Enable MySQL [default = yes]])], [mysql=${enableval}], [mysql=yes])
+if test x"${mysql}" = xyes; then
+    AC_CHECK_HEADERS([mysql/mysql.h], [have_mysql=yes], [have_mysql=no])
+    if test x"${have_mysql}" = xyes; then
+        AC_SEARCH_LIBS([mysql_init], [mysqlclient], [have_mysql=yes], [have_mysql=no])
+        if test x"${have_mysql}" = xyes; then
+            AC_DEFINE([__USE_MYSQL__], , [use mysql library])
+        else
+            AC_MSG_ERROR([libmysql is required for --enable-mysql])
+        fi
+    else
+        AC_MSG_ERROR([mysql.h is required for --enable-mysql])
+    fi
+else
+    AC_MSG_NOTICE([*** MySQL will not be enabled ***])
 fi
 
 AC_ARG_ENABLE([ascom], [AS_HELP_STRING([--enable-ascom], [Enable ASCOM interface [default = no]])], [ascom=${enableval}], [ascom=no])
@@ -162,114 +180,6 @@ if test x"${docs}" = xyes; then
     AC_CHECK_PROGS([PANDOC], [pandoc])
 fi
 AM_CONDITIONAL([WITH_PANDOC], [ test -n "$PANDOC" ])
-
-#AM_COND_IF(
-#    [GSL],
-#    [AC_SEARCH_LIBS([gsl_interp_accel_alloc], [gsl], [have_gsl=yes])
-#    AC_SEARCH_LIBS([cblas_sswap], [gslcblas], [have_gsl=yes])
-#    AM_CONDITIONAL([HAVE_GSL_LIB], [test "x${have_gsl}" = xyes])
-#    AM_COND_IF(
-#        [HAVE_GSL_LIB], 
-#	[AC_CHECK_HEADERS([gsl/gsl_errno.h gsl/gsl_spline.h], [], [have_gsl=no])
-#         AM_CONDITIONAL([HAVE_GSL_INC], [test "x${have_gsl}" = xyes])
-#         AM_COND_IF([HAVE_GSL_INC], [AC_DEFINE([__USE_GSL__], , [use GSL library])], [AC_MSG_ERROR([gsl_errno.h and gsl_spline.h is required for --enable-gsl])])
-#	], 
-#	[AC_MSG_ERROR([libgsl is required for --enable-gsl])]
-#    )
-#    ]
-#)
-
-#AC_ARG_ENABLE([sofa], [--disable-sofa disable sofa], [sofa=${enableval}], [sofa=yes])
-#AM_CONDITIONAL([SOFA], [test "x${sofa}" = xyes])
-#AM_COND_IF(
-#    [SOFA],
-#    [AC_SEARCH_LIBS([iauApci13], [sofa_c], [have_sofa=yes])
-#    AM_CONDITIONAL([HAVE_SOFA_LIB], [test "x${have_sofa}" = xyes])
-#    AM_COND_IF(
-#        [HAVE_SOFA_LIB], 
-#	[AC_CHECK_HEADERS([sofa.h sofam.h], [], [have_sofa=no])
-#         AM_CONDITIONAL([HAVE_SOFA_INC], [test "x${have_sofa}" = xyes])
-#         AM_COND_IF([HAVE_SOFA_INC], [AC_DEFINE([__USE_SOFA__], , [use SOFA library])], [AC_MSG_ERROR([sofa.h and sofam.h is required for --enable-sofa])])
-#	], 
-#	[AC_MSG_ERROR([libsofa_c is required for --enable-sofa])]
-#    )
-#    ]
-#)
-
-#if test "x${sofa}" = xyes; then
-#    have_sofa=no
-#    AC_SEARCH_LIBS([iauApci13], [sofa_c], [have_sofa=yes])
-
-#    if test "x${have_sofa}" = xyes; then
-#        AC_CHECK_HEADERS([sofa.h sofam.h], [], [have_sofa=no])
-#    fi
-#
-#    if test "x${have_sofa}" = xno; then
-#        AC_MSG_WARN([
-#    -----------------------------------------
-#    Unable to find SOFA library on this system.
-#    Building a native version.
-#    ----------------------------------------])
-#	sofa=no
-#    fi
-#fi
-
-#if test "x${sofa}" = xyes; then
-#    AC_DEFINE([__USE_SOFA__], , [use SOFA library])
-#fi
-
-#AC_ARG_ENABLE([gsl], [--enable-gsl enable gsl], [gsl=${enableval}], [gsl=no])
-
-#if test "x${gsl}" = xyes; then
-#    have_gsl=no
-#    AC_SEARCH_LIBS([gsl_interp_accel_alloc], [gsl], [have_gsl=yes])
-#    AC_SEARCH_LIBS([cblas_sswap], [gslcblas], [have_gsl=yes])
-
-#    if test "x${have_gsl}" = xyes; then
-#        AC_CHECK_HEADERS([gsl/gsl_errno.h gsl/gsl_spline.h], [], [have_gsl=no])
-#    fi
-
-#    if test "x${have_gsl}" = xno; then
-#        AC_MSG_WARN([
-#    -----------------------------------------
-#    Unable to find GSL library on this system.
-#    Building a native version.
-#    ----------------------------------------])
-#	gsl=no
-#    fi
-#fi
-
-#if test "x${gsl}" = xyes; then
-#    AC_DEFINE([__USE_GSL__], , [use gsl library])
-#fi
-
-
-#AC_SUBST([EXTRA_DRIVER_SOURCES])
-
-#AC_ARG_ENABLE([ascom], [--enable-ascom enable ascom], [ascom=${enableval}], [ascom=no])
-
-#if test "x${ascom}" = xyes; then
-#    have_ascom=no
-#    AC_SEARCH_LIBS([curl_easy_init], [curl], [have_ascom=yes])
-#    AC_SEARCH_LIBS([cJSON_Parse], [cjson], [have_ascom=yes])
-#
-#    if test "x${have_ascom}" = xyes; then
-#        AC_CHECK_HEADERS([cjson/cJSON.h curl/curl.h], [], [have_ascom=no])
-#    fi
-#
-#    if test "x${have_ascom}" = xno; then
-#        AC_MSG_WARN([
-#    -----------------------------------------
-#    Unable to find curl library on this system.
-#    Building a native version.
-#    ----------------------------------------])
-#	ascom=no
-#    fi
-#fi
-
-#if test "x${ascom}" = xyes; then
-#    AC_DEFINE([__USE_ASCOM__], , [use ascom functionality])
-#fi
 
 AC_CONFIG_FILES([Makefile
 		 cores/Makefile

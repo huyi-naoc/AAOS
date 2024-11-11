@@ -53,9 +53,17 @@
 #define SCHEDULER_UPDATE_TASK_STATUS                32
 
 #define SCHEDULER_UPDATE_STATUS                     33
-#define SCHEDULER_TASK_BLOCK_ACK                  38
-#define SCHEDULER_POP_TASK_BLOCK                  39
-#define SCHEDULER_PUSH_TASK_BLOCK                 40
+#define SCHEDULER_TASK_BLOCK_ACK                    38
+#define SCHEDULER_POP_TASK_BLOCK                    39
+#define SCHEDULER_PUSH_TASK_BLOCK                   40
+
+
+#define SCHEDULER_UPDATE_TASK_RECORD                49
+#define SCHEDULER_SITE_INIT                         50
+#define SCHEDULER_TELESCOPE_INIT                    51
+#define SCHEDULER_TARGET_INIT                       52
+#define SCHEDULER_TASK_RECORD_INIT                  53
+
 
 
 #define SCHEDULER_FORMAT_JSON           1

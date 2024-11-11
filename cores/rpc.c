@@ -1245,25 +1245,26 @@ error:
     int kq, cfd, j = 1;
     struct kevent *changelist, *eventlist;
     struct timespec tp;
+    void *client;
 
     tp.tv_sec = floor(self->_.timeout);
     tp.tv_nsec = (self->_.timeout - tp.tv_sec) * 1000000000;
 
     kq = kqueue();
-    eventlist = (struct kevent *) Malloc(sizeof(struct kevent) * self-_.max_events);
-    changelist = (struct kevent *) Malloc(sizeof(struct kevent) * self-_.max_events);
-    EV_SET(&changelist[0], lfd, EVFILT_READ, EV_ADD, 0,  &self);
+    eventlist = (struct kevent *) Malloc(sizeof(struct kevent) * self->_.max_events);
+    changelist = (struct kevent *) Malloc(sizeof(struct kevent) * self->_.max_events);
+    EV_SET(&changelist[0], lfd, EVFILT_READ, EV_ADD, 0, 0, &self);
     for (;;) {
         n_events = kevent(kq, changelist, j, eventlist, self->_.max_events, &tp);
-        for (i = 0; i < n_evnets; i++) {
+        for (i = 0; i < n_events; i++) {
             if (eventlist[i].udata == self) {
-                for (j = 1; j < self-_.max_events; j++) {
+                for (j = 1; j < self->_.max_events; j++) {
                     ret = rpc_server_accept(self, &client);
                     if (ret != AAOS_OK) {
                         break;
                     }
                     cfd = tcp_socket_get_sockfd(client);
-                    EV_SET(&changelist[j], cfd, EVFILT_READ, EV_ADD, 0, client);
+                    EV_SET(&changelist[j], cfd, EVFILT_READ, EV_ADD, 0, 0, client);
                 }
             } else {
                 for (;;) {

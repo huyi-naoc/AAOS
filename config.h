@@ -11,13 +11,13 @@
 #define HAVE_ATEXIT 1
 
 /* Define to 1 if you have the <cjson/cJSON.h> header file. */
-#define HAVE_CJSON_CJSON_H 1
+/* #undef HAVE_CJSON_CJSON_H */
 
 /* Define to 1 if you have the 'clock_gettime' function. */
 #define HAVE_CLOCK_GETTIME 1
 
 /* Define to 1 if you have the <curl/curl.h> header file. */
-#define HAVE_CURL_CURL_H 1
+/* #undef HAVE_CURL_CURL_H */
 
 /* Define to 1 if you have the declaration of 'strerror_r', and to 0 if you
    don't. */
@@ -56,6 +56,9 @@
 /* Define to 1 if you have the 'cfitsio' library (-lcfitsio). */
 #define HAVE_LIBCFITSIO 1
 
+/* Define to 1 if you have the 'chealpix' library (-lchealpix). */
+#define HAVE_LIBCHEALPIX 1
+
 /* Define to 1 if you have the 'cjson' library (-lcjson). */
 #define HAVE_LIBCJSON 1
 
@@ -86,6 +89,9 @@
 
 /* Define to 1 if you have the 'munmap' function. */
 #define HAVE_MUNMAP 1
+
+/* Define to 1 if you have the <mysql/mysql.h> header file. */
+#define HAVE_MYSQL_MYSQL_H 1
 
 /* Define to 1 if you have the <netdb.h> header file. */
 #define HAVE_NETDB_H 1
@@ -247,10 +253,13 @@
 /* #undef __USE_ARAVIS__ */
 
 /* use cjson and curl library */
-#define __USE_ASCOM__ /**/
+/* #undef __USE_ASCOM__ */
 
 /* use GSL library */
 #define __USE_GSL__ /**/
+
+/* use mysql library */
+#define __USE_MYSQL__ /**/
 
 /* use IAU SOFA library */
 /* #undef __USE_SOFA__ */

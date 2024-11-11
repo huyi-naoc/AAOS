@@ -916,7 +916,7 @@ TCPServer_get_option(const void *_self, unsigned int *option)
 int
 tcp_server_set_option(void *_self, unsigned int option)
 {
-    struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
+    struct TCPServerClass *class = (struct TCPServerClass*) classOf(_self);
     int result;
     
     if (isOf(class, TCPServerClass()) && class->set_option.method) {

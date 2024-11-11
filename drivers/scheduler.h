@@ -9,6 +9,7 @@
 #ifndef scheduler_h
 #define scheduler_h
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -34,7 +35,6 @@ int __scheduler_mask_site_by_name(void *_self, const char *name);
 int __scheduler_unmask_site_by_id(void *_self, uint64_t identifier);
 int __scheduler_unmask_site_by_name(void *_self, const char *name);
 
-
 int __scheduler_list_telescope(void *_self, char *buf, size_t size, unsigned int *type);
 int __scheduler_add_telescope(void *_self, const char *info, unsigned int type);
 int __scheduler_delete_telescope_by_id(void *_self, uint64_t identifier);
@@ -55,6 +55,11 @@ int __scheduler_unmask_target_by_name(void *_self, const char *name);
 
 int __scheduler_add_task_record(void *_self, int status, const char *info, unsigned int type);
 int __scheduler_update_task_record(void *_self, uint64_t identifier, const char *info);
+
+void __scheduler_set_member(void *self, const char *name, ...);
+
+void *__scheduler_site_manage_thr(void *_self);
+void *__scheduler_telescope_manage_thr(void *_self);
 
 extern const void *__Scheduler(void);
 extern const void *__SchedulerClass(void);

@@ -867,7 +867,7 @@ int
 Pthread_rwlock_destroy(pthread_rwlock_t *lock)
 {
     int s;
-    s = pthread_rwlock_destroy(lock, attr);
+    s = pthread_rwlock_destroy(lock);
     if (s != 0) {
         err_warn("pthread_rwlock_destroy", s);
     }
@@ -1178,11 +1178,11 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                 int kq, i, n;
                 struct timespec tp;
                 tp.tv_sec = floor(timeout);
-                tp.tv_usec = (timeout - tp.tv_sec) * 1000000000;
-                if ((kq = kqueue)< 0)
+                tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000;
+                if ((kq = kqueue())< 0)
                     continue;
                 struct kevent kev, events[8];
-                EV_SET(kev, sockfd, EVFILT_WRITE, EV_ADD | EV_ONSHOT, 0, 0, NULL);
+                EV_SET(&kev, sockfd, EVFILT_WRITE, EV_ADD|EV_ONESHOT, 0, 0, NULL);
                 if ((n = kevent(kq, &kev, 1, events, 8, &tp)) < 0)
                     continue;
                 if (n == 0)
@@ -1190,9 +1190,11 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                 for (i = 0; i < n; i++) {
                     if (events[i].ident == sockfd) {
                         unsigned int optval;
-                        getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, sizeof(optval));
-                        if (optval == 0)
+                        socklen_t optlen;                       
+                        getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
+                        if (optval == 0) {
                             return sockfd;
+                        }
                     }
                 }
 #endif

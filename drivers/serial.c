@@ -5090,7 +5090,7 @@ KLTPSerial_feed_dog(void *_self)
 static int
 KLTPSerial_validate(const void *_self, const void *command, size_t size)
 {
-    const char *buf = command;
+    const unsigned char *buf = command;
     
     if (size<6 || buf[0] != 0x55) {
         return AAOS_EBADCMD;

@@ -8,6 +8,7 @@
 
 #include "def.h"
 #include "protocol.h"
+#include "rpc.h"
 #include "scheduler_def.h"
 #include "scheduler_rpc.h"
 #include "scheduler_rpc_r.h"
@@ -16,12 +17,12 @@
 #include "wrapper.h"
 
 int
-scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *result, size_t size, size_t *length, int *type)
+scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *result, size_t size, size_t *length, unsigned int *type)
 {
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
     
-    if (isOf(class, SchedulerClass()) && class->get_task_by_id.method) {
-        return ((int (*)(void *, uint64_t, char *, size_t, size_t *, int *)) class->get_task_by_id.method)(_self, identifier, result, size, length, type);
+    if (isOf(class, SchedulerClass()) && class->get_task_by_telescope_id.method) {
+        return ((int (*)(void *, uint64_t, char *, size_t, size_t *, unsigned int *)) class->get_task_by_telescope_id.method)(_self, identifier, result, size, length, type);
     } else {
         int result;
         forward(_self, &result, (Method) scheduler_get_task_by_telescope_id, "get_task_by_telescope_id", _self, identifier, result, size, length, type);
@@ -30,7 +31,7 @@ scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *resul
 }
 
 static int
-Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier , char *result, size_t size, size_t *length, int *type)
+Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier , char *result, size_t size, size_t *length, unsigned int *type)
 {
     struct Scheduler *self = cast(Scheduler(), _self);
     char *res = NULL;
@@ -47,7 +48,7 @@ Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier , char *resu
         if (errorcode != AAOS_OK) {
             return errorcode;
         }
-        if (*type != NULL) {
+        if (type != NULL) {
             protobuf_get(self, PACKET_OPTION, &option);
             *type = option;
         }
@@ -66,12 +67,12 @@ Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier , char *resu
 }
 
 int
-scheduler_get_task_by_telescope_name(void *_self, const char *name, char *result, size_t size, size_t *length, int *type)
+scheduler_get_task_by_telescope_name(void *_self, const char *name, char *result, size_t size, size_t *length, unsigned int *type)
 {
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
     
     if (isOf(class, SchedulerClass()) && class->get_task_by_telescope_name.method) {
-        return ((int (*)(void *, const char *, char *, size_t, size_t *, int *)) class->get_task_by_telescope_name.method)(_self, name, result, size, length, type);
+        return ((int (*)(void *, const char *, char *, size_t, size_t *, unsigned int *)) class->get_task_by_telescope_name.method)(_self, name, result, size, length, type);
     } else {
         int result;
         forward(_self, &result, (Method) scheduler_get_task_by_telescope_name, "get_task_by_telescope_name", _self, name, result, size, length, type);
@@ -80,7 +81,7 @@ scheduler_get_task_by_telescope_name(void *_self, const char *name, char *result
 }
 
 static int
-Scheduler_get_task_by_telescope_name(void *_self, const char *name , char *result, size_t size, size_t *length, int *type)
+Scheduler_get_task_by_telescope_name(void *_self, const char *name , char *result, size_t size, size_t *length, unsigned int *type)
 {
     struct Scheduler *self = cast(Scheduler(), _self);
   
@@ -105,7 +106,7 @@ Scheduler_get_task_by_telescope_name(void *_self, const char *name , char *resul
         if (errorcode != AAOS_OK) {
             return errorcode;
         }
-        if (*type != NULL) {
+        if (type != NULL) {
             protobuf_get(self, PACKET_OPTION, &option);
             *type = option;
         }
@@ -114,7 +115,7 @@ Scheduler_get_task_by_telescope_name(void *_self, const char *name , char *resul
             snprintf(result, size, "%s", res);
         }
         if (length != NULL) {
-            length = len;
+            *length = len;
         }
     } else {
         return -1 * ret; /*Networking error.*/
@@ -168,12 +169,12 @@ Scheduler_pop_task_block(void *_self, const char *block_buf, unsigned int type)
 }
 
 int
-scheduler_list_site(void *_self, char *result, size_t size, size_t *length, int *type)
+scheduler_list_site(void *_self, char *result, size_t size, size_t *length, unsigned int *type)
 {
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
     
     if (isOf(class, SchedulerClass()) && class->list_site.method) {
-        return ((int (*)(void *, char *, size_t, size_t *, int *)) class->get_task_by_name.method)(_self, result, size, length, type);
+        return ((int (*)(void *, char *, size_t, size_t *, unsigned int *)) class->list_site.method)(_self, result, size, length, type);
     } else {
         int result;
         forward(_self, &result, (Method) scheduler_list_site, "list_site", _self, result, size, length, type);
@@ -182,7 +183,7 @@ scheduler_list_site(void *_self, char *result, size_t size, size_t *length, int 
 }
 
 static int
-Scheduler_list_site(void *_self, char *result, size_t size, size_t *length, int *type)
+Scheduler_list_site(void *_self, char *result, size_t size, size_t *length, unsigned int *type)
 {
     struct Scheduler *self = cast(Scheduler(), _self);
     char *res = NULL;
@@ -199,7 +200,7 @@ Scheduler_list_site(void *_self, char *result, size_t size, size_t *length, int 
         if (errorcode != AAOS_OK) {
             return errorcode;
         }
-        if (*type != NULL) {
+        if (type != NULL) {
             protobuf_get(self, PACKET_OPTION, &option);
             *type = option;
         }
@@ -520,12 +521,12 @@ Scheduler_unmask_site_by_name(void *_self, const char *name)
 }
 
 int
-scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length, int *type)
+scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length, unsigned int *type)
 {
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
     
     if (isOf(class, SchedulerClass()) && class->list_telescope.method) {
-        return ((int (*)(void *, char *, size_t, size_t *, int *)) class->get_task_by_name.method)(_self, result, size, length, type);
+        return ((int (*)(void *, char *, size_t, size_t *, unsigned int *)) class->list_telescope.method)(_self, result, size, length, type);
     } else {
         int result;
         forward(_self, &result, (Method) scheduler_list_telescope, "list_telescope", _self, result, size, type);
@@ -534,7 +535,7 @@ scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length,
 }
 
 static int
-Scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length, int *type)
+Scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length, unsigned int *type)
 {
     struct Scheduler *self = cast(Scheduler(), _self);
     char *res = NULL;
@@ -551,7 +552,7 @@ Scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length,
         if (errorcode != AAOS_OK) {
             return errorcode;
         }
-        if (*type != NULL) {
+        if (type != NULL) {
             protobuf_get(self, PACKET_OPTION, &option);
             *type = option;
         }
@@ -872,12 +873,12 @@ Scheduler_unmask_telescope_by_name(void *_self, const char *name)
 }
 
 int
-scheduler_list_target(void *_self, char *result, size_t size, size_t *length, int *type)
+scheduler_list_target(void *_self, char *result, size_t size, size_t *length, unsigned int  *type)
 {
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
     
     if (isOf(class, SchedulerClass()) && class->list_target.method) {
-        return ((int (*)(void *, char *, size_t, size_t *, int *)) class->get_task_by_name.method)(_self, result, size, length, type);
+        return ((int (*)(void *, char *, size_t, size_t *, unsigned int *)) class->list_target.method)(_self, result, size, length, type);
     } else {
         int result;
         forward(_self, &result, (Method) scheduler_list_target, "list_target", _self, result, size, type);
@@ -903,7 +904,7 @@ Scheduler_list_target(void *_self, char *result, size_t size, size_t *length, in
         if (errorcode != AAOS_OK) {
             return errorcode;
         }
-        if (*type != NULL) {
+        if (type != NULL) {
             protobuf_get(self, PACKET_OPTION, &option);
             *type = option;
         }
@@ -1058,7 +1059,7 @@ scheduler_mask_target_by_id(void *_self, uint64_t identifier, uint32_t nside)
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
     
     if (isOf(class, SchedulerClass()) && class->mask_target_by_id.method) {
-        return ((int (*)(void *, uint64_t, unint32_t)) class->mask_target_by_id.method)(_self, identifier, nside);
+        return ((int (*)(void *, uint64_t, uint32_t)) class->mask_target_by_id.method)(_self, identifier, nside);
     } else {
         int result;
         forward(_self, &result, (Method) scheduler_mask_target_by_id, "mask_target_by_id", _self, identifier, nside);
@@ -1067,7 +1068,7 @@ scheduler_mask_target_by_id(void *_self, uint64_t identifier, uint32_t nside)
 }
 
 int
-Scheduler_mask_target_by_id(void *_self, uint64_t identifier, unint32_t nside)
+Scheduler_mask_target_by_id(void *_self, uint64_t identifier, uint32_t nside)
 {
     struct Scheduler *self = cast(Scheduler(), _self);
    
@@ -1140,7 +1141,7 @@ Scheduler_mask_target_by_name(void *_self, const char *name)
 }
 
 int
-scheduler_unmask_target_by_id(void *_self, uint64_t identifier, unint32_t nside)
+scheduler_unmask_target_by_id(void *_self, uint64_t identifier, uint32_t nside)
 {
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
     
@@ -1262,6 +1263,7 @@ Scheduler_execute_get_task_by_telescope_name(struct Scheduler *self)
     unsigned int type;
     size_t size;
     int ret;
+    uint16_t option;
 
     protobuf_get(self, PACKET_LENGTH, &length);
     if (length == 0) {
@@ -1285,6 +1287,52 @@ Scheduler_execute_get_task_by_telescope_name(struct Scheduler *self)
 }
 
 static int
+Scheduler_execute_pop_task_block(struct Scheduler *self)
+{
+    uint16_t option;
+    uint64_t identifier;
+    uint32_t length;
+    char *block_buf;
+    unsigned int type;
+    int ret;
+
+    protobuf_get(self, PACKET_BUF, &block_buf, &length);
+    protobuf_get(self, PACKET_OPTION, &option);
+    type = option;
+
+    if ((ret = __scheduler_push_task_block(scheduler, block_buf, type)) == AAOS_OK) {
+        protobuf_set(self, PACKET_LENGTH, 0);
+    }
+
+    return 0;
+}
+
+static int
+Scheduler_execute_update_status(struct Scheduler *self)
+{
+    uint16_t option;
+    uint64_t identifier;
+    uint32_t length;
+    char *buf;
+    unsigned int type;
+    int ret;
+    
+    protobuf_get(self, PACKET_BUF, &buf, &length);
+    protobuf_get(self, PACKET_OPTION, &option);
+    type = option;
+
+    if ((ret = __scheduler_update_status(scheduler, buf, type)) == AAOS_OK) {
+        option = type;
+        length = strlen(buf) + 1;
+        protobuf_set(self, PACKET_OPTION, option);
+        protobuf_set(self, PACKET_BUF, buf, length);
+        protobuf_set(self, PACKET_LENGTH, length);
+    }
+
+    return ret;
+}
+
+static int
 Scheduler_execute_list_site(struct Scheduler *self)
 {   
     uint16_t option;
@@ -1295,10 +1343,9 @@ Scheduler_execute_list_site(struct Scheduler *self)
     size_t size;
     int ret;
 
-    protobuf_get(self, PACKET_U64F0, &tel_id);
     protobuf_get(self, PACKET_BUF, &buf, NULL);
     protobuf_get(self, PACKET_SIZE, &size);
-    if ((ret = __scheduler_list_site(scheduler, buf, size, NULL, &type)) == AAOS_OK) {
+    if ((ret = __scheduler_list_site(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
         length = strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
@@ -1443,16 +1490,14 @@ Scheduler_execute_list_telescope(struct Scheduler *self)
 {   
     uint16_t option;
     uint32_t length;
-    uint64_t tel_id;
     char *buf;
     unsigned int type;
     size_t size;
     int ret;
 
-    protobuf_get(self, PACKET_U64F0, &tel_id);
     protobuf_get(self, PACKET_BUF, &buf, NULL);
     protobuf_get(self, PACKET_SIZE, &size);
-    if ((ret = __scheduler_list_telescope(scheduler, tel_id, buf, size, NULL, &type)) == AAOS_OK) {
+    if ((ret = __scheduler_list_telescope(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
         length = strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
@@ -1603,10 +1648,9 @@ Scheduler_execute_list_target(struct Scheduler *self)
     size_t size;
     int ret;
 
-    protobuf_get(self, PACKET_U64F0, &tel_id);
     protobuf_get(self, PACKET_BUF, &buf, NULL);
     protobuf_get(self, PACKET_SIZE, &size);
-    if ((ret = __scheduler_list_target(scheduler, buf, size, NULL, &type)) == AAOS_OK) {
+    if ((ret = __scheduler_list_target(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
         length = strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
@@ -1750,6 +1794,46 @@ Scheduler_execute_unmask_target_by_name(struct Scheduler *self)
 }
 
 static int
+Scheduler_add_task_record(struct Scheduler *self)
+{
+    char *buf;
+    uint16_t option;
+    unsigned int type;
+    int ret = AAOS_OK, status = 0;
+
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    protobuf_get(self, PACKET_OPTION, &option);
+    type = option;
+
+    if ((ret = __scheduler_add_task_record(scheduler, status, buf, type) == AAOS_OK)) {   
+        protobuf_set(self, PACKET_LENGTH, 0);
+    }
+
+    return ret;
+}
+
+static int
+Scheduler_update_task_record(struct Scheduler *self)
+{
+    char *buf;
+    uint64_t identifier;
+    uint16_t option;
+    unsigned int type;
+    int ret = AAOS_OK;;
+
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    protobuf_get(self, PACKET_OPTION, &option);
+    protobuf_get(self, PACKET_U64F0, &identifier);
+    type = option;
+
+    if ((ret = __scheduler_update_task_record(scheduler, identifier, buf) == AAOS_OK)) {   
+        protobuf_set(self, PACKET_LENGTH, 0);
+    }
+
+    return ret;
+}
+
+static int
 Scheduler_execute(void *self)
 {
 
@@ -1759,10 +1843,10 @@ Scheduler_execute(void *self)
 
     switch (command) {
         case SCHEDULER_GET_TASK_BY_TELESCOPE_ID:
-            ret = Scheduler_execute_get_target_by_telescope_id(self); 
+            //ret = Scheduler_execute_get_target_by_telescope_id(self); 
             break;
         case SCHEDULER_GET_TASK_BY_TELESCOPE_NAME:
-            ret = Scheduler_execute_get_target_by_telescope_name(self); 
+            //ret = Scheduler_execute_get_target_by_telescope_name(self); 
             break;
         case SCHEDULER_LIST_SITE:
             ret = Scheduler_execute_list_site(self);
@@ -1815,15 +1899,6 @@ Scheduler_execute(void *self)
         case SCHEDULER_ADD_TARGET:
             ret = Scheduler_execute_add_target(self); 
             break;
-        case SCHEDULER_DELETE_TARGET:
-            ret = Scheduler_execute_delete_target(self); 
-            break;
-        case SCHEDULER_MASK_TARGET:
-            ret = Scheduler_execute_mask_target(self); 
-            break;
-        case SCHEDULER_UNMASK_TARGET:
-            ret = Scheduler_execute_unmask_target(self); 
-            break;
         case SCHEDULER_DELETE_TARGET_BY_ID:
             ret = Scheduler_execute_delete_target_by_id(self); 
             break;
@@ -1842,6 +1917,18 @@ Scheduler_execute(void *self)
         case SCHEDULER_UNMASK_TARGET_BY_NAME:
             ret = Scheduler_execute_unmask_target_by_name(self); 
             break;
+        case SCHEDULER_UPDATE_STATUS:
+            ret = Scheduler_execute_update_status(self); 
+            break;
+        case SCHEDULER_ADD_TASK_RECORD:
+            //ret = Scheduler_execute_add_task_record(self); 
+            break;
+        case SCHEDULER_UPDATE_TASK_RECORD:
+            //ret = Scheduler_execute_update_task_record(self); 
+            break;
+        case SCHEDULER_POP_TASK_BLOCK:
+            ret = Scheduler_execute_pop_task_block(self); 
+            break;
         default:
             ret = AAOS_EBADCMD;
     }
@@ -1856,7 +1943,6 @@ Scheduler_ctor(void *_self, va_list *app)
     struct Scheduler *self = super_ctor(Scheduler(), _self, app);
     
     self->_._vtab = scheduler_virtual_table();
-
 
     return (void *) self;
 }
@@ -1886,20 +1972,20 @@ SchedulerClass_ctor(void *_self, va_list *app)
         const char *tag = va_arg(ap, const char *);
         Method method = va_arg(ap, Method);
         
-        if (selector == (Method) scheduler_get_task_by_id) {
+        if (selector == (Method) scheduler_get_task_by_telescope_id) {
             if (tag) {
-                self->get_task_by_id.tag = tag;
-                self->get_task_by_id.selector = selector;
+                self->get_task_by_telescope_id.tag = tag;
+                self->get_task_by_telescope_id.selector = selector;
             }
-            self->get_task_by_id.method = method;
+            self->get_task_by_telescope_id.method = method;
             continue;
         }
-        if (selector == (Method) scheduler_get_task_by_name) {
+        if (selector == (Method) scheduler_get_task_by_telescope_name) {
             if (tag) {
-                self->get_task_by_name.tag = tag;
-                self->get_task_by_name.selector = selector;
+                self->get_task_by_telescope_name.tag = tag;
+                self->get_task_by_telescope_name.selector = selector;
             }
-            self->get_task_by_name.method = method;
+            self->get_task_by_telescope_name.method = method;
             continue;
         }
         if (selector == (Method) scheduler_list_telescope) {
@@ -1972,30 +2058,6 @@ SchedulerClass_ctor(void *_self, va_list *app)
                 self->add_target.selector = selector;
             }
             self->add_target.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_delete_target) {
-            if (tag) {
-                self->delete_target.tag = tag;
-                self->delete_target.selector = selector;
-            }
-            self->delete_target.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_mask_target) {
-            if (tag) {
-                self->mask_target.tag = tag;
-                self->mask_target.selector = selector;
-            }
-            self->mask_target.method = method;
-            continue;
-        }
-        if (selector == (Method) scheduler_unmask_target) {
-            if (tag) {
-                self->unmask_target.tag = tag;
-                self->unmask_target.selector = selector;
-            }
-            self->unmask_target.method = method;
             continue;
         }
         if (selector == (Method) scheduler_delete_target_by_id) {
@@ -2104,8 +2166,8 @@ Scheduler_initialize(void)
                     ctor, "ctor", Scheduler_ctor,
                     dtor, "dtor", Scheduler_dtor,
                     dtor, "dtor", Scheduler_dtor,
-                    scheduler_get_task_by_id, "get_task_by_id", Scheduler_get_task_by_id,
-                    scheduler_get_task_by_name, "get_task_by_name", Scheduler_get_task_by_name,
+                    scheduler_get_task_by_telescope_id, "get_task_by_telescope_id", Scheduler_get_task_by_telescope_id,
+                    scheduler_get_task_by_telescope_name, "get_task_by_telescope_name", Scheduler_get_task_by_telescope_name,
                     scheduler_list_telescope, "list_telescope", Scheduler_list_telescope,
                     scheduler_add_telescope, "add_telescope", Scheduler_add_telescope,
                     scheduler_delete_telescope_by_id, "delete_telescope_by_id", Scheduler_delete_telescope_by_id,
@@ -2115,9 +2177,6 @@ Scheduler_initialize(void)
                     scheduler_mask_telescope_by_name, "mask_telescope_by_name", Scheduler_mask_telescope_by_name,
                     scheduler_unmask_telescope_by_name, "unmask_telescope_by_name", Scheduler_unmask_telescope_by_name,
                     scheduler_add_target, "add_target", Scheduler_add_target,
-                    scheduler_delete_target, "delete_target", Scheduler_delete_target,
-                    scheduler_mask_target, "mask_target", Scheduler_mask_target,
-                    scheduler_unmask_target, "unmask_target", Scheduler_unmask_target,
                     scheduler_delete_target_by_id, "delete_target_by_id", Scheduler_delete_target_by_id,
                     scheduler_mask_target_by_id, "mask_target_by_id", Scheduler_mask_target_by_id,
                     scheduler_unmask_target_by_id, "unmask_target_by_id", Scheduler_unmask_target_by_id,
@@ -2344,6 +2403,15 @@ SchedulerServer_accept(void *_self, void **client)
         }
         return AAOS_OK;
     }
+}
+
+static int
+SchedulerServer_start(void *_self)
+{
+    struct RPCServer *self = cast(RPCServer(), _self);
+
+
+    return AAOS_OK;
 }
 
 static void *

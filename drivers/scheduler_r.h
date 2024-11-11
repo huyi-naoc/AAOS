@@ -10,6 +10,12 @@
 #ifndef scheduler_r_h
 #define scheduler_r_h
 
+#include "object_r.h"
+
+#include <stdint.h>
+#include <string.h>
+#include <pthread.h>
+
 struct __Scheduler {
     struct Object _;
     
@@ -32,6 +38,7 @@ struct __Scheduler {
     char *global_addr;
     char *global_port;
     void *site;
+
     char *site_addr;
     char *site_port;
     void *telescope;
@@ -43,11 +50,16 @@ struct __Scheduler {
     uint64_t max_site_id;
     uint64_t max_telescope_id;
     uint64_t max_task_id;
+
+    pthread_mutex_t cnt_mtx;
+
+    size_t max_task_in_block;
 };
 
 struct __SchedulerClass {
     struct Class _;
     struct Method init;
+    struct Method set_member;
     /*
      * scheduling method.
      */
@@ -55,6 +67,8 @@ struct __SchedulerClass {
     struct Method get_task_by_telescope_name;   /* site/unit scheduler. */   
     struct Method pop_task_block;               /* global scheduler. */
     struct Method push_task_block;              /* site scheduler. */
+
+    struct Method update_status;
      /*
       * management method.
       */
@@ -66,6 +80,7 @@ struct __SchedulerClass {
     struct Method mask_site_by_name;
     struct Method unmask_site_by_id;
     struct Method unmask_site_by_name;
+
     struct Method list_telescope;               /* global/site scheduler. */
     struct Method add_telescope;
     struct Method delete_telescope_by_id;
@@ -82,14 +97,14 @@ struct __SchedulerClass {
     struct Method mask_target_by_id;
     struct Method mask_target_by_name;
     struct Method unmask_target_by_id;
-    struct Method unmask_target_by_id;
-    
+    struct Method unmask_target_by_name;
 
-    struct Method update_status;
-    /*
-     * statistics method.
-     */
-    struct Method report_site_info;
+    struct Method add_task_record;
+    struct Method update_task_record;
+
+    struct Method site_manage_thr;
+    struct Method telescope_manage_thr;
+    
 };
 
 #endif /* scheduler_r_h */
