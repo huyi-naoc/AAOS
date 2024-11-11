@@ -29,9 +29,6 @@ extern void *serial_list;
 
 void start_feed_dog(double seconds);
 
-/**
- *
- */
 int serial_raw(void *_self, const void *cmd, size_t cmd_size, void *res, size_t res_size, size_t *res_length);
 int serial_info(void *_self, void *res, size_t res_size, size_t *res_length);
 int serial_get_index_by_name(void *_self, const char *name);

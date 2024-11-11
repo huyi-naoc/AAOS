@@ -19,8 +19,6 @@
 #include <cjson/cJSON.h>
 #include <mysql/mysql.h>
 
-#define MAX_TASK_IN_BLOCK 1024
-
 typedef int (*database_cb_t)(struct __Scheduler *, MYSQL_RES *);
 
 struct TaskInfo {
@@ -2774,7 +2772,7 @@ __Scheduler_ctor(void *_self, va_list *app)
     
     const char *s, *key, *value;
 
-    self->max_task_in_block = MAX_TASK_IN_BLOCK;
+    self->max_task_in_block = SCHEDULER_MAX_TASK_IN_BLOCK;
     
     self->type = va_arg(*app, unsigned int);
     while ((key = va_arg(*app, const char *))) {
@@ -3360,8 +3358,6 @@ __Scheduler_initialize(void)
 
                     __scheduler_site_manage_thr, "site_manage_thr", __Scheduler_site_manage_thr,
                     __scheduler_telescope_manage_thr, "telescope_manage_thr", __Scheduler_telescope_manage_thr,
-
-
                    (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(__Scheduler_destroy);
