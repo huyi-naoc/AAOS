@@ -11,7 +11,8 @@ The following packages are needed to build the software
 * pandoc (for creating the manpages, not started yet)
 * tar
 * libaravis >= 0.8 (optional, for GIGaE camera)
-* libcfitsio >= 3.4
+* libcfitsio >= 3.4 (for FITS file operation)
+* libchealpix >= 3.3 (for scheduling system)
 * libconfig >= 1.5 (for daemon servers)
 * libcjson >= 1.7 (for serializtion)
 * libcurl >= 7.6 (optional, if your want ASCOM device support)
