@@ -12,6 +12,7 @@
 #include "scheduler_def.h"
 #include "scheduler.h"
 #include "scheduler_r.h"
+#include "scheduler_rpc.h"
 #include "wrapper.h"
 
 #include <chealpix.h>
@@ -19,6 +20,8 @@
 #include <mysql/mysql.h>
 
 #define MAX_TASK_IN_BLOCK 1024
+
+typedef int (*database_cb_t)(struct __Scheduler *, MYSQL_RES *);
 
 struct TaskInfo {
     uint64_t identifier;
@@ -67,7 +70,7 @@ struct SiteInfo {
     void *rpc;
 };
 
-typedef int (*database_cb_t)(struct __Scheduler *, MYSQL_RES *);
+void *scheduler;
 
 static uint64_t 
 __Scheduler_generate_unique_site_id(struct __Scheduler *self)
@@ -148,7 +151,7 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         site_id = va_arg(ap, uint64_t);
         description = va_arg(ap, const char *);
         timestamp = va_arg(ap, double);
-        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestamp) VALUES (\"%s\", %ld, %ld, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestamp) VALUES (\"%s\", %llu, %llu, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
     } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
         timestamp = va_arg(ap, double);
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
@@ -169,7 +172,7 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         site_lat = va_arg(ap, double);
         site_alt = va_arg(ap, double);
         timestamp = va_arg(ap, double);
-        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestamp) VALUES (\"%s\", %ld, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestamp) VALUES (\"%s\", %llu, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
     } if (command == SCHEDULER_DELETE_TARGET_BY_ID) {
         uint32_t nside = va_arg(ap, uint32_t);
         timestamp = va_arg(ap, double);
@@ -596,7 +599,7 @@ __Scheduler_ipc_write(struct __Scheduler *self, const char *string)
    
     memset(&addr, '\0', sizeof(addr));
     addr.sun_family  = AF_UNIX;
-    snprintf(addr.sun_path, 104, "%s", self->sock_file);
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", self->sock_file);
 
     if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         return AAOS_ERROR;
@@ -632,7 +635,7 @@ __Scheduler_ipc_write_and_read(struct __Scheduler *self, const char *string, cha
 
     memset(&addr, '\0', sizeof(struct sockaddr_un));
     addr.sun_family  = AF_UNIX;
-    snprintf(addr.sun_path, 104, "%s", self->sock_file);
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", self->sock_file);
 
     if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         return AAOS_ERROR;
@@ -1021,7 +1024,7 @@ __Scheduler_get_task_by_telescope_name(void *_self, unsigned int name, char *res
     } else {
         return AAOS_ENOTSUP;
     }
-    
+
     return ret;
 }
 
@@ -1087,7 +1090,7 @@ __Scheduler_pop_task_block(void *_self)
     for (;;) {
         memset(&addr, '\0', sizeof(struct sockaddr_un));
         addr.sun_family  = AF_UNIX;
-        snprintf(addr.sun_path, 104, "%s", self->sock_file);
+        snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", self->sock_file);
         if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
             continue;
         }
@@ -1378,44 +1381,6 @@ __Scheduler_list_site(void *_self, char *buf, size_t size, unsigned int *type)
     }
     return AAOS_OK;
 }
-
-static int
-__Scheduler_list_telescope(void *_self, char *buf, size_t size, unsigned int *type)
-{
-    struct __Scheduler *self = cast(__Scheduler(), _self);
-
-    FILE *fp;
-
-    if (self->type == SCHEDULER_TYPE_UNIT) {
-        return AAOS_ENOTSUP;
-    }
-
-    fp = fmemopen(buf, size, "w");
-    threadsafe_list_foreach(self->telescope_list, print_telescope_list, fp);
-    fclose(fp);
-
-    return AAOS_OK;
-}
-
-/*
-static int
-__Scheduler_list_target(void *_self, char *buf, size_t size, unsigned int *type)
-{
-    struct __Scheduler *self = cast(__Scheduler(), _self);
-
-    FILE *fp;
-
-    if (self->type != SCHEDULER_TYPE_UNIT) {
-        return AAOS_ENOTSUP;
-    }
-
-    fp = fmemopen(buf, size, "w");
-    threadsafe_list_foreach(self->target_list, print_target_list, fp);
-    fclose(fp);
-
-    return AAOS_OK;
-}
-*/
 
 int
 __scheduler_add_site(void *_self, const char *info, unsigned int type)
@@ -1733,7 +1698,6 @@ __scheduler_list_telescope(void *_self, char *buf, size_t size, unsigned int *ty
     }
 }
 
-/*
 static int
 __Scheduler_list_telescope(void *_self, char *buf, size_t size, unsigned int *type)
 {
@@ -1754,7 +1718,6 @@ __Scheduler_list_telescope(void *_self, char *buf, size_t size, unsigned int *ty
     }
     return AAOS_OK;
 }
-*/
 
 /*
  * Available for site and global scheduler. 
@@ -2619,10 +2582,137 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
             self->site_port = Realloc(self->site_port, strlen(value) + 1);
             snprintf(self->site_port, strlen(value) + 1, "%s", value);
         }
+    } else if (strcmp(name, "site_name") == 0) {
+        struct SiteInfo *site = self->site;
+        const char *value = va_arg(*app, const char *);
+        if (site != NULL && value != NULL) {
+            site->name = Realloc(site->name, strlen(value) + 1);
+            snprintf(site->name, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "site_id") == 0) {
+        struct SiteInfo *site = self->site;
+        uint64_t value = va_arg(*app, uint64_t);
+        if (site == NULL) {
+            site = (struct SiteInfo *) Malloc(sizeof(struct SiteInfo));
+            memset(site, '\0', sizeof(struct SiteInfo));
+            self->site = site;
+        }
+        site->identifier = value;
+    } else if (strcmp(name, "site_lon") == 0) {
+        double value = va_arg(*app, double);
+        if (self->site != NULL) {
+            ((struct SiteInfo *) self->site)->site_lon = value;
+        }
+    } else if (strcmp(name, "site_lat") == 0) {
+        double value = va_arg(*app, double);
+        if (self->site != NULL) {
+            ((struct SiteInfo *) self->site)->site_lat = value;
+        }
+    } else if (strcmp(name, "site_alt") == 0) {
+        double value = va_arg(*app, double);
+        if (self->site != NULL) {
+            ((struct SiteInfo *) self->site)->site_alt = value;
+        }
     } else if (strcmp(name, "max_task_in_block") == 0) {
         self->max_task_in_block = va_arg(*app, size_t);
+    } else if (strcmp(name, "connect_gloabl") == 0) {
+        struct SiteInfo *site = self->site;
+        if (self->global_addr != NULL && self->global_addr != NULL && site != NULL) {
+            int ret;
+            void *client = new(SchedulerClient(), self->global_addr, self->global_port);
+            ret = rpc_client_connect(client, &site->rpc);
+            if (ret < 0) {
+                delete(site->rpc);
+                site->rpc = NULL;
+            }
+            delete(client);
+        }
+    } else if (strcmp(name, "connect_site") == 0) {
+        struct TelescopeInfo *telescope = self->telescope;
+        if (self->site_addr != NULL && self->site_port != NULL && telescope != NULL) {
+            int ret;
+            void *client = new(SchedulerClient(), self->site_addr, self->site_port);
+            ret = rpc_client_connect(client, &telescope->rpc);
+            if (ret < 0) {
+                delete(telescope->rpc);
+                telescope->rpc = NULL;
+            }
+            delete(client);
+        }
+    } else if (strcmp(name, "tel_id") == 0) {
+        struct TelescopeInfo *telescope= self->telescope;
+        uint64_t value = va_arg(*app, uint64_t);
+        uint64_t site_id = va_arg(*app, uint64_t);
+        if (telescope == NULL) {
+            telescope = (struct TelescopeInfo *) Malloc(sizeof(struct TelescopeInfo));
+            memset(telescope, '\0', sizeof(struct TelescopeInfo));
+            self->telescope = telescope;
+        }
+        telescope->identifier = value;
+        telescope->site_id = site_id;
+    } else if (strcmp(name, "telescop") == 0) {
+        struct TelescopeInfo *telescope= self->telescope;
+        const char *value = va_arg(*app, const char *);
+        if (telescope != NULL && value != NULL) {
+            telescope->name = Realloc(telescope->name, strlen(value) + 1);
+            snprintf(telescope->name, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "tel_des") == 0) {
+        struct TelescopeInfo *telescope= self->telescope;
+        const char *value = va_arg(*app, const char *);
+        if (telescope != NULL && value != NULL) {
+            telescope->name = Realloc(telescope->description, strlen(value) + 1);
+            snprintf(telescope->description, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "db_host") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->db_host = Realloc(self->db_host, strlen(value) + 1);
+            snprintf(self->db_host, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "db_user") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->db_user = Realloc(self->db_user, strlen(value) + 1);
+            snprintf(self->db_user, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "db_passwd") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->db_passwd = Realloc(self->db_passwd, strlen(value) + 1);
+            snprintf(self->db_passwd, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "db_name") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->db_name = Realloc(self->db_name, strlen(value) + 1);
+            snprintf(self->db_name, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "site_db_table") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->site_db_table = Realloc(self->site_db_table, strlen(value) + 1);
+            snprintf(self->site_db_table, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "telescope_db_table") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->telescope_db_table = Realloc(self->telescope_db_table, strlen(value) + 1);
+            snprintf(self->telescope_db_table, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "target_db_table") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->target_db_table = Realloc(self->target_db_table, strlen(value) + 1);
+            snprintf(self->target_db_table, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "task_db_table") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->task_db_table = Realloc(self->task_db_table, strlen(value) + 1);
+            snprintf(self->task_db_table, strlen(value) + 1, "%s", value);
+        }
     }
-
 }
 
 int
@@ -2649,14 +2739,30 @@ __Scheduler_init(void *_self)
     char sql[BUFSIZE];
 
     if (self->type == SCHEDULER_TYPE_GLOBAL) {
+        /*
+         * For global scheduler, read and initialize site_list, telescope_list, and target_list
+         */
         __scheduler_create_sql(SCHEDULER_SITE_INIT, 0, self->site_db_table, sql, BUFSIZE);
         __Scheduler_database_query(self, sql, __Scheduler_site_init_cb);
-    }
-    if (self->type != SCHEDULER_TYPE_UNIT) {
         __scheduler_create_sql(SCHEDULER_TELESCOPE_INIT, 0, self->telescope_db_table, sql, BUFSIZE);
         __Scheduler_database_query(self, sql, __Scheduler_telescope_init_cb);
         __scheduler_create_sql(SCHEDULER_TARGET_INIT, 0, self->target_db_table, sql, BUFSIZE);
         __Scheduler_database_query(self, sql, __Scheduler_target_init_cb);
+    } else if (self->type == SCHEDULER_TYPE_SITE) {
+        /*
+         * For site scheduler, read and initialize telescope_list, and target_list,
+         * and then connect to global scheduling system.
+         */
+        __scheduler_create_sql(SCHEDULER_TELESCOPE_INIT, 0, self->telescope_db_table, sql, BUFSIZE);
+        __Scheduler_database_query(self, sql, __Scheduler_telescope_init_cb);
+        __scheduler_create_sql(SCHEDULER_TARGET_INIT, 0, self->target_db_table, sql, BUFSIZE);
+        __Scheduler_database_query(self, sql, __Scheduler_target_init_cb);
+        __Scheduler_set_member(self, "connect_global", 0);
+    } else if (self->type == SCHEDULER_TYPE_UNIT) {
+        /*
+         * For unit scheduler, connect to site scheduling system.
+         */
+        __Scheduler_set_member(self, "connect_site", 0);
     }
     return AAOS_OK;
 }
@@ -2701,6 +2807,14 @@ __Scheduler_ctor(void *_self, va_list *app)
             if (value) {
                 self->db_passwd = (char *) Malloc(strlen(value) + 1);
                 snprintf(self->db_passwd, strlen(value) + 1, "%s", value);
+            }
+            continue;
+        }
+        if (strcmp(key, "db_name") == 0) {
+            value = va_arg(*app, const char *);
+            if (value) {
+                self->db_name = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->db_name, strlen(value) + 1, "%s", value);
             }
             continue;
         }
@@ -2794,7 +2908,6 @@ __Scheduler_ctor(void *_self, va_list *app)
         }
         if (strcmp(key, "max_task_in_block") == 0) {
             self->max_task_in_block = va_arg(*app, size_t);
-            
             continue;
         }
     }

@@ -20,6 +20,7 @@ struct __Scheduler {
     struct Object _;
     
     unsigned int type;
+    bool standalone;
     char *description;
 
     char *db_host;
@@ -45,14 +46,14 @@ struct __Scheduler {
 
     char *ipc_model;
     char *algorithm;
+    char *algorithm_standalone;
     char *sock_file;
 
     uint64_t max_site_id;
     uint64_t max_telescope_id;
     uint64_t max_task_id;
-
     pthread_mutex_t cnt_mtx;
-
+    
     size_t max_task_in_block;
 };
 

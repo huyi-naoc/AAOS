@@ -64,6 +64,8 @@
 #define SCHEDULER_TARGET_INIT                       52
 #define SCHEDULER_TASK_RECORD_INIT                  53
 
+#define SCHEDULER_SITE_MANAGE                       54
+#define SCHEDULER_TELESCOPE_MANAGE                  55
 
 
 #define SCHEDULER_FORMAT_JSON           1
@@ -71,6 +73,7 @@
 #define SCHEDULER_TYPE_GLOBAL                       1
 #define SCHEDULER_TYPE_SITE                         2
 #define SCHEDULER_TYPE_UNIT                         3
+#define SCHEDULER_TYPE_UNKNOWN                      4
 
 
 #endif /* scheduler_def_h */

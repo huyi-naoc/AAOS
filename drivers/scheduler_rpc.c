@@ -16,6 +16,50 @@
 
 #include "wrapper.h"
 
+
+int 
+scheduler_update_status(void *_self, const char *info, unsigned int type)
+{
+    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, SchedulerClass()) && class->update_status.method) {
+        return ((int (*)(void *, const char *, unsigned int)) class->add_task_record.method)(_self, info, type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) scheduler_update_status, "update_status", _self, info, type);
+        return result;
+    }
+}
+
+static int
+Scheduler_update_status(void *_self, const char *info, unsigned int type)
+{
+    struct Scheduler *self = cast(Scheduler(), _self);
+   
+    uint16_t errorcode, option = type;
+    char *buf;
+    int ret = AAOS_OK;
+
+    protobuf_set(self, PACKET_COMMAND, SCHEDULER_UPDATE_STATUS);
+    protobuf_set(self, PACKET_OPTION, option);    
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    if (info != buf) {
+        protobuf_set(self, PACKET_BUF, info, strlen(info) + 1);
+    }
+    
+    if ((ret = rpc_call(self)) == AAOS_OK) {
+        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
+        if (errorcode != AAOS_OK) {
+            return errorcode;
+        }
+    } else {
+        return -1 * ret; /*Networking error.*/
+    }
+
+    return ret;
+}
+
+
 int
 scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *result, size_t size, size_t *length, unsigned int *type)
 {
@@ -1227,6 +1271,92 @@ Scheduler_unmask_target_by_name(void *_self, const char *name)
     return ret;
 }
 
+int 
+scheduler_add_task_record(void *_self, const char *info, unsigned int type)
+{
+    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, SchedulerClass()) && class->add_task_record.method) {
+        return ((int (*)(void *, const char *, unsigned int)) class->add_task_record.method)(_self, info, type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) scheduler_add_task_record, "add_task_record", _self, info, type);
+        return result;
+    }
+}
+
+static int
+Scheduler_add_task_record(void *_self, const char *info, unsigned int type)
+{
+    struct Scheduler *self = cast(Scheduler(), _self);
+   
+    uint16_t errorcode, option = type;
+    char *buf;
+    int ret = AAOS_OK;
+
+    protobuf_set(self, PACKET_COMMAND, SCHEDULER_ADD_TASK_RECORD);
+    protobuf_set(self, PACKET_OPTION, option);    
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    if (info != buf) {
+        protobuf_set(self, PACKET_BUF, info, strlen(info) + 1);
+    }
+    
+    if ((ret = rpc_call(self)) == AAOS_OK) {
+        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
+        if (errorcode != AAOS_OK) {
+            return errorcode;
+        }
+    } else {
+        return -1 * ret; /*Networking error.*/
+    }
+
+    return ret;
+}
+
+int 
+scheduler_update_task_record(void *_self, uint64_t identifier, const char *info, unsigned int type)
+{
+    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, SchedulerClass()) && class->update_task_record.method) {
+        return ((int (*)(void *, uint64_t,  char *, unsigned int)) class->update_task_record.method)(_self, identifier, info, type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) scheduler_update_task_record, "update_task_record", _self, identifier, info, type);
+        return result;
+    }
+}
+
+static int
+Scheduler_update_task_record(void *_self, uint64_t identifier, const char *info, unsigned int type)
+{
+    struct Scheduler *self = cast(Scheduler(), _self);
+   
+    uint16_t errorcode, option = type;
+    char *buf;
+    int ret = AAOS_OK;
+
+    protobuf_set(self, PACKET_COMMAND, SCHEDULER_UPDATE_TASK_RECORD);
+    protobuf_set(self, PACKET_OPTION, option);
+    protobuf_set(self, PACKET_U64F0, identifier);    
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    if (info != buf) {
+        protobuf_set(self, PACKET_BUF, info, strlen(info) + 1);
+    }
+    
+    if ((ret = rpc_call(self)) == AAOS_OK) {
+        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
+        if (errorcode != AAOS_OK) {
+            return errorcode;
+        }
+    } else {
+        return -1 * ret; /*Networking error.*/
+    }
+
+    return ret;
+}
+
+
 static const void *scheduler_virtual_table(void);
 
 static int
@@ -1794,7 +1924,7 @@ Scheduler_execute_unmask_target_by_name(struct Scheduler *self)
 }
 
 static int
-Scheduler_add_task_record(struct Scheduler *self)
+Scheduler_execute_add_task_record(struct Scheduler *self)
 {
     char *buf;
     uint16_t option;
@@ -1813,7 +1943,7 @@ Scheduler_add_task_record(struct Scheduler *self)
 }
 
 static int
-Scheduler_update_task_record(struct Scheduler *self)
+Scheduler_execute_update_task_record(struct Scheduler *self)
 {
     char *buf;
     uint64_t identifier;
@@ -1921,10 +2051,10 @@ Scheduler_execute(void *self)
             ret = Scheduler_execute_update_status(self); 
             break;
         case SCHEDULER_ADD_TASK_RECORD:
-            //ret = Scheduler_execute_add_task_record(self); 
+            ret = Scheduler_execute_add_task_record(self); 
             break;
         case SCHEDULER_UPDATE_TASK_RECORD:
-            //ret = Scheduler_execute_update_task_record(self); 
+            ret = Scheduler_execute_update_task_record(self); 
             break;
         case SCHEDULER_POP_TASK_BLOCK:
             ret = Scheduler_execute_pop_task_block(self); 
@@ -1972,6 +2102,14 @@ SchedulerClass_ctor(void *_self, va_list *app)
         const char *tag = va_arg(ap, const char *);
         Method method = va_arg(ap, Method);
         
+        if (selector == (Method) scheduler_update_status) {
+            if (tag) {
+                self->update_status.tag = tag;
+                self->update_status.selector = selector;
+            }
+            self->update_status.method = method;
+            continue;
+        }
         if (selector == (Method) scheduler_get_task_by_telescope_id) {
             if (tag) {
                 self->get_task_by_telescope_id.tag = tag;
@@ -2012,7 +2150,7 @@ SchedulerClass_ctor(void *_self, va_list *app)
             self->delete_telescope_by_id.method = method;
             continue;
         }
-        if (selector == (Method) Scheduler_mask_telescope_by_id) {
+        if (selector == (Method) scheduler_mask_telescope_by_id) {
             if (tag) {
                 self->mask_telescope_by_id.tag = tag;
                 self->mask_telescope_by_id.selector = selector;
@@ -2036,7 +2174,7 @@ SchedulerClass_ctor(void *_self, va_list *app)
             self->delete_telescope_by_id.method = method;
             continue;
         }
-        if (selector == (Method) Scheduler_mask_telescope_by_name) {
+        if (selector == (Method) scheduler_mask_telescope_by_name) {
             if (tag) {
                 self->mask_telescope_by_name.tag = tag;
                 self->mask_telescope_by_name.selector = selector;
@@ -2068,7 +2206,7 @@ SchedulerClass_ctor(void *_self, va_list *app)
             self->delete_target_by_id.method = method;
             continue;
         }
-        if (selector == (Method) Scheduler_mask_target_by_id) {
+        if (selector == (Method) scheduler_mask_target_by_id) {
             if (tag) {
                 self->mask_target_by_id.tag = tag;
                 self->mask_target_by_id.selector = selector;
@@ -2092,7 +2230,7 @@ SchedulerClass_ctor(void *_self, va_list *app)
             self->delete_target_by_id.method = method;
             continue;
         }
-        if (selector == (Method) Scheduler_mask_target_by_name) {
+        if (selector == (Method) scheduler_mask_target_by_name) {
             if (tag) {
                 self->mask_target_by_name.tag = tag;
                 self->mask_target_by_name.selector = selector;
@@ -2108,6 +2246,23 @@ SchedulerClass_ctor(void *_self, va_list *app)
             self->unmask_target_by_name.method = method;
             continue;
         }
+        if (selector == (Method) scheduler_add_task_record) {
+            if (tag) {
+                self->add_task_record.tag = tag;
+                self->add_task_record.selector = selector;
+            }
+            self->add_task_record.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_update_task_record) {
+            if (tag) {
+                self->update_task_record.tag = tag;
+                self->update_task_record.selector = selector;
+            }
+            self->update_task_record.method = method;
+            continue;
+        }
+
     }
     
 #ifdef va_copy
@@ -2168,6 +2323,7 @@ Scheduler_initialize(void)
                     dtor, "dtor", Scheduler_dtor,
                     scheduler_get_task_by_telescope_id, "get_task_by_telescope_id", Scheduler_get_task_by_telescope_id,
                     scheduler_get_task_by_telescope_name, "get_task_by_telescope_name", Scheduler_get_task_by_telescope_name,
+                    scheduler_update_status, "update_status", Scheduler_update_status,
                     scheduler_list_telescope, "list_telescope", Scheduler_list_telescope,
                     scheduler_add_telescope, "add_telescope", Scheduler_add_telescope,
                     scheduler_delete_telescope_by_id, "delete_telescope_by_id", Scheduler_delete_telescope_by_id,
@@ -2183,6 +2339,9 @@ Scheduler_initialize(void)
                     scheduler_delete_target_by_name, "delete_target_by_name", Scheduler_delete_target_by_name,
                     scheduler_mask_target_by_name, "mask_target_by_name", Scheduler_mask_target_by_name,
                     scheduler_unmask_target_by_name, "unmask_target_by_name", Scheduler_unmask_target_by_name,
+                    scheduler_add_task_record, "add_task_record", Scheduler_add_task_record,
+                    scheduler_update_task_record, "update_task_record", Scheduler_update_task_record,
+
                     (void *) 0);
     
 #ifndef _USE_COMPILER_ATTRIBUTION_
@@ -2376,7 +2535,6 @@ scheduler_client_virtual_table(void)
     
     return _scheduler_client_virtual_table;
 }
-
 
 /*
  * Scheduler server class
