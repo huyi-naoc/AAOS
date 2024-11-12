@@ -21,7 +21,6 @@
 #define AWS_STATE_OK 0
 #define AWS_STATE_ERROR 1
 
-
 /*
  * Sensor virtual table.
  */
