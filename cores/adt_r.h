@@ -89,6 +89,7 @@ struct ThreadsafeListClass {
     struct Method push_front;
     struct Method insert_if;
     struct Method find_fisrt_if;
+    struct Method operate_first_if;
     struct Method remove_if;
     struct Method foreach;
 };
@@ -103,6 +104,7 @@ struct LinkListClass {
     struct Method push_front;
     struct Method insert_if;
     struct Method find_first_if;
+    struct Method operate_first_if;
     struct Method remove_if;
     struct Method foreach;
 };

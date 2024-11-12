@@ -59,8 +59,12 @@ int __scheduler_update_task_record(void *_self, uint64_t identifier, const char 
 
 void __scheduler_set_member(void *self, const char *name, ...);
 
+int __scheduler_register_thread(void *_self, uint64_t identifier, void *thread);
+
 void *__scheduler_site_manage_thr(void *_self);
 void *__scheduler_telescope_manage_thr(void *_self);
+
+
 
 extern const void *__Scheduler(void);
 extern const void *__SchedulerClass(void);

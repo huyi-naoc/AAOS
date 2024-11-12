@@ -1355,6 +1355,45 @@ Scheduler_update_task_record(void *_self, uint64_t identifier, const char *info,
     return ret;
 }
 
+int
+scheduler_register_thread(void *_self, uint64_t identifier)
+{
+    const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, SchedulerClass()) && class->register_thread.method) {
+        return ((int (*)(void *, uint64_t)) class->register_thread.method)(_self, identifier);
+    } else {
+        int result;
+        forward(_self, &result, (Method) scheduler_register_thread, "register_thread", _self, identifier);
+        return result;
+    }
+}
+
+int
+Scheduler_register_thread(void *_self, uint64_t identifier)
+{
+    struct Scheduler *self = cast(Scheduler(), _self);
+   
+    uint16_t errorcode;
+    
+    int ret = AAOS_OK;
+
+    protobuf_set(self, PACKET_COMMAND, SCHEDULER_REGISTER_THREAD);
+    protobuf_set(self, PACKET_U64F0, identifier);
+    protobuf_set(self, PACKET_LENGTH, 0);
+
+    if ((ret = rpc_call(self)) == AAOS_OK) {
+        protobuf_get(self, PACKET_ERRORCODE, &errorcode);
+        if (errorcode != AAOS_OK) {
+            return errorcode;
+        }
+    } else {
+        return -1 * ret; /*Networking error.*/
+    }
+
+    return ret;
+}
+
 
 static const void *scheduler_virtual_table(void);
 
@@ -1963,6 +2002,20 @@ Scheduler_execute_update_task_record(struct Scheduler *self)
 }
 
 static int
+Scheduler_execute_register_thread(struct Scheduler *self)
+{   
+    uint64_t identifier;
+    int ret;
+
+    protobuf_get(self, PACKET_U64F0, &identifier);
+    if ((ret = __scheduler_register_thread(scheduler, identifier) == AAOS_OK)) {   
+        protobuf_set(self, PACKET_LENGTH, 0);
+    }
+
+    return ret;
+}
+
+static int
 Scheduler_execute(void *self)
 {
 
@@ -2057,6 +2110,9 @@ Scheduler_execute(void *self)
             break;
         case SCHEDULER_POP_TASK_BLOCK:
             ret = Scheduler_execute_pop_task_block(self); 
+            break;
+        case SCHEDULER_REGISTER_THREAD:
+            ret = Scheduler_execute_register_thread(self); 
             break;
         default:
             ret = AAOS_EBADCMD;
@@ -2562,11 +2618,58 @@ SchedulerServer_accept(void *_self, void **client)
     }
 }
 
+static void *
+SchedulerServer_process_thr(void *arg)
+{
+    int ret;
+    
+    Pthread_detach(pthread_self());
+    
+    for (; ;) {
+        if ((ret = rpc_process(arg)) != AAOS_OK) {
+            break;
+        } else {
+            uint16_t command;
+            protobuf_get(arg, PACKET_COMMAND, &command);
+            if (command == SCHEDULER_REGISTER_THREAD) {
+                __scheduler_register_thread(scheduler, arg);
+                break;
+            }
+        }
+    }
+    
+    delete(arg);
+    return NULL;
+}
+
 static int
 SchedulerServer_start(void *_self)
 {
     struct RPCServer *self = cast(RPCServer(), _self);
+    
+    void *client;
+    pthread_t tid, *tids;
+    sigset_t set;
+    int ret;
+    size_t i;
 
+    sigemptyset(&set);
+    sigaddset(&set, SIGPIPE);
+    Pthread_sigmask(SIG_BLOCK, &set, NULL);
+    
+    self->_.lfd = Tcp_listen(NULL, self->_.port, NULL, NULL);
+
+    switch (self->_.option) {
+        case TCPSERVER_OPTION_DEFAULT:
+            for (;;) {
+                if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
+                    Pthread_create(&tid, NULL, SchedulerServer_process_thr, client);
+                }
+            }
+            break;
+        default:
+            break;
+    }
 
     return AAOS_OK;
 }
@@ -2595,6 +2698,7 @@ SchedulerServerClass_ctor(void *_self, va_list *app)
     struct SchedulerServerClass *self = super_ctor(SchedulerServerClass(), _self, app);
     
     self->_.accept.method = (Method) 0;
+    self->_.start.method = (Method) 0;
     
     return self;
 }
@@ -2674,6 +2778,7 @@ scheduler_server_virtual_table_initialize(void)
 
     _scheduler_server_virtual_table = new(RPCServerVirtualTable(),
                                         rpc_server_accept, "accept", SchedulerServer_accept,
+                                        rpc_server_start, "start", SchedulerServer_start,
                                         (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(scheduler_server_virtual_table_destroy);

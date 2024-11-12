@@ -20,7 +20,7 @@ struct __Scheduler {
     struct Object _;
     
     unsigned int type;
-    bool standalone;
+    bool standalone;    /* If set to true, site/unit scheduling system will run solely without communicating with global/site scheduling system. */
     char *description;
 
     char *db_host;
@@ -53,7 +53,7 @@ struct __Scheduler {
     uint64_t max_telescope_id;
     uint64_t max_task_id;
     pthread_mutex_t cnt_mtx;
-    
+
     size_t max_task_in_block;
 };
 
@@ -102,6 +102,8 @@ struct __SchedulerClass {
 
     struct Method add_task_record;
     struct Method update_task_record;
+
+    struct Method register_thread;
 
     struct Method site_manage_thr;
     struct Method telescope_manage_thr;

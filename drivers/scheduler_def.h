@@ -67,6 +67,8 @@
 #define SCHEDULER_SITE_MANAGE                       54
 #define SCHEDULER_TELESCOPE_MANAGE                  55
 
+#define SCHEDULER_REGISTER_THREAD                   56
+
 
 #define SCHEDULER_FORMAT_JSON                       1
 

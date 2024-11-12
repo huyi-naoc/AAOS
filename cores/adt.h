@@ -33,6 +33,7 @@ void threadsafe_list_foreach(void *_self, disposition func, ...);
 void *threadsafe_list_find_first_if(void *_self, predict pred, ...);
 void threadsafe_list_insert_if(void *_self, void *data, predict pred, ...);
 void threadsafe_list_remove_if(void *_self, predict pred, ...);
+void threadsafe_list_operate_first_if(void *_self, predict pred, disposition func, ...);
 
 extern const void *ThreadsafeList(void);
 extern const void *ThreadsafeListClass(void);

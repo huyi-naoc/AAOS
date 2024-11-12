@@ -643,6 +643,63 @@ ThreadsafeList_find_first_if(void *_self, predict pred, va_list *app)
 }
 
 void
+threadsafe_list_operate_first_if(void *_self, predict pred, disposition func, ...)
+{
+    const struct ThreadsafeListClass *class = (const struct ThreadsafeListClass *) classOf(_self);
+    va_list ap;
+    
+    
+    va_start(ap, func);
+    if (isOf(class, ThreadsafeListClass()) && class->operate_first_if.method) {
+        ((void (*)(void *, predict, disposition, va_list *)) class->operate_first_if.method)(_self, pred, func, &ap);
+    } else {
+        forward(_self, (void *) 0, (Method) threadsafe_list_operate_first_if, "operate_first_if", _self, pred, func, &ap);
+    }
+    va_end(ap);
+}
+
+static void
+ThreadsafeList_operate_first_if(void *_self, predict pred, disposition func, va_list *app)
+{
+    struct ThreadsafeList *self = cast(ThreadsafeList(), _self);
+    struct l_node *current = &self->head, *next;
+    pthread_mutex_t *mutex = &self->head.mutex, *mutex_next;
+    void *result;
+    
+    Pthread_mutex_lock(mutex);
+    while ((next = current->next)) {
+        mutex_next = &next->mutex;
+        Pthread_mutex_lock(mutex_next);
+        Pthread_mutex_unlock(mutex);
+        
+#ifdef va_copy
+        va_list ap, ap2;
+        va_copy(ap, *app);
+        if (pred(next->data, &ap)) {
+            result = next->data;
+            va_copy(ap2, *app);
+            func(result, &ap2);
+            va_end(ap2);
+            Pthread_mutex_unlock(mutex_next);
+            va_end(ap);
+            return;
+        }
+        va_end(ap);
+#else
+        if (pred(next->data, *app)) {
+            result = next->data;
+            func(result, *app);
+            Pthread_mutex_unlock(mutex_next);
+            return;
+        }
+#endif
+        current = next;
+        mutex = mutex_next;
+    }
+    Pthread_mutex_unlock(mutex);
+}
+
+void
 threadsafe_list_insert_if(void *_self, void *data, predict pred, ...)
 {
     const struct ThreadsafeListClass *class = (const struct ThreadsafeListClass *) classOf(_self);
@@ -828,6 +885,14 @@ ThreadsafeListClass_ctor(void *_self, va_list *app)
             }
             self->find_fisrt_if.method = method;
         }
+
+         if (selector == (Method) threadsafe_list_operate_first_if) {
+            if (tag) {
+                self->operate_first_if.tag = tag;
+                self->operate_first_if.selector = selector;
+            }
+            self->operate_first_if.method = method;
+        }
         
         if (selector == (Method) threadsafe_list_remove_if) {
             if (tag) {
@@ -902,6 +967,7 @@ ThreadsafeList_initialize(void)
                           threadsafe_list_remove_if, "remove_if", ThreadsafeList_remove_if,
                           threadsafe_list_insert_if, "insert_if", ThreadsafeList_insert_if,
                           threadsafe_list_find_first_if, "find_first_if", ThreadsafeList_find_first_if,
+                          threadsafe_list_operate_first_if, "operate_first_if", ThreadsafeList_operate_first_if,
                           (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(ThreadsafeList_destroy);

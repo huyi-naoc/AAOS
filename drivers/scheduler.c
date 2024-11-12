@@ -70,6 +70,59 @@ struct SiteInfo {
 
 void *scheduler;
 
+static void
+global_register_thread(void *arg, va_list *app)
+{
+    struct SiteInfo *site = arg;
+
+    uint64_t identifier = va_arg(*app, uint64_t);
+    void *rpc = va_arg(*app, void *);
+
+    if (site->rpc != NULL) {
+        delete(site->rpc);
+    }
+
+    site->rpc = rpc;
+}
+
+static void
+global_push_task_block_to_site(void *arg, va_list *app)
+{
+    struct SiteInfo *site = arg;
+
+    uint64_t identifier = va_arg(*app, uint64_t);
+    const char *block_buf = va_arg(*app, const char *);
+    unsigned int type = va_arg(*app, unsigned int);
+    uint16_t option;
+    int ret;
+
+    option = type;
+    if (site->rpc != NULL) {
+        protobuf_set(site->rpc, PACKET_COMMAND, SCHEDULER_POP_TASK_BLOCK);
+        protobuf_set(site->rpc, PACKET_BUF, block_buf, strlen(block_buf) + 1);
+        protobuf_set(site->rpc, PACKET_OPTION, option);
+        if ((ret = rpc_call(site->rpc)) != AAOS_OK) {
+            delete(site->rpc);
+            site->rpc = NULL;
+        }
+    }
+}
+
+static void
+site_register_thread(void *arg, va_list *app)
+{
+    struct TelescopeInfo *telescope = arg;
+
+    uint64_t identifier = va_arg(*app, uint64_t);
+    void *rpc = va_arg(*app, void *);
+
+    if (telescope->rpc != NULL) {
+        delete(telescope->rpc);
+    }
+
+    telescope->rpc = rpc;
+}
+
 static uint64_t 
 __Scheduler_generate_unique_site_id(struct __Scheduler *self)
 {
@@ -1040,6 +1093,7 @@ __scheduler_pop_task_block(void *_self)
     }
 }
 
+/*
 static void 
 site_list_foreach(void *arg, va_list *app)
 {
@@ -1054,6 +1108,7 @@ site_list_foreach(void *arg, va_list *app)
         rpc_call(site->rpc);
     }
 }
+*/
 
 static int
 __Scheduler_pop_task_block(void *_self)
@@ -1135,7 +1190,7 @@ __Scheduler_pop_task_block(void *_self)
             root_json = cJSON_Parse(block_buf);
             if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "site_id")) != NULL) {
                 identifier = value_json->valueint;
-                threadsafe_list_foreach(self->site_list, site_list_foreach, identifier, block_buf);
+                threadsafe_list_operate_first_if(self->site_list, site_by_id, global_push_task_block_to_site, identifier, block_buf, SCHEDULER_FORMAT_JSON);
             }
             cJSON_Delete(root_json);
         }
@@ -2502,6 +2557,8 @@ __Scheduler_site_manage_thr(void *_self)
 {
     struct __Scheduler *self = cast(__Scheduler(), _self);
 
+    Pthread_detach(pthread_self());
+
     __Scheduler_pop_task_block(self);
 
     return NULL;
@@ -2526,6 +2583,8 @@ static void *
 __Scheduler_telescope_manage_thr(void *_self)
 {
     struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    Pthread_detach(pthread_self());
 
     __Scheduler_pop_task_block(self);
 
@@ -2624,6 +2683,7 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
                 site->rpc = NULL;
             }
             delete(client);
+            scheduler_register_thread(site->rpc, site->identifier);
         }
     } else if (strcmp(name, "connect_site") == 0) {
         struct TelescopeInfo *telescope = self->telescope;
@@ -2636,6 +2696,7 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
                 telescope->rpc = NULL;
             }
             delete(client);
+            scheduler_register_thread(telescope->rpc, telescope->identifier);
         }
     } else if (strcmp(name, "tel_id") == 0) {
         struct TelescopeInfo *telescope= self->telescope;
@@ -2710,7 +2771,58 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
             self->task_db_table = Realloc(self->task_db_table, strlen(value) + 1);
             snprintf(self->task_db_table, strlen(value) + 1, "%s", value);
         }
+    } else if (strcmp(name, "add_rpc") == 0) {
+        uint64_t identifier = va_arg(*app, uint64_t);
+        void **value = va_arg(*app, void **);
+        if (self->type == SCHEDULER_TYPE_GLOBAL) {
+            struct SiteInfo *site; 
+            if ((site = threadsafe_list_find_first_if(self->site_list, site_by_id, identifier)) != NULL && value != NULL) {
+                site->rpc = *value;
+            }
+        } else if (self->type == SCHEDULER_TYPE_SITE) {
+            struct TelescopeInfo *telescope; 
+            if ((telescope = threadsafe_list_find_first_if(self->site_list, telescope_by_id, identifier)) != NULL && value != NULL) {
+                telescope->rpc = *value;
+            }
+        } else {
+            if (value != NULL && *value != NULL) {
+                delete(*value);
+                *value = NULL;
+            }
+        }
     }
+}
+
+int
+__scheduler_register_thread(void *_self, uint64_t identifier, void *thread)
+{
+    const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
+    
+    if (isOf(class, __SchedulerClass()) && class->register_thread.method) {
+        return ((int (*)(void *, uint64_t, void *)) class->register_thread.method)(_self, identifier, thread);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __scheduler_register_thread, "register_thread", _self, identifier, thread);
+        return result;
+    }
+}
+
+static int
+__Scheduler_register_thread(void *_self, uint64_t identifier, void *thread)
+{
+    struct __Scheduler *self = cast(__Scheduler(), _self);
+
+    char *json_string;
+    int ret;
+    if (self->type == SCHEDULER_TYPE_UNIT) {
+        return AAOS_ENOTSUP;
+    } else if (self->type == SCHEDULER_TYPE_SITE) {
+        threadsafe_list_operate_first_if(self->telescope_list, telescope_by_id , site_register_thread, identifier, thread);
+    } else if (self->type == SCHEDULER_TYPE_GLOBAL) {
+        threadsafe_list_operate_first_if(self->site_list, site_by_id , global_register_thread, identifier, thread);
+    }
+
+    return ret;
 }
 
 int
@@ -2755,13 +2867,23 @@ __Scheduler_init(void *_self)
         __Scheduler_database_query(self, sql, __Scheduler_telescope_init_cb);
         __scheduler_create_sql(SCHEDULER_TARGET_INIT, 0, self->target_db_table, sql, BUFSIZE);
         __Scheduler_database_query(self, sql, __Scheduler_target_init_cb);
-        __Scheduler_set_member(self, "connect_global", 0);
+        __scheduler_set_member(self, "connect_global");
     } else if (self->type == SCHEDULER_TYPE_UNIT) {
         /*
          * For unit scheduler, connect to site scheduling system.
          */
-        __Scheduler_set_member(self, "connect_site", 0);
+        __scheduler_set_member(self, "connect_site");
     }
+    /*
+     * start thread.
+     */
+    pthread_t tid;
+    if (self->type == SCHEDULER_TYPE_GLOBAL) {
+        Pthread_create(&tid, NULL, __scheduler_site_manage_thr, self);
+    } else if (self->type == SCHEDULER_TYPE_SITE) {
+        Pthread_create(&tid, NULL, __scheduler_telescope_manage_thr, self);
+    }
+    
     return AAOS_OK;
 }
 
@@ -2911,6 +3033,7 @@ __Scheduler_ctor(void *_self, va_list *app)
     }
 
     Pthread_mutex_init(&self->cnt_mtx, NULL);
+
     return (void *) self;
 }
 
@@ -3245,6 +3368,14 @@ __SchedulerClass_ctor(void *_self, va_list *app)
             self->update_task_record.method = method;
             continue;
         }
+        if (selector == (Method) __scheduler_register_thread) {
+            if (tag) {
+                self->register_thread.tag = tag;
+                self->register_thread.selector = selector;
+            }
+            self->register_thread.method = method;
+            continue;
+        }
         if (selector == (Method) __scheduler_site_manage_thr) {
             if (tag) {
                 self->site_manage_thr.tag = tag;
@@ -3356,6 +3487,7 @@ __Scheduler_initialize(void)
                     __scheduler_add_task_record, "add_task_record", __Scheduler_add_task_record,
                     __scheduler_update_task_record, "update_task_record", __Scheduler_update_task_record,
 
+                    __scheduler_register_thread, "register_thread", __Scheduler_register_thread,
                     __scheduler_site_manage_thr, "site_manage_thr", __Scheduler_site_manage_thr,
                     __scheduler_telescope_manage_thr, "telescope_manage_thr", __Scheduler_telescope_manage_thr,
                    (void *) 0);
