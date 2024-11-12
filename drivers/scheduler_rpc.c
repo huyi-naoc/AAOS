@@ -16,6 +16,20 @@
 
 #include "wrapper.h"
 
+inline static int
+Scheduler_protocol_check(void *_self)
+{
+    uint16_t protocol;
+    protobuf_get(_self, PACKET_PROTOCOL, &protocol);
+    if (protocol != PROTO_SCHEDULER && protocol != PROTO_SYSTEM) {
+        protobuf_set(_self, PACKET_ERRORCODE, AAOS_EPROTOWRONG);
+        protobuf_set(_self, PACKET_LENGTH, 0);
+        return AAOS_EPROTOWRONG;
+    } else {
+        return AAOS_OK;
+    }
+}
+
 int 
 scheduler_update_status(void *_self, const char *info, unsigned int type)
 {
@@ -42,6 +56,8 @@ Scheduler_update_status(void *_self, const char *info, unsigned int type)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UPDATE_STATUS);
     protobuf_set(self, PACKET_OPTION, option);    
     protobuf_get(self, PACKET_BUF, &buf, NULL);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
+
     if (info != buf) {
         protobuf_set(self, PACKET_BUF, info, strlen(info) + 1);
     }
@@ -85,6 +101,7 @@ Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier , char *resu
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_GET_TASK_BY_TELESCOPE_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -133,7 +150,7 @@ Scheduler_get_task_by_telescope_name(void *_self, const char *name , char *resul
     char *res = NULL;
     int ret = AAOS_OK;
 
-
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_GET_TASK_BY_TELESCOPE_NAME);
 
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
@@ -195,6 +212,8 @@ Scheduler_pop_task_block(void *_self, const char *block_buf, unsigned int type)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_POP_TASK_BLOCK);
     protobuf_set(self, PACKET_OPTION, option);
     protobuf_get(self, PACKET_BUF, &buf, NULL);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
+
     if (block_buf != buf) {
         protobuf_set(self, PACKET_BUF, block_buf, strlen(block_buf) + 1);
     }
@@ -237,6 +256,7 @@ Scheduler_list_site(void *_self, char *result, size_t size, size_t *length, unsi
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_LIST_SITE);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -289,6 +309,8 @@ Scheduler_add_site(void *_self, const char *info, unsigned int type)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_ADD_SITE);
     protobuf_set(self, PACKET_OPTION, option);
     protobuf_get(self, PACKET_BUF, &buf, NULL);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
+
     if (info != buf) {
         protobuf_set(self, PACKET_BUF, info, strlen(info) + 1);
     }
@@ -331,6 +353,7 @@ Scheduler_delete_site_by_id(void *_self, uint64_t identifier)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_SITE_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -368,6 +391,7 @@ Scheduler_delete_site_by_name(void *_self, const char *name)
     int ret = AAOS_OK;
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_SITE_BY_NAME);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
         protobuf_set(self, PACKET_LENGTH, 0);
@@ -417,6 +441,7 @@ Scheduler_mask_site_by_id(void *_self, uint64_t identifier)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_SITE_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -454,6 +479,8 @@ Scheduler_mask_site_by_name(void *_self, const char *name)
     int ret = AAOS_OK;
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_SITE_BY_NAME);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
+
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
         protobuf_set(self, PACKET_LENGTH, 0);
@@ -503,6 +530,7 @@ Scheduler_unmask_site_by_id(void *_self, uint64_t identifier)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_SITE_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -540,6 +568,8 @@ Scheduler_unmask_site_by_name(void *_self, const char *name)
     int ret = AAOS_OK;
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_SITE_BY_NAME);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
+
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
         protobuf_set(self, PACKET_LENGTH, 0);
@@ -589,6 +619,7 @@ Scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length,
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_LIST_TELESCOPE);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -641,6 +672,8 @@ Scheduler_add_telescope(void *_self, const char *info, unsigned int type)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_ADD_TELESCOPE);
     protobuf_set(self, PACKET_OPTION, option);
     protobuf_get(self, PACKET_BUF, &buf, NULL);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
+
     if (info != buf) {
         protobuf_set(self, PACKET_BUF, info, strlen(info) + 1);
     }
@@ -683,6 +716,7 @@ Scheduler_delete_telescope_by_id(void *_self, uint64_t identifier)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TELESCOPE_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -720,6 +754,7 @@ Scheduler_delete_telescope_by_name(void *_self, const char *name)
     int ret = AAOS_OK;
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TELESCOPE_BY_NAME);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
         protobuf_set(self, PACKET_LENGTH, 0);
@@ -769,6 +804,7 @@ Scheduler_mask_telescope_by_id(void *_self, uint64_t identifier)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TELESCOPE_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -806,6 +842,7 @@ Scheduler_mask_telescope_by_name(void *_self, const char *name)
     int ret = AAOS_OK;
 
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TELESCOPE_BY_NAME);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
         protobuf_set(self, PACKET_LENGTH, 0);
@@ -855,6 +892,7 @@ Scheduler_unmask_telescope_by_id(void *_self, uint64_t identifier)
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TELESCOPE_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
 
     if ((ret = rpc_call(self)) == AAOS_OK) {
         protobuf_get(self, PACKET_ERRORCODE, &errorcode);
@@ -891,6 +929,7 @@ Scheduler_unmask_telescope_by_name(void *_self, const char *name)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TELESCOPE_BY_NAME);
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
@@ -939,6 +978,7 @@ Scheduler_list_target(void *_self, char *result, size_t size, size_t *length, in
 
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_LIST_TARGET);
     protobuf_set(self, PACKET_LENGTH, 0);
 
@@ -990,6 +1030,7 @@ Scheduler_add_target(void *_self, const char *info, unsigned int type)
     char *buf;
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_ADD_TARGET);
     protobuf_set(self, PACKET_OPTION, option);
     protobuf_get(self, PACKET_BUF, &buf, NULL);
@@ -1032,6 +1073,7 @@ Scheduler_delete_target_by_id(void *_self, uint64_t identifier, uint32_t nside)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TARGET_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_U32F3, nside);
@@ -1072,6 +1114,7 @@ Scheduler_delete_target_by_name(void *_self, const char *name)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_DELETE_TARGET_BY_NAME);
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
@@ -1119,6 +1162,7 @@ Scheduler_mask_target_by_id(void *_self, uint64_t identifier, uint32_t nside)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TARGET_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_U32F3, nside);
@@ -1159,6 +1203,7 @@ Scheduler_mask_target_by_name(void *_self, const char *name)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_MASK_TARGET_BY_NAME);
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
@@ -1206,6 +1251,7 @@ Scheduler_unmask_target_by_id(void *_self, uint64_t identifier, uint32_t nside)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TARGET_BY_ID);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_U32F3, nside);
@@ -1246,6 +1292,7 @@ Scheduler_unmask_target_by_name(void *_self, const char *name)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UNMASK_TARGET_BY_NAME);
     if (strlen(name) < PACKETPARAMETERSIZE - 1) {
         protobuf_set(self, PACKET_STR, name);
@@ -1293,6 +1340,7 @@ Scheduler_add_task_record(void *_self, const char *info, unsigned int type)
     char *buf;
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_ADD_TASK_RECORD);
     protobuf_set(self, PACKET_OPTION, option);    
     protobuf_get(self, PACKET_BUF, &buf, NULL);
@@ -1335,6 +1383,7 @@ Scheduler_update_task_record(void *_self, uint64_t identifier, const char *info,
     char *buf;
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_UPDATE_TASK_RECORD);
     protobuf_set(self, PACKET_OPTION, option);
     protobuf_set(self, PACKET_U64F0, identifier);    
@@ -1378,6 +1427,7 @@ Scheduler_register_thread(void *_self, uint64_t identifier)
     
     int ret = AAOS_OK;
 
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_SCHEDULER);
     protobuf_set(self, PACKET_COMMAND, SCHEDULER_REGISTER_THREAD);
     protobuf_set(self, PACKET_U64F0, identifier);
     protobuf_set(self, PACKET_LENGTH, 0);
@@ -2023,12 +2073,15 @@ Scheduler_execute(void *self)
     protobuf_get(self, PACKET_COMMAND, &command);
     int ret;
 
+    if (Scheduler_protocol_check(self) != AAOS_OK) {
+        return AAOS_EPROTOWRONG;
+    }
     switch (command) {
         case SCHEDULER_GET_TASK_BY_TELESCOPE_ID:
-            //ret = Scheduler_execute_get_target_by_telescope_id(self); 
+            ret = Scheduler_execute_get_task_by_telescope_id(self); 
             break;
         case SCHEDULER_GET_TASK_BY_TELESCOPE_NAME:
-            //ret = Scheduler_execute_get_target_by_telescope_name(self); 
+            ret = Scheduler_execute_get_task_by_telescope_name(self); 
             break;
         case SCHEDULER_LIST_SITE:
             ret = Scheduler_execute_list_site(self);
