@@ -1318,7 +1318,7 @@ scheduler_update_task_record(void *_self, uint64_t identifier, const char *info,
     const struct SchedulerClass *class = (const struct SchedulerClass *) classOf(_self);
 
     if (isOf(class, SchedulerClass()) && class->update_task_record.method) {
-        return ((int (*)(void *, uint64_t,  char *, unsigned int)) class->update_task_record.method)(_self, identifier, info, type);
+        return ((int (*)(void *, uint64_t,  const char *, unsigned int)) class->update_task_record.method)(_self, identifier, info, type);
     } else {
         int result;
         forward(_self, &result, (Method) scheduler_update_task_record, "update_task_record", _self, identifier, info, type);
@@ -2008,7 +2008,7 @@ Scheduler_execute_register_thread(struct Scheduler *self)
     int ret;
 
     protobuf_get(self, PACKET_U64F0, &identifier);
-    if ((ret = __scheduler_register_thread(scheduler, identifier) == AAOS_OK)) {   
+    if ((ret = __scheduler_register_thread(scheduler, identifier, self) == AAOS_OK)) {   
         protobuf_set(self, PACKET_LENGTH, 0);
     }
 
@@ -2630,9 +2630,9 @@ SchedulerServer_process_thr(void *arg)
             break;
         } else {
             uint16_t command;
+            uint64_t identifier;
             protobuf_get(arg, PACKET_COMMAND, &command);
             if (command == SCHEDULER_REGISTER_THREAD) {
-                __scheduler_register_thread(scheduler, arg);
                 break;
             }
         }

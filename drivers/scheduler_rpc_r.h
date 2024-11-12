@@ -53,6 +53,7 @@ struct SchedulerClass {
     struct Method unmask_target_by_id;
     struct Method unmask_target_by_name;
 
+    struct Method register_thread;
     struct Method add_task_record;
     struct Method update_task_record;
 };
