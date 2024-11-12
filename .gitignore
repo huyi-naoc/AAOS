@@ -25,6 +25,8 @@ src/aws
 src/awsd
 src/pdu
 src/pdud
+src/scheduler
+src/schedulerd
 src/serial
 src/seriald
 src/telescope
