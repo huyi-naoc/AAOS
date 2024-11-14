@@ -17,6 +17,7 @@ man/
 m4/
 mics/lockfile
 mics/cnsleep
+mics/scheduler_protocol_test
 mics/waitpid
 missing
 Makefile
