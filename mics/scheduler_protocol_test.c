@@ -11,6 +11,7 @@ static const char *global_module = NULL, *site_module = NULL;
 static struct option longopts[] = {
     {"global-un-sock", required_argument, NULL, 'g'},
     {"global-module", required_argument, NULL, 'G'},
+    {"help", no_argument, NULL, 'h'},
     {"site-un-sock", required_argument, NULL, 's'},
     {"site-module", required_argument, NULL, 'S'},
     {NULL, 0, NULL, 0}};
@@ -19,6 +20,20 @@ static struct option longopts[] = {
 static void
 usage()
 {
+    fprintf(stderr, "usage: scheduler_protocol_test [-v | --version] [-h | --help]\n");
+    fprintf(stderr, "      [-g <path> | --global-un-sock <path>] [-G <path> | --global-module <path>]\n");
+    fprintf(stderr, "      [-s <path> | --site-un-sock <path>] [-S <path> | --site-module <path>]\n");
+    fprintf(stderr, "      <command> [<args>]\n\n");
+    fprintf(stderr, "print JSON protocol\n");
+    fprintf(stderr, "      test_protocol\n\n");
+    fprintf(stderr, "send request to scheduling modules and fetch results\n");
+    fprintf(stderr, "    pop_task_block           pop task block from global scheduling module,\n");
+    fprintf(stderr, "                             and print results to stdout\n");
+    fprintf(stderr, "    pop_and_push_task_block  pop task block from global scheduling module,\n");
+    fprintf(stderr, "                             and print results to stdout, push to site \n");
+    fprintf(stderr, "                             scheduling module \n");
+    fprintf(stderr, "    get_task                 get a task for a telescope, take telescope\n");
+    fprintf(stderr, "                             idientifier as its argument\n");
     exit(EXIT_FAILURE);
 }
 
@@ -225,7 +240,7 @@ int
 main(int argc, char *argv[])
 {
     int ch;
-    while ((ch = getopt_long(argc, argv, "g:G:s:S", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "g:G:hs:S", longopts, NULL)) != -1) {
         switch (ch) {
             case 'g':
                 global_un_sock = optarg;
