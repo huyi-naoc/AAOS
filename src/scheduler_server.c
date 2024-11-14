@@ -187,7 +187,6 @@ read_configuration(void)
             fprintf(stderr, "`unit` scheduler needs `site` scheduler's address in `site` section.\n");
             exit(EXIT_FAILURE);
         }
-
         if ((telescope_setting = config_setting_lookup(setting, "telescope")) == NULL) {
             fprintf(stderr, "`unit` scheduler needs `telescope` section.\n");
             exit(EXIT_FAILURE);

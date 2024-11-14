@@ -515,13 +515,10 @@ char *
 __scheduler_create_request_json_string(unsigned int command, ...)
 {
     char timestamp[TIMESTAMPSIZE];
-    //struct timespec tp;
-    //double timestamp;
     cJSON *root_json, *general_json, *site_json, *telescope_json, *value_json;
     char *json_string;
     va_list ap;
-    //Clock_gettime(CLOCK_REALTIME, &tp);
-    //timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
+    
 
     ct_to_iso_str(timestamp, TIMESTAMPSIZE);
     va_start(ap, command);
