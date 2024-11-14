@@ -104,6 +104,7 @@ read_configuration(void)
         const char *address = NULL, *port = NULL, *name = NULL;
         const char *ipc_model = NULL, *algorithm = NULL, *sock_file = NULL;
         uint64_t site_id;
+        int64_t s_site_id;
         double site_lon, site_lat, site_alt;
         
         if ((site_setting = config_setting_lookup(setting, "global")) == NULL) {
@@ -147,7 +148,8 @@ read_configuration(void)
         }
 
         site_setting = config_setting_lookup(setting, "site");
-        if (config_setting_lookup_int64(site_setting, "site_id", &site_id) == CONFIG_TRUE) {
+        if (config_setting_lookup_int64(site_setting, "site_id", &s_site_id) == CONFIG_TRUE) {
+            site_id = s_site_id<0?~s_site_id + 1: s_site_id;
             __scheduler_set_member(scheduler, "site_id", site_id);
         } else {
             fprintf(stderr, "`site` scheduler needs `site_id` configuration setting in `site` section.\n");
@@ -167,6 +169,7 @@ read_configuration(void)
         }
     } else if (type == SCHEDULER_TYPE_UNIT) {
         uint64_t tel_id, site_id;
+        int64_t s_tel_id, s_site_id;;
         const char *address = NULL, *port = NULL, *name = NULL, *description = NULL;
         if ((telescope_setting = config_setting_lookup(setting, "site")) == NULL) {
             fprintf(stderr, "`telescope` scheduler needs `site` section.\n");
@@ -189,7 +192,9 @@ read_configuration(void)
             fprintf(stderr, "`unit` scheduler needs `telescope` section.\n");
             exit(EXIT_FAILURE);
         }
-        if (config_setting_lookup_int64(telescope_setting, "tel_id", &tel_id) == CONFIG_TRUE && config_setting_lookup_int64(telescope_setting, "site_id", &site_id) == CONFIG_TRUE) {
+        if (config_setting_lookup_int64(telescope_setting, "tel_id", &s_tel_id) == CONFIG_TRUE && config_setting_lookup_int64(telescope_setting, "site_id", &s_site_id) == CONFIG_TRUE) {
+            site_id = s_site_id<0?~s_site_id + 1: s_site_id;
+            tel_id = s_tel_id<0?~s_tel_id + 1: s_tel_id;
             __scheduler_set_member(scheduler, "tel_id", tel_id, site_id);
         } else {
             fprintf(stderr, "`unit` scheduler needs `tel_id` and `site_id` configuration settings in `telescope` section.\n");

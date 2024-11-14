@@ -165,5 +165,6 @@ ssize_t Sendfile(int, int, off_t, off_t *, struct sf_hdtr *, int);
 int Tcp_connect(const char *, const char *, SA *, socklen_t *);
 int Tcp_connect_nb(const char *, const char *, SA *, socklen_t *, double);
 int Tcp_listen(const char *, const char *, SA *, socklen_t *);
+int Un_stream_connect(const char *path);
 
 #endif /* wrapper_h */

@@ -64,6 +64,8 @@ int __scheduler_register_thread(void *_self, uint64_t identifier, void *thread);
 void *__scheduler_site_manage_thr(void *_self);
 void *__scheduler_telescope_manage_thr(void *_self);
 
+char *__scheduler_create_request_json_string(unsigned int command, ...);
+
 extern const void *__Scheduler(void);
 extern const void *__SchedulerClass(void);
 #endif /* scheduler_h */

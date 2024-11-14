@@ -13,6 +13,7 @@
 #include "scheduler.h"
 #include "scheduler_r.h"
 #include "scheduler_rpc.h"
+#include "utils.h"
 #include "wrapper.h"
 
 #include <chealpix.h>
@@ -510,19 +511,19 @@ print_target_list(void *arg, va_list *app)
     free(string);
 }
 
-
-static char *
+char *
 __scheduler_create_request_json_string(unsigned int command, ...)
 {
-    struct timespec tp;
-    double timestamp;
+    char timestamp[TIMESTAMPSIZE];
+    //struct timespec tp;
+    //double timestamp;
     cJSON *root_json, *general_json, *site_json, *telescope_json, *value_json;
     char *json_string;
     va_list ap;
+    //Clock_gettime(CLOCK_REALTIME, &tp);
+    //timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
 
-    Clock_gettime(CLOCK_REALTIME, &tp);
-    timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
-
+    ct_to_iso_str(timestamp, TIMESTAMPSIZE);
     va_start(ap, command);
     root_json = cJSON_CreateObject();
     if (command == SCHEDULER_GET_TASK_BY_TELESCOPE_ID) {
@@ -531,7 +532,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("request");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
         telescope_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "TELESCOPE-INFO", telescope_json);
@@ -544,7 +545,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("request");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
         telescope_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "TELESCOPE-INFO", telescope_json);
@@ -556,27 +557,24 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("request");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
-        cJSON_Delete(root_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_TASK_BLOCK_ACK) {
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("acknowledge");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
-        cJSON_Delete(root_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_PUSH_TASK_BLOCK) {
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("request");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
-        cJSON_Delete(root_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
         unsigned int identifier, status;
@@ -586,7 +584,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("update");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
         site_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
@@ -594,7 +592,6 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(site_json, "site_id", value_json);
         value_json = cJSON_CreateNumber(status);
         cJSON_AddItemToObject(site_json, "status", value_json);
-        cJSON_Delete(root_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_MASK_SITE_BY_ID) {
         unsigned int identifier, status;
@@ -604,7 +601,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("update");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
         site_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
@@ -612,7 +609,6 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(site_json, "site_id", value_json);
         value_json = cJSON_CreateNumber(status);
         cJSON_AddItemToObject(site_json, "status", value_json);
-        cJSON_Delete(root_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_UNMASK_SITE_BY_ID) {
         unsigned int identifier, status;
@@ -622,7 +618,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("update");
         cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateNumber(timestamp);
+        value_json = cJSON_CreateString(timestamp);
         cJSON_AddItemToObject(general_json, "timestam", value_json);
         site_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
@@ -630,7 +626,6 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(site_json, "site_id", value_json);
         value_json = cJSON_CreateNumber(status);
         cJSON_AddItemToObject(site_json, "status", value_json);
-        cJSON_Delete(root_json);
         json_string = cJSON_Print(root_json);
     }
 
@@ -642,22 +637,12 @@ __scheduler_create_request_json_string(unsigned int command, ...)
 int
 __Scheduler_ipc_write(struct __Scheduler *self, const char *string)
 {
-    int sockfd, cfd;
+    int cfd;
     uint32_t length;
     ssize_t nwrite;
     char buf[BUFSIZE];
-    struct sockaddr_un addr;
-   
-    memset(&addr, '\0', sizeof(addr));
-    addr.sun_family  = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", self->sock_file);
-
-    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        return AAOS_ERROR;
-    }
-
-    if ((cfd = connect(sockfd, (const struct sockadd *)&addr, sizeof(addr))) < 0) {
-        close(sockfd);
+    
+    if ((cfd = Un_stream_connect(self->sock_file)) < 0) {
         return AAOS_ERROR;
     }
 
@@ -666,34 +651,23 @@ __Scheduler_ipc_write(struct __Scheduler *self, const char *string)
     snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", string);
 
     if ((nwrite = Writen(cfd, buf, length + sizeof(uint32_t))) < 0) {
-        close(cfd);
-        close(sockfd);
+        Close(cfd);
+        return AAOS_ERROR;
     }
 
-    close(cfd);
-    close(sockfd);    
+    Close(cfd);  
     return AAOS_OK;
 }
 
 static int
 __Scheduler_ipc_write_and_read(struct __Scheduler *self, const char *string, char *res, size_t size, size_t *len)
 {
-    int sockfd, cfd; 
+    int cfd; 
     uint32_t length;
     ssize_t nread, nwrite;
     char buf[BUFSIZE];
-    struct sockaddr_un addr;
-
-    memset(&addr, '\0', sizeof(struct sockaddr_un));
-    addr.sun_family  = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", self->sock_file);
-
-    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        return AAOS_ERROR;
-    }
-
-    if ((cfd = connect(sockfd, (const struct sockadd *)&addr, sizeof(addr))) < 0) {
-        close(sockfd);
+    
+    if ((cfd = Un_stream_connect(self->sock_file)) < 0) {
         return AAOS_ERROR;
     }
 
@@ -702,25 +676,27 @@ __Scheduler_ipc_write_and_read(struct __Scheduler *self, const char *string, cha
     snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", string);
 
     if ((nwrite = Writen(cfd, buf, length + sizeof(uint32_t))) < 0) {
-        close(cfd);
-        close(sockfd);
+        Close(cfd);
+        return AAOS_ERROR;
     }
 
     if ((nread = Readn(cfd, &length, sizeof(uint32_t))) < 0) {
-        close(cfd);
-        close(sockfd);
+        Close(cfd);
+        return AAOS_ERROR;
+        
     }
     if ((nread = Readn(cfd, res, length)) < 0) {
-        close(cfd);
-        close(sockfd);
+        Close(cfd);
+        return AAOS_ERROR;
+        
     }
 
     if (len != NULL) {
         *len = length;
     }
 
-    close(cfd);
-    close(sockfd);    
+    Close(cfd);
+      
     return AAOS_OK;
 }
 
@@ -1115,11 +1091,10 @@ __Scheduler_pop_task_block(void *_self)
 {
     struct __Scheduler *self = cast(__Scheduler(), _self);
 
-    int sockfd, cfd;
+    int cfd;
     uint32_t length;
     ssize_t nread, nwrite;
     char buf[BUFSIZE], *block_buf;
-    struct sockaddr_un addr;
     char *json_string;
     int ret;
 
@@ -1141,14 +1116,8 @@ __Scheduler_pop_task_block(void *_self)
 
     block_buf = (char *) Malloc(BUFSIZE * self->max_task_in_block);
     for (;;) {
-        memset(&addr, '\0', sizeof(struct sockaddr_un));
-        addr.sun_family  = AF_UNIX;
-        snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", self->sock_file);
-        if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-            continue;
-        }
-        if ((cfd = connect(sockfd, (const struct sockadd *)&addr, sizeof(addr))) < 0) {
-            close(sockfd);
+        if ((cfd = Un_stream_connect(self->sock_file)) < 0) {
+            Close(cfd);
             continue;
         }
         json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
@@ -1157,21 +1126,18 @@ __Scheduler_pop_task_block(void *_self)
         snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
         free(json_string);
         if ((nwrite = Writen(cfd, buf, length + sizeof(uint32_t))) < 0) {
-            close(cfd);
-            close(sockfd);
+            Close(cfd);
             continue;
         }
         for (;;) {
             cJSON *root_json, *value_json;
             uint64_t identifier;
             if ((nread = Readn(cfd, &length, sizeof(uint32_t))) < 0) {
-                close(cfd);
-                close(sockfd);
+                Close(cfd);
                 break;
             }
             if ((nread = Readn(cfd, block_buf, length)) < 0) {
-                close(cfd);
-                close(sockfd);
+                Close(cfd);
                 break;
             }
             json_string =  __scheduler_create_request_json_string(SCHEDULER_TASK_BLOCK_ACK);
@@ -1180,8 +1146,7 @@ __Scheduler_pop_task_block(void *_self)
             snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
             free(json_string);
             if ((nwrite = Writen(cfd, buf, length)) < 0) {
-                close(cfd);
-                close(sockfd);
+                Close(cfd);
                 break;
             }
             /*
@@ -1455,14 +1420,12 @@ __Scheduler_add_site_json(struct __Scheduler *self, const char *info)
     cJSON *site_json, *value_json;
     int ret = AAOS_OK;
     uint64_t site_id;
-    double timestamp, site_lon, site_lat, site_alt;
+    double site_lon, site_lat, site_alt;
     struct timespec tp;
     struct SiteInfo *site;
     char *sitename;
     char sql[BUFSIZE];
-    
-    Clock_gettime(CLOCK_REALTIME, &tp);
-    timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
+    double timestamp;
 
     site_id = __Scheduler_generate_unique_site_id(self);
 
@@ -1500,6 +1463,8 @@ __Scheduler_add_site_json(struct __Scheduler *self, const char *info)
         return AAOS_EINVAL;
     }
 
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
     __scheduler_create_sql(SCHEDULER_ADD_SITE, 0, self->site_db_table, sql, BUFSIZE, sitename, site_id, site_lon, site_lat, site_alt, timestamp);
     __Scheduler_database_query(self, sql, NULL);
 
