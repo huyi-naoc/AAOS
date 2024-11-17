@@ -9,6 +9,7 @@
 #define utils_h
 
 #include <stdlib.h>
+#include <time.h>
 
 void ct_to_iso_str(char *buf, size_t size);
 double iso_str_to_t(const char *buf);
