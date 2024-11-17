@@ -53,6 +53,6 @@ struct Object *super_move(const void *_class, void *_self);
 
 
 
-#define MAGIC   0x0effaced
+#define MAGIC   4
 
 #endif /* object_r_h */

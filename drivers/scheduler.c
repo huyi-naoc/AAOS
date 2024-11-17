@@ -521,6 +521,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
     
 
     ct_to_iso_str(timestamp, TIMESTAMPSIZE);
+    
     va_start(ap, command);
     root_json = cJSON_CreateObject();
     if (command == SCHEDULER_GET_TASK_BY_TELESCOPE_ID) {

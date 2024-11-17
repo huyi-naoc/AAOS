@@ -12,5 +12,6 @@
 
 void ct_to_iso_str(char *buf, size_t size);
 double iso_str_to_t(const char *buf);
+void iso_str_to_tp(const char *buf, struct timespec *tp);
 
 #endif /* utils_h */

@@ -52,3 +52,22 @@ iso_str_to_t(const char *buf)
     
     return timestamp;
 }
+
+void
+iso_str_to_tp(const char *buf, struct timespec *tp)
+{
+    struct tm time_buf;
+    long nsec;
+    size_t len = strlen(buf);
+
+    strptime(buf, "%Y-%m-%dT%H:%M:%S", &time_buf);
+    if (len > 8 && buf[len-1] == 'Z' && buf[len-5] == '.') {
+        char tmp[8];
+        memcpy(tmp, buf + len - 9, 6);
+        tmp[6] = '\0';
+        nsec = atoi(tmp) * 1000;
+    }
+
+    tp->tv_sec = timegm(&time_buf);
+    tp->tv_nsec = nsec;
+}

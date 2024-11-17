@@ -253,7 +253,7 @@ Clock_nanosleep(clockid_t clock_id, int flags, const struct timespec *request, s
 #ifdef LINUX
     s = clock_nanosleep(clock_id, flags, request, remain);
     if (s < 0) {
-        err_warn("close", errno);
+        err_warn("clock_nanosleep", errno);
     }
 #else
     pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
