@@ -183,13 +183,17 @@ main(int argc, char *argv[])
 
     pid = (pid_t) atoi(argv[0]);
     if (oneshot) {
+#if defined (LINUX) || defined (MACOSX)
         waitpid_(pid);
+#endif
     } else {
         tp.tv_sec = floor(delay);
         tp.tv_nsec = (delay - tp.tv_sec) * 1000000000;
+#if defined (LINUX) || defined (MACOSX)
         while ((ret = waitpid_(pid)) != 1) {
             nanosleep(&tp, NULL);
         }
+#endif
     }
     return 0;
 }

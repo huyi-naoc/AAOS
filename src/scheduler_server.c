@@ -74,6 +74,7 @@ read_configuration(void)
     setting = config_lookup(&cfg, "scheduler");
     if (setting == NULL) {
         fprintf(stderr, "`scheduler` section does not exist in configuration file.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     unsigned int type;
@@ -88,9 +89,14 @@ read_configuration(void)
             type = SCHEDULER_TYPE_UNIT;
         } else {
             type = SCHEDULER_TYPE_UNKNOWN;
-            fprintf(stderr, "`%s` type scheduler is not supported .\n", s);
+            fprintf(stderr, "`%s` type scheduler is not supported.\n", s);
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
+    } else {
+        fprintf(stderr, "type of scheduler is not specified.\n");
+        fprintf(stderr, "Exit...\n");
+        exit(EXIT_FAILURE);
     }
     if (config_setting_lookup_string(setting, "description", &description) == CONFIG_TRUE) {
     }
@@ -109,41 +115,48 @@ read_configuration(void)
         
         if ((site_setting = config_setting_lookup(setting, "global")) == NULL) {
             fprintf(stderr, "`site` scheduler needs `global` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(site_setting, "address", &address) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "global_addr", address);
         } else {
             fprintf(stderr, "`site` scheduler needs `global` scheduler's address in `global` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(site_setting, "port", &port) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "global_port", port);
         } else {
             fprintf(stderr, "`site` scheduler needs `global` scheduler's port in `global` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
             
         if ((site_setting = config_setting_lookup(setting, "module")) == NULL) {
             fprintf(stderr, "`site` scheduler needs `module` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(site_setting, "ipc_model", &ipc_model) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "ipc_model", ipc_model);
         } else {
             fprintf(stderr, "`site` scheduler needs `ipc_model` in `moddule` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(site_setting, "algorithm", &algorithm) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "algorithm", algorithm);
         } else {
             fprintf(stderr, "`site` scheduler needs `algorithm` in `moddule` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(site_setting, "sock_file", &sock_file) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "sock_file", sock_file);
         } else {
             fprintf(stderr, "`site` scheduler needs `sock_file` in `moddule` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
 
@@ -153,6 +166,7 @@ read_configuration(void)
             __scheduler_set_member(scheduler, "site_id", site_id);
         } else {
             fprintf(stderr, "`site` scheduler needs `site_id` configuration setting in `site` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(site_setting, "name", &name) == CONFIG_TRUE) {
@@ -173,22 +187,26 @@ read_configuration(void)
         const char *address = NULL, *port = NULL, *name = NULL, *description = NULL;
         if ((telescope_setting = config_setting_lookup(setting, "site")) == NULL) {
             fprintf(stderr, "`telescope` scheduler needs `site` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(telescope_setting, "address", &address) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "site_addr", address);
         } else {
             fprintf(stderr, "`unit` scheduler needs `site` scheduler's address in `site` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(telescope_setting, "port", &port) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "site_port", port);
         } else {
             fprintf(stderr, "`unit` scheduler needs `site` scheduler's address in `site` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if ((telescope_setting = config_setting_lookup(setting, "telescope")) == NULL) {
             fprintf(stderr, "`unit` scheduler needs `telescope` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_int64(telescope_setting, "tel_id", &s_tel_id) == CONFIG_TRUE && config_setting_lookup_int64(telescope_setting, "site_id", &s_site_id) == CONFIG_TRUE) {
@@ -197,6 +215,7 @@ read_configuration(void)
             __scheduler_set_member(scheduler, "tel_id", tel_id, site_id);
         } else {
             fprintf(stderr, "`unit` scheduler needs `tel_id` and `site_id` configuration settings in `telescope` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(telescope_setting, "name", &name) == CONFIG_TRUE) {
@@ -209,24 +228,28 @@ read_configuration(void)
         const char *ipc_model = NULL, *algorithm = NULL, *sock_file = NULL;
         if ((global_setting = config_setting_lookup(setting, "module")) == NULL) {
             fprintf(stderr, "`global` scheduler needs `module` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(global_setting, "ipc_model", &ipc_model) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "ipc_model", ipc_model);
         } else {
             fprintf(stderr, "`global` scheduler needs `ipc_model` in `moddule` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(global_setting, "algorithm", &algorithm) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "algorithm", algorithm);
         } else {
             fprintf(stderr, "`global` scheduler needs `algorithm` in `moddule` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(global_setting, "sock_file", &sock_file) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "sock_file", sock_file);
         } else {
             fprintf(stderr, "`global` scheduler needs `sock_file` in `moddule` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -236,30 +259,35 @@ read_configuration(void)
     const char *site_db_table = NULL, *telescope_db_table = NULL, *target_db_table = NULL, *task_db_table = NULL;
     if (setting == NULL) {
         fprintf(stderr, "`database` section does not exist in configuration file.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     if (config_setting_lookup_string(setting, "db_host", &db_host) == CONFIG_TRUE) {
         __scheduler_set_member(scheduler, "db_host", db_host);
     } else {
         fprintf(stderr, "`db_host` needs to exist in `database` section.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     if (config_setting_lookup_string(setting, "db_user", &db_user) == CONFIG_TRUE) {
         __scheduler_set_member(scheduler, "db_user", db_user);
     } else {
         fprintf(stderr, "`db_user` needs to exist in `database` section.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     if (config_setting_lookup_string(setting, "db_passwd", &db_passwd) == CONFIG_TRUE) {
         __scheduler_set_member(scheduler, "db_passwd", db_passwd);
     } else {
         fprintf(stderr, "`db_passwd` needs to exist in `database` section.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     if (config_setting_lookup_string(setting, "db_name", &db_name) == CONFIG_TRUE) {
         __scheduler_set_member(scheduler, "db_passwd", db_name);
     } else {
         fprintf(stderr, "`db_name` needs to exist in `database` section.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
 
@@ -268,24 +296,28 @@ read_configuration(void)
             __scheduler_set_member(scheduler, "site_db_table", site_db_table);
         } else {
             fprintf(stderr, "Global scheduler must have `site_db_table` in `database` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(setting, "telescope_db_table", &telescope_db_table) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "telescope_db_table", telescope_db_table);
         } else {
             fprintf(stderr, "Global scheduler must have `telescope_db_table` in `database` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(setting, "target_db_table", &target_db_table) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "target_db_table", target_db_table);
         } else {
             fprintf(stderr, "Global scheduler must have `target_db_table` in `database` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(setting, "task_db_table", &task_db_table) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "task_db_table", task_db_table);
         } else {
             fprintf(stderr, "Global scheduler must have `task_db_table` in `database` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
     } else if (type == SCHEDULER_TYPE_SITE) {
@@ -293,18 +325,21 @@ read_configuration(void)
             __scheduler_set_member(scheduler, "telescope_db_table", telescope_db_table);
         } else {
             fprintf(stderr, "Site scheduler must have `telescope_db_table` in `database` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(setting, "target_db_table", &target_db_table) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "target_db_table", target_db_table);
         } else {
             fprintf(stderr, "Site scheduler must have `target_db_table` in `database` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
         if (config_setting_lookup_string(setting, "task_db_table", &task_db_table) == CONFIG_TRUE) {
             __scheduler_set_member(scheduler, "task_db_table", task_db_table);
         } else {
             fprintf(stderr, "Site scheduler must have `task_db_table` in `database` section.\n");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -315,7 +350,7 @@ static void
 init(void)
 {
     read_configuration();
-
+    
     rpc_server_start(server);
 }
 
@@ -368,11 +403,13 @@ main(int argc, char *argv[])
 
     if ((ret = Access(config_path, F_OK)) < 0) {
         fprintf(stderr, "configuration file does not exist.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     
     if(config_read_file(&cfg, config_path) == CONFIG_FALSE) {
         fprintf(stderr, "fail to read configuration file.\n");
+        fprintf(stderr, "Exit...\n");
         exit(EXIT_FAILURE);
     }
     
@@ -397,7 +434,7 @@ main(int argc, char *argv[])
             daemon_stop(d);
         } else {
             fprintf(stderr, "Unknow argument.\n");
-            fprintf(stderr, "Exit...");
+            fprintf(stderr, "Exit...\n");
             destroy();
             exit(EXIT_FAILURE);
         }

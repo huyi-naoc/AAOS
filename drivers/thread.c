@@ -7,16 +7,18 @@
 
 #include "def.h"
 #include "detector_rpc.h"
+#include "rpc.h"
 #include "scheduler_rpc.h"
 #include "telescope_rpc.h"
 #include "thread.h"
 #include "thread_r.h"
+#include "utils.h"
 #include "wrapper.h"
 
 #include <cjson/cJSON.h>
 
 int
-__observation_thread_cycle(void *_sef)
+__observation_thread_cycle(void *_self)
 {
     const struct __ObservationThreadClass *class = (const struct __ObservationThreadClass *) classOf(_self);
     
@@ -32,22 +34,30 @@ __observation_thread_cycle(void *_sef)
 static int
 __ObservationThread_check_scheduler(struct __ObservationThread *self)
 {
-    int ret;
+    int ret = AAOS_OK;
+    
     if (self->has_scheduler) {
-        if (self->scheduler_client == NULL && self->scheduler_addr != NULL && self->scheduler_addr != NULL) {
-            self->scheduler_client = new(SchedulerClient(), self->scheduler_addr, self->scheduler_port);
-        } else {
-            return AAOS_EINVAL;
+        if (self->scheduler_client == NULL) {
+            if (self->scheduler_addr != NULL && self->scheduler_addr != NULL) {
+                self->scheduler_client = new(SchedulerClient(), self->scheduler_addr, self->scheduler_port);
+            } else {
+                return AAOS_EINVAL;
+            }
         }
         
-        if (self->scheduler == NULL && (ret = rpc_connect(self->scheduler_client, &self->scheduler)) == AAOS_OK) {
-            
+        if (self->scheduler == NULL) {
+            if ((ret = rpc_client_connect(self->scheduler_client, &self->scheduler_client)) == AAOS_OK) {
+                return AAOS_OK;
+            } else {
+                return ret;
+            }
         } else {
-            return ret;
+            return AAOS_OK;
         }
     } else {
         return AAOS_OK;
     }
+   
 }
 
 /*
@@ -76,19 +86,26 @@ __ObservationThread_check_dome(struct __ObservationThread *self)
 static int
 __ObservationThread_check_telescope(struct __ObservationThread *self)
 {
+    int ret;
+    
     if (self->has_telescope) {
-        if (self->telescope_client == NULL && self->telescope_addr != NULL && self->telescope_addr != NULL) {
-            self->telescope_client = new(TelescopeClient(), self->telescope_addr, self->telescope_port);
-        } else {
-            return AAOS_EINVAL;
+        if (self->telescope_client == NULL) {
+            if (self->telescope_addr != NULL && self->telescope_addr != NULL) {
+                self->telescope_client = new(TelescopeClient(), self->telescope_addr, self->telescope_port);
+            } else {
+                return AAOS_EINVAL;
+            }
         }
         
-        if (self->scheduler == NULL && (ret = rpc_connect(self->telescope_client, &self->telescope)) == AAOS_OK) {
-            
+        if (self->telescope == NULL) {
+            if ((ret = rpc_client_connect(self->telescope_client, &self->telescope_client)) == AAOS_OK) {
+                return AAOS_OK;
+            } else {
+                return ret;
+            }
         } else {
-            return ret;
+            return AAOS_OK;
         }
-        
     } else {
         return AAOS_OK;
     }
@@ -97,19 +114,27 @@ __ObservationThread_check_telescope(struct __ObservationThread *self)
 static int
 __ObservationThread_check_detector(struct __ObservationThread *self)
 {
+    int ret;
+    
     if (self->has_detector) {
-        if (self->detector_client == NULL && self->detector_addr != NULL && self->detector_addr != NULL) {
-            self->detector_client = new(DetectorClient(), self->detector_addr, self->detector_port);
-        } else {
-            return AAOS_EINVAL;
+        
+        if (self->detector_client == NULL) {
+            if (self->detector_addr != NULL && self->detector_addr != NULL) {
+                self->detector_client = new(DetectorClient(), self->detector_addr, self->detector_port);
+            } else {
+                return AAOS_EINVAL;
+            }
         }
         
-        if (self->detector == NULL && (ret = rpc_connect(self->detector_client, &self->detector)) == AAOS_OK) {
-            
+        if (self->detector == NULL) {
+            if ((ret = rpc_client_connect(self->detector_client, &self->detector)) == AAOS_OK) {
+                return AAOS_OK;
+            } else {
+                return ret;
+            }
         } else {
-            return ret;
+            return AAOS_OK;
         }
-        
     } else {
         return AAOS_OK;
     }
@@ -173,7 +198,7 @@ __ObservationThread_cycle(void *_self)
     */
     char buf[BUFSIZE];
     
-    if (((ret = scheduler_get_target_by_telescope_id(self->scheduler, self->tel_id, buf, BUFSIZE, NULL, NULL))) != AAOS_OK) {    
+    if (((ret = scheduler_get_task_by_telescope_id(self->scheduler, self->tel_id, buf, BUFSIZE, NULL, NULL))) != AAOS_OK) {
         /*
          * 
          */
@@ -181,8 +206,8 @@ __ObservationThread_cycle(void *_self)
     
     cJSON *root_json, *telescope_json, *target_json, *value_json, *ra_json, *dec_json;
     bool is_daytime = false, is_badweather = false;
-    double ra, dec, exptime;
-    uint32_t nframes;
+    double ra, dec, exptime = 60.;
+    uint32_t nframes = 1;
     struct timespec tp;
     char *detname;
 
@@ -224,7 +249,7 @@ __ObservationThread_cycle(void *_self)
         if ((telescope_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) == NULL) {
             return AAOS_ERROR;
         }
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "telescop")) == NULL ) {
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "telescop")) == NULL) {
             return AAOS_ERROR;
         }
         if ((ret = telescope_get_index_by_name(self->telescope, value_json->valuestring)) != AAOS_OK) {
@@ -233,27 +258,31 @@ __ObservationThread_cycle(void *_self)
         /*
          * Change instrument, filter, detector.
          */
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "instrume")) != NULL ) {
-
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "instrume")) != NULL) {
+            telescope_switch_instrument(self->telescope, value_json->valuestring);
         }
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "filter")) != NULL ) {
-
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "filter")) != NULL) {
+            telescope_switch_filter(self->telescope, value_json->valuestring);
         }
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "detname")) != NULL ) {
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "detname")) != NULL) {
+            telescope_switch_detector(self->telescope, value_json->valuestring);
             detname = value_json->valuestring;
         }
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "exptime")) != NULL ) {
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "exptime")) != NULL) {
             exptime = value_json->valuedouble;
         }
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "nframes")) != NULL ) {
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "nframes")) != NULL) {
             nframes = value_json->valueint;
         }
         
         ra_json = cJSON_GetObjectItemCaseSensitive(target_json, "targ_ra");
         dec_json = cJSON_GetObjectItemCaseSensitive(target_json, "targ_dec");
         if (ra_json != NULL && dec_json != NULL && cJSON_IsNumber(ra_json) && cJSON_IsNumber(dec_json)) {
-            ra = ra_json->valuedoubel;
+            ra = ra_json->valuedouble;
             dec = dec_json->valuedouble;
+            Pthread_mutex_lock(&self->mtx);
+            self->state = OT_STATE_SLEW;
+            Pthread_mutex_unlock(&self->mtx);
             if ((ret = telescope_slew(self->telescope, ra, dec)) != AAOS_OK) {
                 return ret;
             }
@@ -264,11 +293,18 @@ __ObservationThread_cycle(void *_self)
         if ((ret = detector_get_index_by_name(self->detector, detname)) != AAOS_OK) {
             return AAOS_ERROR;
         }
-        if ((ret = detector_expose(self->detector, exptime, nframes), NULL) != AAOS_OK) {
+        Pthread_mutex_lock(&self->mtx);
+        self->state = OT_STATE_EXPOSE;
+        Pthread_mutex_unlock(&self->mtx);
+        if ((ret = detector_expose(self->detector, exptime, nframes, NULL)) != AAOS_OK) {
             return AAOS_ERROR;
         }
     }
 
+    Pthread_mutex_lock(&self->mtx);
+    self->state = OT_STATE_IDLE;
+    Pthread_mutex_unlock(&self->mtx);
+    
     return AAOS_OK;
 }
 
@@ -302,6 +338,8 @@ __ObserbationThread_start(void *_self)
 int
 __observation_thread_stop(void *_self)
 {
+    const struct __ObservationThreadClass *class = (const struct __ObservationThreadClass *) classOf(_self);
+    
     if (isOf(class, __ObservationThreadClass()) && class->stop.method) {
         return ((int (*)(void *)) class->stop.method)(_self);
     } else {
@@ -325,6 +363,8 @@ __ObserbationThread_stop(void *_self)
 int
 __observation_thread_resume(void *_self)
 {
+    const struct __ObservationThreadClass *class = (const struct __ObservationThreadClass *) classOf(_self);
+    
     if (isOf(class, __ObservationThreadClass()) && class->resume.method) {
         return ((int (*)(void *)) class->resume.method)(_self);
     } else {
@@ -340,7 +380,7 @@ __ObserbationThread_resume(void *_self)
     struct __ObservationThread *self = cast(__ObservationThread(), _self);
 
     Pthread_mutex_lock(&self->mtx);
-    if (self->state == OT_STATE_SUSPEND || slef->state == OT_STATE_CANCEL || self->state == OT_STATE_STOP) {
+    if (self->state == OT_STATE_SUSPEND || self->state == OT_STATE_CANCEL || self->state == OT_STATE_STOP) {
         self->state = OT_STATE_IDLE;
     }
     Pthread_mutex_unlock(&self->mtx);
@@ -352,6 +392,8 @@ __ObserbationThread_resume(void *_self)
 int
 __observation_thread_cancel(void *_self)
 {
+    const struct __ObservationThreadClass *class = (const struct __ObservationThreadClass *) classOf(_self);
+    
     if (isOf(class, __ObservationThreadClass()) && class->cancel.method) {
         return ((int (*)(void *)) class->cancel.method)(_self);
     } else {
@@ -368,10 +410,10 @@ __observation_thread_get_member(void *_self, const char *name, ...)
     
     va_list ap;
     va_start(ap, name);
-    if (isOf(class, __SchedulerClass()) && class->get_member.method) {
+    if (isOf(class, __ObservationThreadClass()) && class->get_member.method) {
         ((void (*)(void *)) class->get_member.method)(_self);
     } else {
-        forward(_self, 0, (Method) __observation_thread_set_member, "get_member", _self, name, &ap);
+        forward(_self, (void *) 0, (Method) __observation_thread_get_member, "get_member", _self, name, &ap);
     }
     va_end(ap);
 }
@@ -395,10 +437,10 @@ __observation_thread_set_member(void *_self, const char *name, ...)
     
     va_list ap;
     va_start(ap, name);
-    if (isOf(class, __SchedulerClass()) && class->set_member.method) {
+    if (isOf(class, __ObservationThreadClass()) && class->set_member.method) {
         ((void (*)(void *)) class->set_member.method)(_self);
     } else {
-        forward(_self, 0, (Method) __observation_thread_set_member, "set_member", _self, name, &ap);
+        forward(_self, (void *) 0, (Method) __observation_thread_set_member, "set_member", _self, name, &ap);
     }
     va_end(ap);
 }
@@ -407,11 +449,18 @@ static void
 __ObservationThread_set_member(void *_self, const char *name, va_list *app)
 {
     struct __ObservationThread *self = cast(__ObservationThread(), _self);
-
+    
+    int ret;
     if (strcmp(name, "scheduler") == 0) {
         const char *addr, *port;
-        addr = va_arg(addr, const char *);
-        port = va_arg(port, const char *);
+        addr = va_arg(*app, const char *);
+        port = va_arg(*app, const char *);
+        if (addr == NULL && port == NULL) {
+            if (self->scheduler_addr != NULL && self->scheduler_port != NULL && (ret = rpc_client_connect(self->scheduler_client, &self->scheduler2)) == AAOS_OK) {
+
+            }
+            return;
+        }
         self->scheduler_addr = (char *) Realloc(self->scheduler_addr, strlen(addr) + 1);
         self->scheduler_port = (char *) Realloc(self->scheduler_port, strlen(port) + 1);
         snprintf(self->scheduler_addr, strlen(addr) + 1, "%s", addr);
@@ -431,10 +480,10 @@ __ObservationThread_set_member(void *_self, const char *name, va_list *app)
 
     if (strcmp(name, "dome") == 0) {
         const char *addr, *port;
-        addr = va_arg(addr, const char *);
-        port = va_arg(port, const char *);
-        self->dome_addr = (char *) Realloc(self->dome_addr);
-        self->dome_port = (char *) Realloc(self->dome_port);
+        addr = va_arg(*app, const char *);
+        port = va_arg(*app, const char *);
+        self->dome_addr = (char *) Realloc(self->dome_addr, strlen(addr) + 1);
+        self->dome_port = (char *) Realloc(self->dome_port, strlen(port) + 1);
         snprintf(self->dome_addr, strlen(addr) + 1, "%s", addr);
         snprintf(self->dome_port, strlen(port) + 1, "%s", port);
         
@@ -449,8 +498,8 @@ __ObservationThread_set_member(void *_self, const char *name, va_list *app)
 
     if (strcmp(name, "telescope") == 0) {
         const char *addr, *port;
-        addr = va_arg(addr, const char *);
-        port = va_arg(port, const char *);
+        addr = va_arg(*app, const char *);
+        port = va_arg(*app, const char *);
         self->telescope_addr = (char *) Realloc(self->telescope_addr, strlen(addr) + 1);
         self->telescope_port = (char *) Realloc(self->telescope_port, strlen(port) + 1);
         snprintf(self->telescope_addr, strlen(addr) + 1, "%s", addr);
@@ -464,8 +513,8 @@ __ObservationThread_set_member(void *_self, const char *name, va_list *app)
 
     if (strcmp(name, "detector") == 0) {
         const char *addr, *port;
-        addr = va_arg(addr, const char *);
-        port = va_arg(port, const char *);
+        addr = va_arg(*app, const char *);
+        port = va_arg(*app, const char *);
         self->detector_addr = (char *) Realloc(self->detector_addr, strlen(addr) + 1);
         self->detector_port = (char *) Realloc(self->detector_port, strlen(port) + 1);
         snprintf(self->detector_addr, strlen(addr) + 1, "%s", addr);
@@ -479,8 +528,8 @@ __ObservationThread_set_member(void *_self, const char *name, va_list *app)
 
     if (strcmp(name, "pipeline") == 0) {
         const char *addr, *port;
-        addr = va_arg(addr, const char *);
-        port = va_arg(port, const char *);
+        addr = va_arg(*app, const char *);
+        port = va_arg(*app, const char *);
         self->pipeline_addr = (char *) Realloc(self->pipeline_addr, strlen(addr) + 1);
         self->pipeline_port = (char *) Realloc(self->pipeline_port, strlen(port) + 1);
         snprintf(self->pipeline_addr, strlen(addr) + 1, "%s", addr);

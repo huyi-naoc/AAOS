@@ -1373,16 +1373,13 @@ Sendfile(int fd, int sockfd, off_t offset, off_t *len, struct sf_hdtr *hdtr, int
     return s;
 }
 
-
 int
 Un_stream_connect(const char *path)
 {
     int sockfd, s;
     struct sockaddr_un addr;
-
-    struct sockaddr_storage ss;
-
-    if (strlen(path) > sizeof(addr.sun_path)) {
+    
+    if (strlen(path) > sizeof(addr) - SUN_LEN(&addr)) {
         errno = ENAMETOOLONG;
         return -1;
     }
@@ -1397,12 +1394,11 @@ Un_stream_connect(const char *path)
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 
     s = connect(sockfd, (const struct sockaddr *) &addr, sizeof(addr));
-
+    
     if (s < 0) {
         err_warn("un_stream_connect", errno);
         close(sockfd);
         sockfd = -1;
     }
-
     return sockfd;
 }

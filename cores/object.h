@@ -4,6 +4,7 @@
 //
 //  Created by huyi on 18/6/12.
 //  Copyright © 2018年 National Astronomical Observatories, Chinese Academy of Sciences. All rights reserved.
+//  This code is a modification from the book Object-Oriented Programming in C.
 //
 
 #ifndef __object_h

@@ -92,6 +92,10 @@ struct __TelescopeClass {
     struct Method get_move_speed;
     struct Method set_track_rate;
     struct Method get_track_rate;
+
+    struct Method switch_filter;
+    struct Method switch_instrument;
+    struct Method switch_detector;
     
     struct Method inspect;
     struct Method wait;
@@ -120,6 +124,10 @@ struct __TelescopeVirtualTable {
     struct Method get_move_speed;
     struct Method set_track_rate;
     struct Method get_track_rate;
+
+    struct Method switch_filter;
+    struct Method switch_instrument;
+    struct Method switch_detector;
     
     struct Method inspect;
     struct Method wait;

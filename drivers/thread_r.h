@@ -21,33 +21,36 @@ struct __ObservationThread {
 
     char *scheduler_addr;
     char *scheduler_port;
-    char *scheduler;
-    char *scheduler2;
     void *scheduler_client;
+    void *scheduler;
+    void *scheduler2;
     bool has_scheduler;
     
     char *dome_addr;
     char *dome_port;
-    char *dome;
+    char *dome_name;
     void *dome_client;
+    void *dome;
     bool has_dome;
     
     char *telescope_addr;
     char *telescope_port;
-    char *telescope;
+    char *telescope_name;
     void *telescope_client;
+    void *telescope;
     bool has_telescope;
     
     char *detector_addr;
     char *detector_port;
-    char *detector;
+    char *detector_name;
     void *detector_client;
+    void *detector;
     bool has_detector;
     
     char *pipeline_addr;
     char *pipeline_port;
-    char *pipeline;
     void *pipeline_client;
+    void *pipeline;
     bool has_pipeline;
     
     unsigned int state;
@@ -70,5 +73,5 @@ struct __ObservationThreadClass {
     struct Method get_member;
 
     struct Method cycle;
-}
+};
 #endif /* thread_r_h */

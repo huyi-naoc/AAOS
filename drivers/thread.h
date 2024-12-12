@@ -15,8 +15,14 @@
 #define OT_STATE_STOP       5
 #define OT_STATE_IDLE       6
 
-#include "wrapper.h"
 
-const void *__ObservationThread(void*);
-const void *__ObservationThreadClass(void*);
+int __observation_thread_cycle(void *_sef);
+int __observation_thread_start(void *_self);
+int __observation_thread_stop(void *_self);
+int __observation_thread_suspend(void *_self);
+int __observation_thread_cancel(void *_self);
+int __observation_thread_resume(void *_self);
+
+const void *__ObservationThread(void);
+const void *__ObservationThreadClass(void);
 #endif /* thread_h */

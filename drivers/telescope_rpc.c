@@ -101,6 +101,148 @@ Telescope_get_index_by_name(void *_self, const char *name)
 }
 
 int
+telescope_switch_instrument(void *_self, const char *name)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->switch_instrument.method) {
+        return ((int (*)(void *, const char *)) class->switch_instrument.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_switch_instrument, "switch_instrument", _self, name);
+        return result;
+    }
+}
+
+static int
+Telescope_switch_instrument(void *_self, const char *name)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    size_t length;
+    uint16_t idx = 0;
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_SWITCH_INSTRUMENT);
+    protobuf_get(self, PACKET_INDEX, &idx);
+
+    length = strlen(name);
+    if (length < PACKETPARAMETERSIZE && idx > 0) {
+        char *s;
+        protobuf_get(self, PACKET_STR, &s);
+        if (s != name) {
+            snprintf(s, PACKETPARAMETERSIZE, "%s", name);
+        }
+        protobuf_set(self, PACKET_LENGTH, 0);
+    } else {
+        char *buf;
+        protobuf_get(self, PACKET_BUF, &buf, NULL);
+        if (name != buf) {
+            protobuf_set(self, PACKET_BUF, name, length + 1);
+        }
+        uint32_t len = (uint32_t) length + 1;
+        protobuf_set(self, PACKET_LENGTH, len);
+    }
+    
+    return rpc_call(self);
+}
+
+int
+telescope_switch_filter(void *_self, const char *name)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->switch_filter.method) {
+        return ((int (*)(void *, const char *)) class->switch_filter.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_switch_filter, "switch_filter", _self, name);
+        return result;
+    }
+}
+
+static int
+Telescope_switch_filter(void *_self, const char *name)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    size_t length;
+    uint16_t idx = 0;
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_SWITCH_FILTER);
+    protobuf_get(self, PACKET_INDEX, &idx);
+
+    length = strlen(name);
+    if (length < PACKETPARAMETERSIZE && idx > 0) {
+        char *s;
+        protobuf_get(self, PACKET_STR, &s);
+        if (s != name) {
+            snprintf(s, PACKETPARAMETERSIZE, "%s", name);
+        }
+        protobuf_set(self, PACKET_LENGTH, 0);
+    } else {
+        char *buf;
+        protobuf_get(self, PACKET_BUF, &buf, NULL);
+        if (name != buf) {
+            protobuf_set(self, PACKET_BUF, name, length + 1);
+        }
+        uint32_t len = (uint32_t) length + 1;
+        protobuf_set(self, PACKET_LENGTH, len);
+    }
+    
+    return rpc_call(self);
+}
+
+int
+telescope_switch_detector(void *_self, const char *name)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->switch_detector.method) {
+        return ((int (*)(void *, const char *)) class->switch_detector.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_switch_detector, "switch_detector", _self, name);
+        return result;
+    }
+}
+
+static int
+Telescope_switch_detector(void *_self, const char *name)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    size_t length;
+    uint16_t idx = 0;
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_SWITCH_DETECTOR);
+    protobuf_get(self, PACKET_INDEX, &idx);
+
+    length = strlen(name);
+    if (length < PACKETPARAMETERSIZE && idx > 0) {
+        char *s;
+        protobuf_get(self, PACKET_STR, &s);
+        if (s != name) {
+            snprintf(s, PACKETPARAMETERSIZE, "%s", name);
+        }
+        protobuf_set(self, PACKET_LENGTH, 0);
+    } else {
+        char *buf;
+        protobuf_get(self, PACKET_BUF, &buf, NULL);
+        if (name != buf) {
+            protobuf_set(self, PACKET_BUF, name, length + 1);
+        }
+        uint32_t len = (uint32_t) length + 1;
+        protobuf_set(self, PACKET_LENGTH, len);
+    }
+    
+    return rpc_call(self);
+}
+
+
+int
 telescope_status(void *_self, char *res, size_t res_size, size_t *res_len)
 {
     const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
@@ -847,6 +989,84 @@ Telescope_execute_get_index_by_name(struct Telescope *self)
     }
     
     return AAOS_OK;
+}
+
+static int
+Telescope_execute_switch_instrument(struct Telescope *self)
+{
+    char *name;
+    int index, ret;
+    uint32_t length;
+    void *telescope;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    if (length == 0) {
+        protobuf_get(self, PACKET_STR, &name);
+    } else {
+        protobuf_get(self, PACKET_BUF, &name, NULL);
+    }
+    
+    protobuf_set(self, PACKET_LENGTH, 0);
+
+    return __telescope_switch_instrument(telescope, name);
+}
+
+static int
+Telescope_execute_switch_filter(struct Telescope *self)
+{
+    char *name;
+    int index, ret;
+    uint32_t length;
+    void *telescope;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    if (length == 0) {
+        protobuf_get(self, PACKET_STR, &name);
+    } else {
+        protobuf_get(self, PACKET_BUF, &name, NULL);
+    }
+    
+    protobuf_set(self, PACKET_LENGTH, 0);
+
+    return __telescope_switch_filter(telescope, name);
+}
+
+static int
+Telescope_execute_switch_detector(struct Telescope *self)
+{
+    char *name;
+    int index, ret;
+    uint32_t length;
+    void *telescope;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    if (length == 0) {
+        protobuf_get(self, PACKET_STR, &name);
+    } else {
+        protobuf_get(self, PACKET_BUF, &name, NULL);
+    }
+    
+    protobuf_set(self, PACKET_LENGTH, 0);
+
+    return __telescope_switch_detector(telescope, name);
 }
 
 static int
@@ -1687,6 +1907,15 @@ Telescope_execute(void *_self)
         case TELESCOPE_COMMAND_REGISTER:
             ret = Telescope_execute_register(self);
             break;
+        case TELESCOPE_COMMAND_SWITCH_INSTRUMENT:
+            ret = Telescope_execute_switch_instrument(self);
+            break;
+        case TELESCOPE_COMMAND_SWITCH_FILTER:
+            ret = Telescope_execute_switch_filter(self);
+            break;
+        case TELESCOPE_COMMAND_SWITCH_DETECTOR:
+            ret = Telescope_execute_switch_detector(self);
+            break;
         default:
             return Telescope_execute_default(self);
             break;
@@ -1934,6 +2163,30 @@ TelescopeClass_ctor(void *_self, va_list *app)
             self->reg.method = method;
             continue;
         }
+        if (selector == (Method) telescope_switch_instrument) {
+            if (tag) {
+                self->switch_instrument.tag = tag;
+                self->switch_instrument.selector = selector;
+            }
+            self->switch_instrument.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_switch_detector) {
+            if (tag) {
+                self->switch_detector.tag = tag;
+                self->switch_detector.selector = selector;
+            }
+            self->switch_detector.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_switch_filter) {
+            if (tag) {
+                self->switch_filter.tag = tag;
+                self->switch_filter.selector = selector;
+            }
+            self->switch_filter.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -2014,6 +2267,10 @@ Telescope_initialize(void)
                      telescope_set_option, "set_option", Telescope_set_option,
                      telescope_inspect, "inspect", Telescope_inspect,
                      telescope_register, "register", Telescope_register,
+                     telescope_switch_instrument, "switch_instrument", Telescope_switch_instrument,
+                     telescope_switch_filter, "switch_filter", Telescope_switch_filter,
+                     telescope_switch_detector, "switch_detector", Telescope_switch_detector,
+                     
                      (void *) 0);
     
 #ifndef _USE_COMPILER_ATTRIBUTION_

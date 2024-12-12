@@ -4,6 +4,7 @@
 //
 //  Created by huyi on 18/6/12.
 //  Copyright © 2018年 National Astronomical Observatories, Chinese Academy of Sciences. All rights reserved.
+//  This code is a modification from the book Object-Oriented Programming in C.
 //
 
 #ifndef __object_r_h
@@ -51,8 +52,6 @@ struct Object *super_new(const void *_class, const void *_self, va_list *app);
 struct Object *super_copy(const void *_class, const void *_self);
 struct Object *super_move(const void *_class, void *_self);
 
-
-
-#define MAGIC   4
+#define MAGIC   0x0effaced
 
 #endif /* object_r_h */

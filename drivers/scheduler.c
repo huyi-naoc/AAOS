@@ -191,9 +191,11 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         timestamp = va_arg(ap, double);
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
     } else if (command == SCHEDULER_MASK_TELESCOPE_BY_ID) {
+        timestamp = va_arg(ap, double);
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
     } else if (command == SCHEDULER_UNMASK_TELESCOPE_BY_ID) {
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);   
+        timestamp = va_arg(ap, double);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
     } else if (command == SCHEDULER_ADD_TELESCOPE) {
         uint64_t tel_id, site_id;
         const char *name, *description;
@@ -516,7 +518,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
 {
     char timestamp[TIMESTAMPSIZE];
     cJSON *root_json, *general_json, *site_json, *telescope_json, *value_json;
-    char *json_string;
+    char *json_string = NULL;
     va_list ap;
     
 
@@ -525,7 +527,7 @@ __scheduler_create_request_json_string(unsigned int command, ...)
     va_start(ap, command);
     root_json = cJSON_CreateObject();
     if (command == SCHEDULER_GET_TASK_BY_TELESCOPE_ID) {
-        unsigned int identifier = va_arg(ap, uint64_t);
+        uint64_t identifier = va_arg(ap, uint64_t);
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("request");
@@ -575,8 +577,8 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(general_json, "timestam", value_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
-        unsigned int identifier, status;
-        identifier = va_arg(ap, uint64_t);
+        uint64_t identifier = va_arg(ap, uint64_t);;
+        unsigned int status;
         status = SCHEDULER_STATUS_DELETE;
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
@@ -592,7 +594,8 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(site_json, "status", value_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_MASK_SITE_BY_ID) {
-        unsigned int identifier, status;
+        uint64_t identifier;
+        unsigned int status;
         identifier = va_arg(ap, uint64_t);
         status = SCHEDULER_STATUS_MASKED;
         general_json = cJSON_CreateObject();
@@ -609,7 +612,8 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         cJSON_AddItemToObject(site_json, "status", value_json);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_UNMASK_SITE_BY_ID) {
-        unsigned int identifier, status;
+        uint64_t identifier;
+        unsigned int status;
         identifier = va_arg(ap, uint64_t);
         status = SCHEDULER_STATUS_OK;
         general_json = cJSON_CreateObject();
@@ -644,7 +648,7 @@ __Scheduler_ipc_write(struct __Scheduler *self, const char *string)
         return AAOS_ERROR;
     }
 
-    length = strlen(string);
+    length = (uint32_t) strlen(string);
     memcpy(buf, &length, sizeof(uint32_t));
     snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", string);
 
@@ -669,7 +673,7 @@ __Scheduler_ipc_write_and_read(struct __Scheduler *self, const char *string, cha
         return AAOS_ERROR;
     }
 
-    length = strlen(string);
+    length = (uint32_t) strlen(string);
     memcpy(buf, &length, sizeof(uint32_t));
     snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", string);
 
@@ -876,7 +880,7 @@ __Scheduler_target_init_cb(struct __Scheduler *self, MYSQL_RES *res)
             target->identifier = strtoull(row[1], NULL, 0);
         }
         if (lengths[2] != 0) {
-            target->nside = strtoul(row[2], NULL, 0);
+            target->nside = (uint32_t) strtoul(row[2], NULL, 0);
         }
         if (lengths[3] != 0) {
             target->status = atoi(row[3]);
@@ -911,9 +915,9 @@ __Scheduler_task_init_cb(struct __Scheduler *self, MYSQL_RES *res)
     while ((row = mysql_fetch_row(res))) {
         lengths = mysql_fetch_lengths(res);
         if (lengths[0] != 0) {
-            identifiers[i] = strtoull(row[0], NULL, 0);
-            identifiers[i] = identifiers[i]&((~0xFFFFFFFFULL)<<32);
-            cnt++;    
+            identifiers[cnt] = strtoull(row[0], NULL, 0);
+            identifiers[cnt] = identifiers[cnt]&((~0xFFFFFFFFULL)<<32);
+            cnt++;
         }
     }
     self->max_task_id = identifiers[0];
@@ -974,7 +978,7 @@ __scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *res
     const struct __SchedulerClass *class = (const struct __SchedulerClass *) classOf(_self);
     
     if (isOf(class, __SchedulerClass()) && class->get_task_by_telescope_id.method) {
-        return ((int (*)(void *, unsigned int, char *, size_t, size_t *, unsigned  *)) class->get_task_by_telescope_id.method)(_self, identifier, result, size, length, type);
+        return ((int (*)(void *, uint64_t, char *, size_t, size_t *, unsigned  *)) class->get_task_by_telescope_id.method)(_self, identifier, result, size, length, type);
     } else {
         int result;
         forward(_self, &result, (Method) __scheduler_get_task_by_telescope_id, "get_task_by_telescope_id", _self, identifier, result, size, type);
@@ -989,7 +993,7 @@ __Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *res
 
     struct TelescopeInfo *telescope;
     char *json_string;
-    int ret;
+    int ret = AAOS_ERROR;
 
     if (self->type == SCHEDULER_TYPE_SITE) {
         telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_id, identifier);
@@ -1007,6 +1011,7 @@ __Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *res
     } else {
         return AAOS_ENOTSUP;
     }
+    
     return ret;
 }
 
@@ -1031,7 +1036,7 @@ __Scheduler_get_task_by_telescope_name(void *_self, unsigned int name, char *res
 
     struct TelescopeInfo *telescope;
     char *json_string;
-    int ret;
+    int ret = AAOS_ERROR;
 
     if (self->type == SCHEDULER_TYPE_SITE) {
         telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_name, name);
@@ -1119,7 +1124,7 @@ __Scheduler_pop_task_block(void *_self)
             continue;
         }
         json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
-        length = strlen(json_string) + 1;
+        length = (uint32_t) strlen(json_string) + 1;
         memcpy(buf, &length, sizeof(uint32_t));
         snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
         free(json_string);
@@ -1139,7 +1144,7 @@ __Scheduler_pop_task_block(void *_self)
                 break;
             }
             json_string =  __scheduler_create_request_json_string(SCHEDULER_TASK_BLOCK_ACK);
-            length = strlen(json_string) + 1;
+            length = (uint32_t) strlen(json_string) + 1;
             memcpy(buf, &length, sizeof(uint32_t));
             snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
             free(json_string);
@@ -1159,8 +1164,8 @@ __Scheduler_pop_task_block(void *_self)
         }
         continue;
     }
+    
     free(block_buf);
-
     return AAOS_OK;
 }
 
@@ -1192,7 +1197,7 @@ __Scheduler_push_task_block(void *_self, const char *block_buf, unsigned int typ
     }
 
     if (type == SCHEDULER_FORMAT_JSON) {
-        length = strlen(block_buf) + 1; 
+        length = (uint32_t) strlen(block_buf) + 1;
         buf = (char *) Malloc(length + sizeof(uint32_t));
         memcpy(buf, &length, sizeof(uint32_t));
         snprintf(buf + sizeof(uint32_t), length, "%s", block_buf);
@@ -1222,7 +1227,7 @@ __scheduler_update_status(void *_self, const char *buf, unsigned int type)
 static int
 __Scheduler_update_status_json(struct __Scheduler *self, const char *string)
 {
-    int ret;
+    int ret = AAOS_ERROR;
     uint32_t length;
     char buf[BUFSIZE];
 
@@ -1233,7 +1238,7 @@ __Scheduler_update_status_json(struct __Scheduler *self, const char *string)
     if ((root_json = cJSON_Parse(string)) == NULL) {
         return AAOS_EBADCMD;
     }
-    length = strlen(string) + 1;
+    length = (uint32_t) strlen(string) + 1;
     memcpy(buf, &length, sizeof(uint32_t));
     snprintf(buf + sizeof(uint32_t), length, "%s", string);
     if (self->type == SCHEDULER_TYPE_GLOBAL && (sites_json = cJSON_GetObjectItemCaseSensitive(root_json, "SITE-INFO")) != NULL) {
@@ -1325,8 +1330,8 @@ __Scheduler_update_status_json(struct __Scheduler *self, const char *string)
     }
     if (self->type != SCHEDULER_TYPE_UNIT && (tasks_json = cJSON_GetObjectItemCaseSensitive(root_json, "TASK-INFO")) != NULL) {
         const cJSON *id, *status;
-        if (cJSON_IsArray(targets_json)) {
-            cJSON_ArrayForEach(target_json, targets_json) {
+        if (cJSON_IsArray(tasks_json)) {
+            cJSON_ArrayForEach(task_json, tasks_json) {
                 id = cJSON_GetObjectItemCaseSensitive(target_json, "targ_id");
                 status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
                 if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
@@ -1336,7 +1341,7 @@ __Scheduler_update_status_json(struct __Scheduler *self, const char *string)
                 }
             }
         } else {
-            target_json = targets_json;
+            task_json = tasks_json;
             id = cJSON_GetObjectItemCaseSensitive(target_json, "site_id");
             status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
             if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
@@ -1971,7 +1976,7 @@ __Scheduler_mask_telescope_by_name(void *_self, const char *name)
     struct __Scheduler *self = cast(__Scheduler(), _self);
 
     struct TelescopeInfo *telescope;
-    unsigned int identifier;
+    uint64_t identifier;
     
     if (self->type != SCHEDULER_TYPE_GLOBAL) {
         return AAOS_ENOTSUP;
@@ -2360,7 +2365,11 @@ __Scheduler_unmask_target_by_id(void *_self, uint64_t identifier, uint32_t nside
     if (self->type != SCHEDULER_TYPE_GLOBAL) {
         return AAOS_ENOTSUP;
     }
-
+    
+    json_string = __scheduler_create_request_json_string(SCHEDULER_UNMASK_TARGET_BY_ID, identifier);
+    ret = __Scheduler_update_status(self, json_string, SCHEDULER_FORMAT_JSON);
+    free(json_string);
+    
     return ret;
 }
 
@@ -2384,8 +2393,12 @@ __Scheduler_unmask_target_by_name(void *_self, const char *name)
     struct __Scheduler *self = cast(__Scheduler(), _self);
 
     struct TargetInfo *target;
-    uint64_t identifier;
-    uint32_t nside;
+    uint64_t identifier = 0;
+    uint32_t nside = 0;
+    
+    target = threadsafe_list_find_first_if(self->target_list, target_by_name, name);
+    identifier = target->identifier;
+    nside = target->nside;
     
     return __Scheduler_unmask_target_by_id(self, identifier, nside);
 }
@@ -2444,7 +2457,8 @@ __Scheduler_add_task_record_json(struct __Scheduler *self, int status, const cha
     } else {
         return AAOS_EINVAL;
     }
-
+    
+    task_id = __Scheduler_generate_unique_task_id(self, site_id, tel_id);
     __scheduler_create_sql(SCHEDULER_ADD_TASK_RECORD, 0, self->site_db_table, sql, BUFSIZE, task_id, targ_id, nside, tel_id, site_id, status, info, timestamp);
     __Scheduler_database_query(self, sql, NULL);
 
@@ -2564,7 +2578,7 @@ __scheduler_set_member(void *_self, const char *name, ...)
     if (isOf(class, __SchedulerClass()) && class->set_member.method) {
         ((void (*)(void *)) class->set_member.method)(_self);
     } else {
-        forward(_self, 0, (Method) __scheduler_set_member, "set_member", _self, name, &ap);
+        forward(_self, (void *) 0, (Method) __scheduler_set_member, "set_member", _self, name, &ap);
     }
     va_end(ap);
 }
@@ -2775,7 +2789,7 @@ __Scheduler_register_thread(void *_self, uint64_t identifier, void *thread)
 {
     struct __Scheduler *self = cast(__Scheduler(), _self);
 
-    char *json_string;
+    
     int ret;
     if (self->type == SCHEDULER_TYPE_UNIT) {
         return AAOS_ENOTSUP;
@@ -2785,7 +2799,7 @@ __Scheduler_register_thread(void *_self, uint64_t identifier, void *thread)
         threadsafe_list_operate_first_if(self->site_list, site_by_id , global_register_thread, identifier, thread);
     }
 
-    return ret;
+    return AAOS_OK;
 }
 
 int

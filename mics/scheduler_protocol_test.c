@@ -18,7 +18,7 @@ static struct option longopts[] = {
 
 
 static void
-usage()
+usage(void)
 {
     fprintf(stderr, "usage: scheduler_protocol_test [-v | --version] [-h | --help]\n");
     fprintf(stderr, "      [-g <path> | --global-un-sock <path>] [-G <path> | --global-module <path>]\n");
@@ -70,7 +70,7 @@ pop_task_block(void)
 
     if (((fp = popen(global_module, "r+"))) == NULL) {
         fprintf(stderr, "`%s` failed at line %d.\n", __func__, __LINE__);
-    exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
     }
     pclose(fp);
     if ((sockfd = Un_stream_connect(global_un_sock)) < 0) {
@@ -80,7 +80,7 @@ pop_task_block(void)
     
     json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
     snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
-    len = strlen(json_string) + 1;
+    len = (uint32_t) strlen(json_string) + 1;
     free(json_string);
     memcpy(buf, &len, sizeof(uint32_t));
     if (Writen(sockfd, buf, sizeof(uint32_t) + len) < 0) {
@@ -101,7 +101,7 @@ pop_task_block(void)
         
         json_string = __scheduler_create_request_json_string(SCHEDULER_TASK_BLOCK_ACK);
         snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
-        len = strlen(json_string + sizeof(uint32_t)) + 1;
+        len = (uint32_t) strlen(json_string + sizeof(uint32_t)) + 1;
         free(json_string);
         memcpy(buf, &len, sizeof(uint32_t));
         if (Writen(sockfd, buf, sizeof(uint32_t) + len) < 0) {
@@ -148,7 +148,7 @@ pop_and_push_task_block(const char *path, const char *path2)
     
     json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
     snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
-    len = strlen(json_string) + 1;
+    len = (uint32_t) strlen(json_string) + 1;
     free(json_string);
     memcpy(buf, &len, sizeof(uint32_t));
     if (Writen(sockfd, buf, sizeof(uint32_t) + len) < 0) {
@@ -170,10 +170,10 @@ pop_and_push_task_block(const char *path, const char *path2)
         
         json_string = __scheduler_create_request_json_string(SCHEDULER_TASK_BLOCK_ACK);
         snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
-        len = strlen(json_string + sizeof(uint32_t)) + 1;
+        len = (uint32_t) strlen(json_string + sizeof(uint32_t)) + 1;
         free(json_string);
         memcpy(buf, &len, sizeof(uint32_t));
-        if (Writen(sockfd, block_buf, sizeof(uint32_t) + strlen(block_buf + sizeof(uint32_t) + 1)) < 0) {
+        if (Writen(sockfd, buf, sizeof(uint32_t) + strlen(buf + sizeof(uint32_t)) + 1) < 0) {
             fprintf(stderr, "`%s` failed at line %d.\n", __func__, __LINE__);
             goto end;
         }
@@ -209,7 +209,7 @@ get_task(uint64_t identifier)
     }
 
     json_string = __scheduler_create_request_json_string(SCHEDULER_GET_TASK_BY_TELESCOPE_ID, identifier);
-    len = strlen(json_string) + 1;
+    len = (uint32_t) strlen(json_string) + 1;
     memcpy(buf, &len, sizeof(uint32_t));
     snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
     free(json_string);
@@ -246,6 +246,12 @@ main(int argc, char *argv[])
                 break;
             case 'G':
                 global_module = optarg;
+                break;
+            case 's':
+                site_un_sock = optarg;
+                break;
+            case 'S':
+                site_module = optarg;
                 break;
             default:
                 usage();

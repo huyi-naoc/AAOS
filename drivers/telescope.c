@@ -8,6 +8,7 @@
 
 #include "astro.h"
 #include "def.h"
+#include "telescope_def.h"
 #include "telescope_r.h"
 #include "telescope.h"
 #include "virtual.h"
@@ -208,6 +209,30 @@ __TelescopeVirtualTable_ctor(void *_self, va_list *app)
                 self->wait.selector = selector;
             }
             self->wait.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_switch_instrument) {
+            if (tag) {
+                self->switch_instrument.tag = tag;
+                self->switch_instrument.selector = selector;
+            }
+            self->switch_instrument.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_switch_detector) {
+            if (tag) {
+                self->switch_detector.tag = tag;
+                self->switch_detector.selector = selector;
+            }
+            self->switch_detector.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_switch_filter) {
+            if (tag) {
+                self->switch_filter.tag = tag;
+                self->switch_filter.selector = selector;
+            }
+            self->switch_filter.method = method;
             continue;
         }
     }
@@ -424,7 +449,7 @@ __Telescope_wait(void *_self, double timeout)
 }
 
 /*
- * Virtual function
+ * Virtual function, default is not support.
  */
 
 int
@@ -455,6 +480,11 @@ __telescope_power_on(void *_self)
     }
 }
 
+static int
+__Telescope_power_on(void *_self) {
+    return AAOS_ENOTSUP;
+}
+
 int
 __telescope_power_off(void *_self)
 {
@@ -468,6 +498,72 @@ __telescope_power_off(void *_self)
         return result;
     }
 }
+
+static int
+__Telescope_power_off(void *_self) {
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_switch_instrument(void *_self, const char *name)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->switch_instrument.method) {
+        return ((int (*)(void *, const char *)) class->switch_instrument.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_switch_instrument, "switch_instrument", _self, name);
+        return result;
+    }
+}
+
+static int
+__Telescope_switch_instrument(void *_self) {
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_switch_filter(void *_self, const char *name)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->switch_filter.method) {
+        return ((int (*)(void *, const char *)) class->switch_filter.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_switch_filter, "switch_filter", _self, name);
+        return result;
+    }
+}
+
+static int
+__Telescope_switch_filter(void *_self) {
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_switch_detector(void *_self, const char *name)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->switch_detector.method) {
+        return ((int (*)(void *, const char *)) class->switch_detector.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_switch_detector, "switch_detector", _self, name);
+        return result;
+    }
+}
+
+static int
+__Telescope_switch_detector(void *_self) {
+    return AAOS_ENOTSUP;
+}
+
+/*
+ * Pure virtual function
+ */
 
 /*
  * Do any initilizing, only applied after powered on.
@@ -845,7 +941,7 @@ __Telescope_forward(const void *_self, void *result, Method selector, const char
         *((int *) result) = ((int (*)(void *, double *, double *)) method)(obj, track_rate_x, track_rate_y);
     } else if (selector == (Method) __telescope_inspect) {
         *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_inspect) {
+    } else if (selector == (Method) __telescope_wait) {
         double timeout = va_arg(*app, double);
         *((int *) result) = ((int (*)(void *, double)) method)(obj, timeout);
     } else {
@@ -1272,6 +1368,9 @@ __Telescope_initialize(void)
                        __telescope_raw, "raw", __Telescope_raw,
                        __telescope_inspect, "inspect", __Telescope_inspect,
                        __telescope_wait, "wait", __Telescope_wait,
+                       __telescope_switch_instrument, "switch_instrument", __Telescope_switch_instrument,
+                       __telescope_switch_filter, "switch_filter", __Telescope_switch_filter,
+                       __telescope_switch_detector, "switch_detector", __Telescope_switch_detector,
                        (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(__Telescope_destroy);

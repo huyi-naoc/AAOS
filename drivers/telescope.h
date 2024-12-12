@@ -41,6 +41,9 @@ int __telescope_get_track_rate(void *_self, double *track_rate_x, double *track_
 int __telescope_set_option(void *_self, uint16_t option);
 int __telescope_inspect(void *_self);
 int __telescope_wait(void *_self, double timeout);
+int __telescope_switch_instrument(void *_self, const char *name);
+int __telescope_switch_filter(void *_self, const char *name);
+int __telescope_switch_detector(void *_self, const char *name);
 
 const char *__telescope_get_name(const void *_self);
 
