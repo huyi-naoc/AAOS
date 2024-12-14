@@ -342,9 +342,6 @@ read_configuration(void)
             exit(EXIT_FAILURE);
         }
     }
-    /*
-     * 
-     */
     __scheduler_init(scheduler);
 }
 

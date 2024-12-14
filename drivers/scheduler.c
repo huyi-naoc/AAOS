@@ -1137,7 +1137,6 @@ __Scheduler_pop_task_block(void *_self)
             continue;
         }
         json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
-        printf("%s\n", json_string);
         length = (uint32_t) strlen(json_string) + 1;
         memcpy(buf, &length, sizeof(uint32_t));
         snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
@@ -1162,7 +1161,7 @@ __Scheduler_pop_task_block(void *_self)
             memcpy(buf, &length, sizeof(uint32_t));
             snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
             free(json_string);
-            if ((nwrite = Writen(cfd, buf, length)) < 0) {
+            if ((nwrite = Writen(cfd, buf, sizeof(uint32_t) + length)) < 0) {
                 Close(cfd);
                 break;
             }
@@ -1170,15 +1169,22 @@ __Scheduler_pop_task_block(void *_self)
              * Parse block_buf, and push task block to 
              */
             root_json = cJSON_Parse(block_buf);
+#ifdef DEBUG
+            fprintf(stderr, "Pop task block from global scheduling algorithm: \n");
+            fprintf(stderr, "%s\n", block_buf);
+#endif
+           
             if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "site_id")) != NULL) {
                 identifier = value_json->valueint;
                 threadsafe_list_operate_first_if(self->site_list, site_by_id, global_push_task_block_to_site, identifier, block_buf, SCHEDULER_FORMAT_JSON);
+            } else {
+                fprintf(stderr, "site_id not found.\n");
             }
             cJSON_Delete(root_json);
         }
         continue;
     }
-    
+
     free(block_buf);
     return AAOS_OK;
 }
@@ -2889,10 +2895,10 @@ __Scheduler_init(void *_self)
     pthread_t tid;
     if (self->type == SCHEDULER_TYPE_GLOBAL) {
         Pthread_create(&tid, NULL, __scheduler_site_manage_thr, self);
-        sleep(100000000);
+    } else if (self->type == SCHEDULER_TYPE_SITE) {
         Pthread_create(&tid, NULL, __scheduler_telescope_manage_thr, self);
     }
-      
+
     return AAOS_OK;
 }
 
