@@ -131,8 +131,7 @@ read_configuration(void)
             fprintf(stderr, "`site` scheduler needs `global` scheduler's port in `global` section.\n");
             fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
-        }
-            
+        }   
         if ((site_setting = config_setting_lookup(setting, "module")) == NULL) {
             fprintf(stderr, "`site` scheduler needs `module` section.\n");
             fprintf(stderr, "Exit...\n");
@@ -284,7 +283,7 @@ read_configuration(void)
         exit(EXIT_FAILURE);
     }
     if (config_setting_lookup_string(setting, "db_name", &db_name) == CONFIG_TRUE) {
-        __scheduler_set_member(scheduler, "db_passwd", db_name);
+        __scheduler_set_member(scheduler, "db_name", db_name);
     } else {
         fprintf(stderr, "`db_name` needs to exist in `database` section.\n");
         fprintf(stderr, "Exit...\n");
@@ -343,6 +342,9 @@ read_configuration(void)
             exit(EXIT_FAILURE);
         }
     }
+    /*
+     * 
+     */
     __scheduler_init(scheduler);
 }
 

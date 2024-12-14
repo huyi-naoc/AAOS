@@ -799,7 +799,6 @@ __Scheduler_site_init_cb(struct __Scheduler *self, MYSQL_RES *res)
             }
         }
     }
-
     free(identifiers);
     return AAOS_OK;
 } 
@@ -936,28 +935,32 @@ __Scheduler_task_init_cb(struct __Scheduler *self, MYSQL_RES *res)
  static int
  __Scheduler_database_query(struct __Scheduler *self, const char *stmt_str, database_cb_t cb)
  {
-    MYSQL *mysql;
+    MYSQL mysql;
     int ret = AAOS_OK;
-
     
-    if ((mysql = mysql_init(NULL)) == NULL) {
+    if (mysql_init(&mysql) == NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "%d %s: mysql initialization failed.\n", __LINE__, __func__);
+#endif
         return AAOS_ENOMEM;
     }
-
-    if ((mysql_real_connect(mysql, self->db_host, self->db_user, self->db_passwd, self->db_name, 0, NULL, 0)) == NULL) {
-        mysql_close(mysql);
+    if ((mysql_real_connect(&mysql, self->db_host, self->db_user, self->db_passwd, self->db_name, 0, NULL, 0)) == NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "%d %s: mysql connection failed.\n", __LINE__, __func__);
+#endif
+        mysql_close(&mysql);
         return AAOS_ERROR;
     }
 
-    if (mysql_query(mysql, stmt_str) != 0) {
-        mysql_close(mysql);
+    if ((ret = mysql_real_query(&mysql, stmt_str, strlen(stmt_str))) != 0) {
+        mysql_close(&mysql);
         return AAOS_ERROR;
     }
 
     if (cb != NULL) {
-        MYSQL_RES *res = mysql_store_result(mysql);
+        MYSQL_RES *res = mysql_store_result(&mysql);
         if (res == NULL) {
-            if (mysql_errno(mysql) != 0) {
+            if (mysql_errno(&mysql) != 0) {
                 return AAOS_ERROR;
             } else {
                 return AAOS_OK;
@@ -967,7 +970,7 @@ __Scheduler_task_init_cb(struct __Scheduler *self, MYSQL_RES *res)
         mysql_free_result(res);
     }
 
-    mysql_close(mysql);
+    mysql_close(&mysql);
 
     return ret;
  }
@@ -1101,6 +1104,8 @@ __Scheduler_pop_task_block(void *_self)
     char *json_string;
     int ret;
 
+    chdir("/usr/local/aaos/modules");
+
     if (self->type == SCHEDULER_TYPE_UNIT) {
         return AAOS_ENOTSUP;
     } else if (self->type == SCHEDULER_TYPE_SITE) {
@@ -1120,10 +1125,19 @@ __Scheduler_pop_task_block(void *_self)
     block_buf = (char *) Malloc(BUFSIZE * self->max_task_in_block);
     for (;;) {
         if ((cfd = Un_stream_connect(self->sock_file)) < 0) {
-            Close(cfd);
+            //Close(cfd);
+            /*
+             * Invoking scheduler module.
+             */
+            FILE *fp;
+            if ((fp = popen(self->algorithm, "r")) != NULL) {
+                pclose(fp);
+                sleep(2);
+            }
             continue;
         }
         json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
+        printf("%s\n", json_string);
         length = (uint32_t) strlen(json_string) + 1;
         memcpy(buf, &length, sizeof(uint32_t));
         snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
@@ -2576,7 +2590,7 @@ __scheduler_set_member(void *_self, const char *name, ...)
     va_list ap;
     va_start(ap, name);
     if (isOf(class, __SchedulerClass()) && class->set_member.method) {
-        ((void (*)(void *)) class->set_member.method)(_self);
+        ((void (*)(void *, const char *, va_list *)) class->set_member.method)(_self, name, &ap);
     } else {
         forward(_self, (void *) 0, (Method) __scheduler_set_member, "set_member", _self, name, &ap);
     }
@@ -2604,6 +2618,24 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
         }
     } else if (strcmp(name, "telescope") == 0) {
         self->telescope = va_arg(*app, void *);
+    } else if (strcmp(name, "ipc_model") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->ipc_model = Realloc(self->ipc_model, strlen(value) + 1);
+            snprintf(self->ipc_model, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "algorithm") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->algorithm = Realloc(self->algorithm, strlen(value) + 1);
+            snprintf(self->algorithm, strlen(value) + 1, "%s", value);
+        }
+    } else if (strcmp(name, "sock_file") == 0) {
+        const char *value = va_arg(*app, const char *);
+        if (value != NULL) {
+            self->sock_file = Realloc(self->sock_file, strlen(value) + 1);
+            snprintf(self->sock_file, strlen(value) + 1, "%s", value);
+        }
     } else if (strcmp(name, "site_addr") == 0) {
         const char *value = va_arg(*app, const char *);
         if (value != NULL) {
@@ -2857,10 +2889,10 @@ __Scheduler_init(void *_self)
     pthread_t tid;
     if (self->type == SCHEDULER_TYPE_GLOBAL) {
         Pthread_create(&tid, NULL, __scheduler_site_manage_thr, self);
-    } else if (self->type == SCHEDULER_TYPE_SITE) {
+        sleep(100000000);
         Pthread_create(&tid, NULL, __scheduler_telescope_manage_thr, self);
     }
-    
+      
     return AAOS_OK;
 }
 
