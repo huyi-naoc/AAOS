@@ -1104,11 +1104,13 @@ __Scheduler_pop_task_block(void *_self)
     char *json_string;
     int ret;
 
-    chdir("/usr/local/aaos/modules");
-
     if (self->type == SCHEDULER_TYPE_UNIT) {
         return AAOS_ENOTSUP;
     } else if (self->type == SCHEDULER_TYPE_SITE) {
+        /*
+         * For site scheduler, recieve task block from global scheduler,
+         * and then push the block to the site scheduler module.
+         */
         struct SiteInfo *site = self->site;
         unsigned int type;
         uint16_t option;
@@ -1120,72 +1122,72 @@ __Scheduler_pop_task_block(void *_self)
                 __scheduler_push_task_block(self, block_buf, type);
             }
         }
-    }
-
-    block_buf = (char *) Malloc(BUFSIZE * self->max_task_in_block);
-    for (;;) {
-        if ((cfd = Un_stream_connect(self->sock_file)) < 0) {
-            //Close(cfd);
-            /*
-             * Invoking scheduler module.
-             */
-            FILE *fp;
-            if ((fp = popen(self->algorithm, "r")) != NULL) {
-                pclose(fp);
-                sleep(2);
-            }
-            continue;
-        }
-        json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
-        length = (uint32_t) strlen(json_string) + 1;
-        memcpy(buf, &length, sizeof(uint32_t));
-        snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
-        free(json_string);
-        if ((nwrite = Writen(cfd, buf, length + sizeof(uint32_t))) < 0) {
-            Close(cfd);
-            continue;
-        }
+    } else if (self->type == SCHEDULER_TYPE_GLOBAL) {
+        block_buf = (char *) Malloc(BUFSIZE * self->max_task_in_block);
         for (;;) {
-            cJSON *root_json, *value_json;
-            uint64_t identifier;
-            if ((nread = Readn(cfd, &length, sizeof(uint32_t))) < 0) {
-                Close(cfd);
-                break;
+            if ((cfd = Un_stream_connect(self->sock_file)) < 0) {
+                //Close(cfd);
+                /*
+                 * Invoking scheduler module.
+                 */
+                FILE *fp;
+                if ((fp = popen(self->algorithm, "r")) != NULL) {
+                    pclose(fp);
+                    sleep(2);
+                }
+                continue;
             }
-            if ((nread = Readn(cfd, block_buf, length)) < 0) {
-                Close(cfd);
-                break;
-            }
-            json_string =  __scheduler_create_request_json_string(SCHEDULER_TASK_BLOCK_ACK);
+            json_string = __scheduler_create_request_json_string(SCHEDULER_POP_TASK_BLOCK);
             length = (uint32_t) strlen(json_string) + 1;
             memcpy(buf, &length, sizeof(uint32_t));
             snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
             free(json_string);
-            if ((nwrite = Writen(cfd, buf, sizeof(uint32_t) + length)) < 0) {
+            if ((nwrite = Writen(cfd, buf, length + sizeof(uint32_t))) < 0) {
                 Close(cfd);
-                break;
+                continue;
             }
-            /*
-             * Parse block_buf, and push task block to 
-             */
-            root_json = cJSON_Parse(block_buf);
+            for (;;) {
+                cJSON *root_json, *value_json;
+                uint64_t identifier;
+                if ((nread = Readn(cfd, &length, sizeof(uint32_t))) < 0) {
+                    Close(cfd);
+                    break;
+                }
+                if ((nread = Readn(cfd, block_buf, length)) < 0) {
+                    Close(cfd);
+                    break;
+                }
+                json_string =  __scheduler_create_request_json_string(SCHEDULER_TASK_BLOCK_ACK);
+                length = (uint32_t) strlen(json_string) + 1;
+                memcpy(buf, &length, sizeof(uint32_t));
+                snprintf(buf + sizeof(uint32_t), BUFSIZE - sizeof(uint32_t), "%s", json_string);
+                free(json_string);
+                if ((nwrite = Writen(cfd, buf, sizeof(uint32_t) + length)) < 0) {
+                    Close(cfd);
+                    break;
+                }
+                /*
+                 * Parse block_buf, and push task block to
+                 */
+                root_json = cJSON_Parse(block_buf);
 #ifdef DEBUG
-            fprintf(stderr, "Pop task block from global scheduling algorithm: \n");
-            fprintf(stderr, "%s\n", block_buf);
+                fprintf(stderr, "Pop task block from global scheduling algorithm: \n");
+                fprintf(stderr, "%s\n", block_buf);
 #endif
-           
-            if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "site_id")) != NULL) {
-                identifier = value_json->valueint;
-                threadsafe_list_operate_first_if(self->site_list, site_by_id, global_push_task_block_to_site, identifier, block_buf, SCHEDULER_FORMAT_JSON);
-            } else {
-                fprintf(stderr, "site_id not found.\n");
+                if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "site_id")) != NULL) {
+                    identifier = value_json->valueint;
+                    threadsafe_list_operate_first_if(self->site_list, site_by_id, global_push_task_block_to_site, identifier, block_buf, SCHEDULER_FORMAT_JSON);
+                } else {
+                    fprintf(stderr, "site_id not found.\n");
+                }
+                cJSON_Delete(root_json);
             }
-            cJSON_Delete(root_json);
+            continue;
         }
-        continue;
+        free(block_buf);
+    } else {
+        
     }
-
-    free(block_buf);
     return AAOS_OK;
 }
 
@@ -1212,7 +1214,7 @@ __Scheduler_push_task_block(void *_self, const char *block_buf, unsigned int typ
     uint32_t length;
     char *buf;
 
-    if (self->type != SCHEDULER_TYPE_GLOBAL) {
+    if (self->type != SCHEDULER_TYPE_SITE) {
         return AAOS_ENOTSUP;
     }
 

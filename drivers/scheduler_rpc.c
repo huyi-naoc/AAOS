@@ -1463,7 +1463,7 @@ Scheduler_execute_get_task_by_telescope_id(struct Scheduler *self)
     protobuf_get(self, PACKET_SIZE, &size);
     if ((ret = __scheduler_get_task_by_telescope_id(scheduler, tel_id, buf, size, NULL, &type)) == AAOS_OK) {
         option = type;
-        length = strlen(buf) + 1;
+        length = (uint32_t) strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
         protobuf_set(self, PACKET_BUF, buf, length);
         protobuf_set(self, PACKET_LENGTH, length);
@@ -1495,7 +1495,7 @@ Scheduler_execute_get_task_by_telescope_name(struct Scheduler *self)
 
     if ((ret = __scheduler_get_task_by_telescope_name(scheduler, name, buf, size, NULL, &type)) == AAOS_OK) {
         option = type;
-        length = strlen(buf) + 1;
+        length = (uint32_t) strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
         protobuf_set(self, PACKET_BUF, buf, length);
         protobuf_set(self, PACKET_LENGTH, length);
@@ -1541,7 +1541,7 @@ Scheduler_execute_update_status(struct Scheduler *self)
 
     if ((ret = __scheduler_update_status(scheduler, buf, type)) == AAOS_OK) {
         option = type;
-        length = strlen(buf) + 1;
+        length = (uint32_t) strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
         protobuf_set(self, PACKET_BUF, buf, length);
         protobuf_set(self, PACKET_LENGTH, length);
@@ -1565,7 +1565,7 @@ Scheduler_execute_list_site(struct Scheduler *self)
     protobuf_get(self, PACKET_SIZE, &size);
     if ((ret = __scheduler_list_site(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
-        length = strlen(buf) + 1;
+        length = (uint32_t) strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
         protobuf_set(self, PACKET_BUF, buf, length);
         protobuf_set(self, PACKET_LENGTH, length);
@@ -1717,7 +1717,7 @@ Scheduler_execute_list_telescope(struct Scheduler *self)
     protobuf_get(self, PACKET_SIZE, &size);
     if ((ret = __scheduler_list_telescope(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
-        length = strlen(buf) + 1;
+        length = (uint32_t) strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
         protobuf_set(self, PACKET_BUF, buf, length);
         protobuf_set(self, PACKET_LENGTH, length);
@@ -1870,7 +1870,7 @@ Scheduler_execute_list_target(struct Scheduler *self)
     protobuf_get(self, PACKET_SIZE, &size);
     if ((ret = __scheduler_list_target(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
-        length = strlen(buf) + 1;
+        length = (uint32_t) strlen(buf) + 1;
         protobuf_set(self, PACKET_OPTION, option);
         protobuf_set(self, PACKET_BUF, buf, length);
         protobuf_set(self, PACKET_LENGTH, length);

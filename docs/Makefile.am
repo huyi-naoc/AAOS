@@ -2,6 +2,8 @@ EXTRA_DIST =\
 	    serial.1.md\
 	    telescope.1.md\
 	    detector_expose.3.md\
+	    scheduler_get_task_by_telescope_id.3.md\
+	    scheduler_update_status.3.md\
 	    telescope_get_index_by_name.3.md\
 	    telescope_get_move_speed.3.md\
 	    telescope_get_slew_speed.3.md\

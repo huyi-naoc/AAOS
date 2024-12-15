@@ -38,11 +38,11 @@ struct __Scheduler {
 
     char *global_addr;
     char *global_port;
-    void *site;
+    void *site;         /* Connection to global scheduler. */
 
     char *site_addr;
     char *site_port;
-    void *telescope;
+    void *telescope;    /* Connection to site scheduler. */
 
     char *ipc_model;
     char *algorithm;
