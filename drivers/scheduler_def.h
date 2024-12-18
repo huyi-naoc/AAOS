@@ -69,6 +69,10 @@
 
 #define SCHEDULER_REGISTER_THREAD                   56
 
+#define SCHEDULER_UPDATE_SITE_STATUS                60
+#define SCHEDULER_UPDATE_TELESCOPE_STATUS           61
+#define SCHEDULER_UPDATE_TARGET_STATUS              62
+
 
 #define SCHEDULER_FORMAT_JSON                       1
 

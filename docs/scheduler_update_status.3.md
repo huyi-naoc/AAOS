@@ -22,7 +22,7 @@ Compile and link with *-laaoscore* *-laaosdriver*.
 DESCRIPTION
 ===========
 
-The **scheduler_update_status**() function updates the status of sites, telescopes, targets and tasks. Only **SCHEDULER_FORMAT_JSON** is currently supported.  
+The **scheduler_update_status**() function updates the status of sites, telescopes, targets and tasks. The identifiers of the sites, telescopes, targets and tasks are stored in the argument *string*, as well as their status. The format of *string* are specified by the *type* argument. Only **SCHEDULER_FORMAT_JSON** is currently supported.  
 
 RETURN VALUE
 ============
@@ -34,15 +34,16 @@ ERRORS
 
 This functions shall fail if:
 
-AAOS\_ENOTFOUND
+AAOS\_EBADCMD
+-------------
+
+Syntax error of the *string* argument.
+
+AAOS_EFMTNOTSUP
 ---------------
 
-The telescope identified by *identifier* or *name* is not found.
+The *type* format of the *string* argument is not supported.
 
-AAOS\_ENOTSUP
-------------
-
-The underline scheduler *_self* is an site scheduler, thus **get_task** operation is not supported.
 
 CONFORMING TO
 =============

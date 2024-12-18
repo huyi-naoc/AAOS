@@ -45,6 +45,8 @@ STAMPS += man1.stamp
 
 man3_MANS =\
 	   $(top_builddir)/man/man3/detector_expose.3
+	   $(top_builddir)/man/man3/scheduler_get_task_by_telescope_name.3
+	   $(top_builddir)/man/man3/scheduler_update_status.3
 	   $(top_builddir)/man/man3/telescope_get_index_by_name.3\
 	   $(top_builddir)/man/man3/telescope_get_move_speed.3\
 	   $(top_builddir)/man/man3/telescope_get_slew_speed.3\
@@ -68,7 +70,9 @@ $(man3_MANS): man3.stamp
 man3.stamp:
 	mkdir -p $(top_builddir)/man/man3
 	PANDOC=$(PANDOC)
-	$(PANDOC) -s -f markdown -t man telescope_expose.3.md -o $(top_builddir)/man/man3/expose.3
+	$(PANDOC) -s -f markdown -t man detector_expose.3.md -o $(top_builddir)/man/man3/detector_expose.3
+	$(PANDOC) -s -f markdown -t man scheduler_get_task_by_telescope_id.3.md -o $(top_builddir)/man/man3/scheduler_get_task_by_telescope_id.3
+	$(PANDOC) -s -f markdown -t man scheduler_update_status.3.md -o $(top_builddir)/man/man3/scheduler_update_status.3
 	$(PANDOC) -s -f markdown -t man telescope_get_index_by_name.3.md -o $(top_builddir)/man/man3/telescope_get_index_by_name.3
 	$(PANDOC) -s -f markdown -t man telescope_get_move_speed.3.md -o $(top_builddir)/man/man3/telescope_get_move_speed.3
 	$(PANDOC) -s -f markdown -t man telescope_get_slew_speed.3.md -o $(top_builddir)/man/man3/telescope_get_slew_speed.3
