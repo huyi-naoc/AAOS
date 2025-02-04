@@ -74,7 +74,7 @@ database_init(void)
             mysql_library_end();
             exit(EXIT_FAILURE);
         }
-        snprintf(sql, BUFSIZE, "CREATE table `telescope-info` (tel_id bigint unsigned not null,telescop varchar(32) not null,site_id bigint unsigned not null,status int not null,tel_des varchar(4096) not null,timestam double not null,PRIMARY KEY(tel_id),UNIQUE KEY(tel_id),FORIEGN KEY(site_id) REFENCES `site-info`(site_id)) ENGINE=InnoDB DEFAULT CHARSET=UTF8");
+        snprintf(sql, BUFSIZE, "CREATE table `telescope-info` (tel_id bigint unsigned not null,telescop varchar(32) not null,site_id bigint unsigned not null,status int not null,tel_des varchar(4096) not null,timestam double not null,PRIMARY KEY(tel_id),UNIQUE KEY(tel_id),FOREIGN KEY(site_id) REFERENCES `site-info`(site_id)) ENGINE=InnoDB DEFAULT CHARSET=UTF8");
         if (mysql_real_query(&mysql, sql, strlen(sql)) != 0) {
             fprintf(stderr, "Failed to create `site-info` table.\n");
             fprintf(stderr, "Error: %s\n", mysql_error(&mysql));
@@ -90,7 +90,7 @@ database_init(void)
             mysql_library_end();
             exit(EXIT_FAILURE);
         }
-        snprintf(sql, BUFSIZE, "CREATE table `task-info` (task_id bigint unsigned not null,targ_id bigint unsigned not null,nside int unsigned not null,tel_id bigint unsigned not null,site_id bigint unsigned not null,status int unsigned not null,obstime double not null,timestam double not null,task_des varchar(4096) not null,PRIMARY KEY(task_id), UNIQUE KEY(task_id),FORIEN KEY(targ_id) REFRENCES `target-info`(targ_id),FORIEN KEY(tel_id) REFRENCES `telescope-info`(tel_id),FORIEN KEY(site_id) REFRENCES `site-info`(site_id)) ENGINE=InnoDB DEFAULT CHARSET=UTF8");
+        snprintf(sql, BUFSIZE, "CREATE table `task-info` (task_id bigint unsigned not null,targ_id bigint unsigned not null,nside int unsigned not null,tel_id bigint unsigned not null,site_id bigint unsigned not null,status int unsigned not null,obstime double not null,timestam double not null,task_des varchar(4096) not null,PRIMARY KEY(task_id), UNIQUE KEY(task_id),FOREIGN KEY(targ_id) REFERENCES `target-info`(targ_id),FOREIGN KEY(tel_id) REFERENCES `telescope-info`(tel_id),FOREIGN KEY(site_id) REFERENCES `site-info`(site_id)) ENGINE=InnoDB DEFAULT CHARSET=UTF8");
         if (mysql_real_query(&mysql, sql, strlen(sql)) != 0) {
             fprintf(stderr, "Failed to create `task-info` table.\n");
             fprintf(stderr, "Error: %s\n", mysql_error(&mysql));

@@ -4857,6 +4857,7 @@ static int KLTPSerial_aligned_read(struct KLTPSerial *self)
     ret = __Serial_read3(self, buf + nleft, output_len - nleft, &read_size);
     if (ret == AAOS_OK) {
         memcpy(&crc, buf + output_len - 2, 2);
+        crc2 =  MODBUS_CRC16_v3(buf, (unsigned int) output_len - 2);
 #ifdef BIGENDIAN
         crc2 = swap_uint16(crc2);
 #endif

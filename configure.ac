@@ -17,13 +17,6 @@ AC_PROG_INSTALL
 # AC_PROG_RANLIB
 AM_PROG_CC_C_O
 
-#OS=`uname -s`
-#if test "x${OS}" = xLinux; then
-#    AC_DEFINE([LINUX], , [Linux operating system])
-#elif test "x${OS}" = xDarwin; then
-#    AC_DEFINE([MACOSX], , [Macintosh operating system])
-#fi
-
 case ${host_os} in
     linux*)
         AC_DEFINE([LINUX], , [Linux operating system])

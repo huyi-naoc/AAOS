@@ -30,7 +30,7 @@ static struct option longopts[] = {
 };
 
 static void
-usage()
+usage(void)
 {
     fprintf(stderr, "\t\t[-n|--name <name>] [-i|--index <index>]");
     exit(EXIT_FAILURE);
