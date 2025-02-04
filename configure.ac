@@ -36,10 +36,6 @@ AC_CHECK_LIB([cfitsio], [main])
 AC_CHECK_LIB([config], [main])
 # FIXME: Replace `main' with a function in `-lm':
 AC_CHECK_LIB([m], [main])
-# FIXME: Replace `main' with a function in `-ludev':
-#if test "x${OS}" = xLinux; then
-#    AC_CHECK_LIB([udev], [main])
-#fi
 AC_CHECK_LIB([cjson], [main])
 AC_CHECK_LIB([chealpix], [main])
 

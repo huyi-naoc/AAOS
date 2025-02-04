@@ -9,6 +9,8 @@
 #define utils_h
 
 #include <stdlib.h>
+#define _XOPEN_SOURCE
+#define __USE_XOPEN
 #include <time.h>
 
 void ct_to_iso_str(char *buf, size_t size);

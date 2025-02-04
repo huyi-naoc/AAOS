@@ -1168,7 +1168,8 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                 for (i = 0; i < n; i++) {
                     if (events[i].data.fd == sockfd) {
                         unsigned int optval;
-                        getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, sizeof(optval));
+                        socklen_t optlen;
+                        getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
                         if (optval == 0)
                             return sockfd;
                     }

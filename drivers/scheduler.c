@@ -189,13 +189,25 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
 
     if (command == SCHEDULER_DELETE_TELESCOPE_BY_ID) {
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+#endif
     } else if (command == SCHEDULER_MASK_TELESCOPE_BY_ID) {
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+#endif
     } else if (command == SCHEDULER_UNMASK_TELESCOPE_BY_ID) {
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+#endif
     } else if (command == SCHEDULER_ADD_TELESCOPE) {
         uint64_t tel_id, site_id;
         const char *name, *description;
@@ -205,16 +217,32 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         site_id = va_arg(ap, uint64_t);
         description = va_arg(ap, const char *);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestamp) VALUES (\"%s\", %lu, %lu, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
+#else
         snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestamp) VALUES (\"%s\", %llu, %llu, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
+#endif
     } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+#endif
     } else if (command == SCHEDULER_MASK_SITE_BY_ID) {
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+#endif
     } else if (command == SCHEDULER_UNMASK_SITE_BY_ID) {
         timestamp = va_arg(ap, double);
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);   
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+#else
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+#endif
     } else if (command == SCHEDULER_ADD_SITE) {
         uint64_t site_id;
         const char *name;
@@ -226,19 +254,35 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         site_lat = va_arg(ap, double);
         site_alt = va_arg(ap, double);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestamp) VALUES (\"%s\", %lu, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
+#else
         snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestamp) VALUES (\"%s\", %llu, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
+#endif
     } if (command == SCHEDULER_DELETE_TARGET_BY_ID) {
         uint32_t nside = va_arg(ap, uint32_t);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_DELETE, timestamp, identifier, nside);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_DELETE, timestamp, identifier, nside);
+#endif
     } else if (command == SCHEDULER_MASK_TARGET_BY_ID) {
         uint32_t nside = va_arg(ap, uint32_t);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_MASKED, timestamp, identifier, nside);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_MASKED, timestamp, identifier, nside);
+#endif
     } else if (command == SCHEDULER_UNMASK_TARGET_BY_ID) {
         uint32_t nside = va_arg(ap, uint32_t);
         timestamp = va_arg(ap, double);
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);   
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);
+#else
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);
+#endif
     } else if (command == SCHEDULER_ADD_TARGET) {
         uint32_t nside;
         uint64_t targ_id;
@@ -254,9 +298,17 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         priority = va_arg(ap, int);
         timestamp = va_arg(ap, double);
         if (name != NULL) {
+#ifdef LINUX
+            snprintf(sql, size, "INSERT INTO %s (targname, targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (\"%s\", %lu, %u, %lf, %lf, %d, %d, %lf)", table, name, targ_id, nside, ra, dec, status, priority, timestamp);
+#else
             snprintf(sql, size, "INSERT INTO %s (targname, targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (\"%s\", %llu, %u, %lf, %lf, %d, %d, %lf)", table, name, targ_id, nside, ra, dec, status, priority, timestamp);
+#endif
         } else {
+#ifdef LINUX
+            snprintf(sql, size, "INSERT INTO %s (targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (%lu, %u, %lf, %lf, %d, %d, %lf)", table, targ_id, nside, ra, dec, status, priority, timestamp);
+#else
             snprintf(sql, size, "INSERT INTO %s (targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (%llu, %u, %lf, %lf, %d, %d, %lf)", table, targ_id, nside, ra, dec, status, priority, timestamp);
+#endif
         }
     } else if (command == SCHEDULER_ADD_TASK_RECORD) {
         uint64_t site_id, tel_id, targ_id, task_id;
@@ -272,23 +324,48 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         status = va_arg(ap, int);
         description = va_arg(ap, const char *);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "INSERT INTO %s (task_id, targ_id, nside, tel_id, site_id, status, task_des, obstime, timestamp) VALUES (%lu, %lu, %u, %lu, %lu, %d, \"%s\", %lf, %lf)", table, task_id, targ_id, nside, tel_id, site_id, status, description, obstime, timestamp);
+#else
         snprintf(sql, size, "INSERT INTO %s (task_id, targ_id, nside, tel_id, site_id, status, task_des, obstime, timestamp) VALUES (%llu, %llu, %u, %llu, %llu, %d, \"%s\", %lf, %lf)", table, task_id, targ_id, nside, tel_id, site_id, status, description, obstime, timestamp);
+#endif
+        
     } else if (command == SCHEDULER_UPDATE_TASK_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE task_id=%lu", table, status, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE task_id=%llu", table, status, timestamp, identifier);
+#endif
+        
     } else if (command == SCHEDULER_UPDATE_SITE_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE site_id=%lu", table, status, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE site_id=%llu", table, status, timestamp, identifier);
+#endif
+        
     } else if (command == SCHEDULER_UPDATE_TELESCOPE_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE tel_id=%lu", table, status, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE tel_id=%llu", table, status, timestamp, identifier);
+#endif
+        
     } else if (command == SCHEDULER_UPDATE_TARGET_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
+#ifdef LINUX
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE targ_id=%lu", table, status, timestamp, identifier);
+#else
         snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE targ_id=%llu", table, status, timestamp, identifier);
+#endif
+        
     } else if (command == SCHEDULER_SITE_INIT) {
         snprintf(sql, size, "SELECT sitename,site_id,status,site_lon,site_lat,site_alt FROM %s", table);
     } else if (command == SCHEDULER_TELESCOPE_INIT) {
