@@ -19,7 +19,7 @@ protobuf_set(void *_self, unsigned int field, ...)
     va_start(ap, field);
     
     if (isOf(class, ProtoBufClass()) && class->set.method) {
-        ((void (*)(void *, unsigned int, va_list)) class->set.method)( _self, field, ap);
+        ((void (*)(void *, unsigned int, va_list *)) class->set.method)( _self, field, &ap);
     } else {
         forward(_self, 0, (Method) protobuf_set, "set", _self, field, &ap);
     }
@@ -27,176 +27,176 @@ protobuf_set(void *_self, unsigned int field, ...)
 }
 
 static void
-ProtoBuf_set(void *_self, unsigned int field, va_list ap)
+ProtoBuf_set(void *_self, unsigned int field, va_list *app)
 {
     struct ProtoBuf *self = cast(ProtoBuf(), _self);
     
     switch (field) {
         case PACKET_PROTOCOL:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->protocol = (uint16_t) value;
         }
             break;
         case PACKET_INDEX:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->index = (uint16_t) value;
         }
             break;
         case PACKET_COMMAND:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->command = (uint16_t) value;
         }
             break;
         case PACKET_OPTION:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->option = (uint16_t) value;
         }
             break;
         case PACKET_CHANNEL:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->channel = (uint16_t) value;
         }
             break;
         case PACKET_ERRORCODE:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->errorcode = (uint16_t) value;
         }
             break;
         case PACKET_LENGTH:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->length = value;
         }
             break;
         case PACKET_U16F0:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field0 = (uint16_t) value;
         }
             break;
         case PACKET_U16F1:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field1 = (uint16_t) value;
         }
             break;
         case PACKET_U16F2:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field2 = (uint16_t) value;
         }
             break;
         case PACKET_U16F3:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field3 = (uint16_t) value;
         }
             break;
         case PACKET_U16F4:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field4 = (uint16_t) value;
         }
             break;
         case PACKET_U16F5:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field5 = (uint16_t) value;
         }
             break;
         case PACKET_U16F6:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field6 = (uint16_t) value;
         }
             break;
         case PACKET_U16F7:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint16_8.field7 = (uint16_t) value;
         }
             break;
         case PACKET_U32F0:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint32_4.field0 = value;
         }
             break;
         case PACKET_U32F1:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint32_4.field1 = value;
         }
             break;
         case PACKET_U32F2:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint32_4.field2 = value;
         }
             break;
         case PACKET_U32F3:
         {
-            uint32_t value = va_arg(ap, uint32_t);
+            uint32_t value = va_arg(*app, uint32_t);
             self->packet->carrier.uint32_4.field3 = value;
         }
             break;
         case PACKET_U64F0:
         {
-            uint64_t value = va_arg(ap, uint64_t);
+            uint64_t value = va_arg(*app, uint64_t);
             self->packet->carrier.uint64_2.field0 = value;
         }
             break;
         case PACKET_U64F1:
         {
-            uint64_t value = va_arg(ap, uint64_t);
+            uint64_t value = va_arg(*app, uint64_t);
             self->packet->carrier.uint64_2.field1 = value;
         }
             
         case PACKET_FF0:
         {
-            double value = va_arg(ap, double);
+            double value = va_arg(*app, double);
             self->packet->carrier.float_4.field0 = (float) value;
         }
             break;
         case PACKET_FF1:
         {
-            double value = va_arg(ap, double);
+            double value = va_arg(*app, double);
             self->packet->carrier.float_4.field1 = (float) value;
         }
             break;
         case PACKET_FF2:
         {
-            double value = va_arg(ap, double);
+            double value = va_arg(*app, double);
             self->packet->carrier.float_4.field2 = (float) value;
         }
             break;
         case PACKET_FF3:
         {
-            double value = va_arg(ap, double);
+            double value = va_arg(*app, double);
             self->packet->carrier.float_4.field3 = (float) value;
         }
             break;
         case PACKET_DF0:
         {
-            double value = va_arg(ap, double);
+            double value = va_arg(*app, double);
             self->packet->carrier.double_2.field0 = value;
         }
             break;
         case PACKET_DF1:
         {
-            double value = va_arg(ap, double);
+            double value = va_arg(*app, double);
             self->packet->carrier.double_2.field1 = value;
         }
             break;
         case PACKET_STR:
         {
-            const char *value = va_arg(ap, const char *);
+            const char *value = va_arg(*app, const char *);
             size_t size = strlen(value);
             if (size > CARRIERSIZE - 1) {
                 return;
@@ -206,8 +206,8 @@ ProtoBuf_set(void *_self, unsigned int field, va_list ap)
             break;
         case PACKET_BUF:
         {
-            const void *value = va_arg(ap, const void *);
-            size_t size = va_arg(ap, size_t);
+            const void *value = va_arg(*app, const void *);
+            size_t size = va_arg(*app, size_t);
             if (self->packet->buf != value) {
                 if (self->packet_size < size) {
                     protobuf_reallocate(self, size);
@@ -223,6 +223,10 @@ ProtoBuf_set(void *_self, unsigned int field, va_list ap)
     }
 }
 
+/*
+ * If field is PACKET_BUF, the type of `size` parameter must be size_t * or NULL !!!!
+ */
+
 void
 protobuf_get(const void *_self, unsigned int field, ...)
 {
@@ -231,7 +235,7 @@ protobuf_get(const void *_self, unsigned int field, ...)
     va_start(ap, field);
     
     if (isOf(class, ProtoBufClass()) && class->get.method) {
-        ((void (*)(const void *, unsigned int, va_list)) class->get.method)( _self, field, ap);
+        ((void (*)(const void *, unsigned int, va_list *)) class->get.method)( _self, field, &ap);
     } else {
         forward(_self, 0, (Method) protobuf_get, "get", _self, field, &ap);
     }
@@ -239,11 +243,11 @@ protobuf_get(const void *_self, unsigned int field, ...)
 }
 
 static void
-ProtoBuf_get(const void *_self, unsigned int field, va_list ap)
+ProtoBuf_get(const void *_self, unsigned int field, va_list *app)
 {
     const struct ProtoBuf *self = cast(ProtoBuf(), _self);
     
-    void *value = va_arg(ap, void *);
+    void *value = va_arg(*app, void *);
     
     switch (field) {
         case PACKET_PROTOCOL:
@@ -333,7 +337,7 @@ ProtoBuf_get(const void *_self, unsigned int field, va_list ap)
         case PACKET_BUF:
         {
             *((void **) value) = self->packet->buf;
-            size_t *size = va_arg(ap, size_t *);
+            size_t *size = va_arg(*app, size_t *);
             if (size) {
                 *size = (size_t) self->packet->length;
             }

@@ -95,7 +95,7 @@ Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier , char *resu
     struct Scheduler *self = cast(Scheduler(), _self);
     char *res = NULL;
     
-    uint32_t len;
+    size_t len;
     uint16_t errorcode, option;
     int ret = AAOS_OK;
 
@@ -145,7 +145,7 @@ Scheduler_get_task_by_telescope_name(void *_self, const char *name , char *resul
 {
     struct Scheduler *self = cast(Scheduler(), _self);
   
-    uint32_t len;
+    size_t len;
     uint16_t errorcode, option;
     char *res = NULL;
     int ret = AAOS_OK;
@@ -249,7 +249,7 @@ Scheduler_list_site(void *_self, char *result, size_t size, size_t *length, unsi
 {
     struct Scheduler *self = cast(Scheduler(), _self);
     char *res = NULL;
-    uint32_t len;
+    size_t len;
     uint16_t errorcode, option;
 
     int ret = AAOS_OK;
@@ -612,7 +612,7 @@ Scheduler_list_telescope(void *_self, char *result, size_t size, size_t *length,
 {
     struct Scheduler *self = cast(Scheduler(), _self);
     char *res = NULL;
-    uint32_t len;
+    size_t len;
     uint16_t errorcode, option;
 
     int ret = AAOS_OK;
@@ -973,7 +973,7 @@ Scheduler_list_target(void *_self, char *result, size_t size, size_t *length, in
 {
     struct Scheduler *self = cast(Scheduler(), _self);
     char *res = NULL;
-    uint32_t len;
+    size_t len;
     uint16_t errorcode, option;
 
     int ret = AAOS_OK;
@@ -2234,6 +2234,70 @@ SchedulerClass_ctor(void *_self, va_list *app)
             self->get_task_by_telescope_name.method = method;
             continue;
         }
+        if (selector == (Method) scheduler_list_site) {
+            if (tag) {
+                self->list_site.tag = tag;
+                self->list_site.selector = selector;
+            }
+            self->list_site.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_add_site) {
+            if (tag) {
+                self->add_site.tag = tag;
+                self->add_site.selector = selector;
+            }
+            self->add_site.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_delete_site_by_id) {
+            if (tag) {
+                self->delete_site_by_id.tag = tag;
+                self->delete_site_by_id.selector = selector;
+            }
+            self->delete_site_by_id.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_mask_site_by_id) {
+            if (tag) {
+                self->mask_site_by_id.tag = tag;
+                self->mask_site_by_id.selector = selector;
+            }
+            self->mask_site_by_id.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_unmask_site_by_id) {
+            if (tag) {
+                self->unmask_site_by_id.tag = tag;
+                self->unmask_site_by_id.selector = selector;
+            }
+            self->unmask_site_by_id.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_delete_site_by_id) {
+            if (tag) {
+                self->delete_site_by_id.tag = tag;
+                self->delete_site_by_id.selector = selector;
+            }
+            self->delete_site_by_id.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_mask_site_by_name) {
+            if (tag) {
+                self->mask_site_by_name.tag = tag;
+                self->mask_site_by_name.selector = selector;
+            }
+            self->mask_site_by_name.method = method;
+            continue;
+        }
+        if (selector == (Method) scheduler_unmask_site_by_name) {
+            if (tag) {
+                self->unmask_site_by_name.tag = tag;
+                self->unmask_site_by_name.selector = selector;
+            }
+            self->unmask_site_by_name.method = method;
+            continue;
+        }
         if (selector == (Method) scheduler_list_telescope) {
             if (tag) {
                 self->list_telescope.tag = tag;
@@ -2432,6 +2496,14 @@ Scheduler_initialize(void)
                     scheduler_get_task_by_telescope_id, "get_task_by_telescope_id", Scheduler_get_task_by_telescope_id,
                     scheduler_get_task_by_telescope_name, "get_task_by_telescope_name", Scheduler_get_task_by_telescope_name,
                     scheduler_update_status, "update_status", Scheduler_update_status,
+                    scheduler_list_site, "list_site", Scheduler_list_site,
+                    scheduler_add_site, "add_site", Scheduler_add_site,
+                    scheduler_delete_site_by_id, "delete_site_by_id", Scheduler_delete_site_by_id,
+                    scheduler_mask_site_by_id, "mask_site_by_id", Scheduler_mask_site_by_id,
+                    scheduler_unmask_site_by_id, "unmask_site_by_id", Scheduler_unmask_site_by_id,
+                    scheduler_delete_site_by_name, "delete_site_by_name", Scheduler_delete_site_by_name,
+                    scheduler_mask_site_by_name, "mask_site_by_name", Scheduler_mask_site_by_name,
+                    scheduler_unmask_site_by_name, "unmask_site_by_name", Scheduler_unmask_site_by_name,
                     scheduler_list_telescope, "list_telescope", Scheduler_list_telescope,
                     scheduler_add_telescope, "add_telescope", Scheduler_add_telescope,
                     scheduler_delete_telescope_by_id, "delete_telescope_by_id", Scheduler_delete_telescope_by_id,

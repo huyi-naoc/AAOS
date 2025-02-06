@@ -4275,7 +4275,7 @@ KLTPSerial_ctor(void *_self, va_list *app)
     
     self->_._vtab= kltp_serial_virtual_table();
     self->size = 10240;
-    self->length =32;
+    self->length = 32;
     self->output_len = 21;
 
     while ((key =va_arg(*app, const char *)) != NULL) {
@@ -4875,8 +4875,8 @@ static int KLTPSerial_aligned_read(struct KLTPSerial *self)
                         return AAOS_OK;
                         break;
                     }
-                    return AAOS_ERROR;
                 }
+                return AAOS_ERROR;
             } else {
                 return ret;
             }
@@ -5104,7 +5104,7 @@ KLTPSerial_validate(const void *_self, const void *command, size_t size)
             }
             break;
         case 0x05: /* Turn on/off data acquisition, heater on/off, and AC or DC output*/
-            if ((buf[2] != 0x00) || (buf[3] > 0x02) || (buf[4] != 0x00 || buf[4] != 0xFF) || buf[5] !=0x00) {
+            if ((buf[2] != 0x00) || (buf[3] > 0x02) || ((buf[4] != 0x00 && buf[4] != 0xFF)) || buf[5] !=0x00) {
                 return AAOS_EBADCMD;
             }
             break;

@@ -869,13 +869,13 @@ __Scheduler_site_init_cb(struct __Scheduler *self, MYSQL_RES *res)
             site->status = atoi(row[2]);
         }
         if (lengths[3] != 0) {
-            site->site_lon = strtoull(row[3], NULL, 0);
+            site->site_lon = atof(row[3]);
         }
         if (lengths[4] != 0) {
-            site->site_lat = strtoull(row[4], NULL, 0);
+            site->site_lat = atof(row[4]);
         }
         if (lengths[5] != 0) {
-            site->site_alt = strtoull(row[5], NULL, 0);
+            site->site_alt = atof(row[5]);
         }
         cnt++;
         threadsafe_list_push_front(self->site_list, site);
@@ -1163,23 +1163,6 @@ __scheduler_pop_task_block(void *_self)
         return result;
     }
 }
-
-/*
-static void 
-site_list_foreach(void *arg, va_list *app)
-{
-    struct SiteInfo *site = arg;
-
-    uint64_t identifier = va_arg(*app, uint64_t);
-    const char *block_buf = va_arg(*app, const char *);
-
-    if (site->identifier == identifier && site->status == SCHEDULER_STATUS_OK && site->rpc != NULL) {
-        protobuf_set(site->rpc, PACKET_COMMAND, SCHEDULER_POP_TASK_BLOCK);
-        protobuf_set(site->rpc, PACKET_BUF, block_buf, strlen(block_buf) + 1);
-        rpc_call(site->rpc);
-    }
-}
-*/
 
 static int
 __Scheduler_pop_task_block(void *_self)
@@ -1872,7 +1855,7 @@ __Scheduler_list_telescope(void *_self, char *buf, size_t size, unsigned int *ty
     }
 
     fp = fmemopen(buf, size, "w");
-    threadsafe_list_foreach(self->site_list, print_telescope_list, fp);
+    threadsafe_list_foreach(self->telescope_list, print_telescope_list, fp);
     fclose(fp);
 
     if (type != NULL) {
@@ -2719,7 +2702,6 @@ __Scheduler_site_manage_thr(void *_self)
     return NULL;
 }
 
-
 void *
 __scheduler_telescope_manage_thr(void *_self)
 {
@@ -3048,7 +3030,7 @@ __Scheduler_init(void *_self)
         __scheduler_set_member(self, "connect_site");
     }
     /*
-     * start thread.
+     * Start thread.
      */
     pthread_t tid;
     if (self->type == SCHEDULER_TYPE_GLOBAL) {

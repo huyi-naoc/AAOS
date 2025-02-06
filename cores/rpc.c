@@ -486,7 +486,7 @@ RPC_forward(const void *_self, void *result, Method selector, const char *name, 
         
 #ifndef NDEBUG
             if (!method) {
-                fprintf(stderr, "RPC doest not implemet `%s` method.\n", name);
+                fprintf(stderr, "RPC doest not implement `%s` method.\n", name);
             }
 #endif
         } else {

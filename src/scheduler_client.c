@@ -21,7 +21,7 @@ static struct option longopts[] = {
 };
 
 static void
-usage()
+usage(void)
 {
     exit(EXIT_FAILURE);
 }
@@ -287,9 +287,9 @@ main(int argc, char *argv[])
                 fprintf(stderr, "list_telescope failed.\n");
             }
             free(buf);
-            argc -= 2;
-            argv += 2;
-            continue; 
+            argc--;
+            argv++;
+            continue;
         }
         if (strcmp("add_telescope", argv[0]) == 0) {
             if (argc < 2) {
@@ -399,9 +399,9 @@ main(int argc, char *argv[])
             } else {
                 fprintf(stderr, "list_target failed.\n");
             }
-            argc -= 2;
-            argv += 2;
-            continue; 
+            argc--;
+            argv++;
+            continue;
         }
         if (strcmp("add_target", argv[0]) == 0) {
             if (argc < 2) {
@@ -423,7 +423,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             target_id = strtoull(argv[1], NULL, 0);
-            nside = strtoul(argv[2], NULL, 0);
+            nside = (uint32_t) strtoul(argv[2], NULL, 0);
             if ((ret = scheduler_delete_target_by_id(scheduler, target_id, nside)) == AAOS_OK) {
                 fprintf(stderr, "`delete_target_by_id` successed.\n");
             } else {
@@ -453,7 +453,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             target_id = strtoull(argv[1], NULL, 0);
-            nside = strtoul(argv[2], NULL, 0);
+            nside = (uint32_t) strtoul(argv[2], NULL, 0);
             if ((ret = scheduler_mask_target_by_id(scheduler, target_id, nside)) == AAOS_OK) {
                 fprintf(stderr, "`mask_target_by_id` successed.\n");
             } else {
@@ -483,7 +483,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             target_id = strtoull(argv[1], NULL, 0);
-            nside = strtoul(argv[2], NULL, 0);
+            nside = (uint32_t) strtoul(argv[2], NULL, 0);
             if ((ret = scheduler_unmask_target_by_id(scheduler, target_id, nside)) == AAOS_OK) {
                 fprintf(stderr, "`unmask_target_by_id` successed.\n");
             } else {

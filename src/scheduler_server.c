@@ -110,7 +110,11 @@ read_configuration(void)
         const char *address = NULL, *port = NULL, *name = NULL;
         const char *ipc_model = NULL, *algorithm = NULL, *sock_file = NULL;
         uint64_t site_id;
+#ifdef LINUX
+        long long int s_site_id;
+#else
         int64_t s_site_id;
+#endif
         double site_lon, site_lat, site_alt;
         
         if ((site_setting = config_setting_lookup(setting, "global")) == NULL) {
@@ -182,7 +186,11 @@ read_configuration(void)
         }
     } else if (type == SCHEDULER_TYPE_UNIT) {
         uint64_t tel_id, site_id;
-        int64_t s_tel_id, s_site_id;;
+#ifdef LINUX
+        long long s_tel_id, s_site_id;
+#else
+        int64_t s_tel_id, s_site_id;
+#endif
         const char *address = NULL, *port = NULL, *name = NULL, *description = NULL;
         if ((telescope_setting = config_setting_lookup(setting, "site")) == NULL) {
             fprintf(stderr, "`telescope` scheduler needs `site` section.\n");

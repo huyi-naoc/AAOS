@@ -277,7 +277,7 @@ ThreadsafeQueueClass(void)
 static const void *_ThreadsafeQueue;
 
 static void
-ThreadsafeQueue_destroy()
+ThreadsafeQueue_destroy(void)
 {
     free((void *) _ThreadsafeQueue);
 }
@@ -481,7 +481,7 @@ ThreadsafeCircularQueueClass(void)
 static const void *_ThreadsafeCircularQueue;
 
 static void
-ThreadsafeCircularQueue_destroy()
+ThreadsafeCircularQueue_destroy(void)
 {
     free((void *) _ThreadsafeCircularQueue);
 }

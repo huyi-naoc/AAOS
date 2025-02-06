@@ -43,7 +43,7 @@ database_init(void)
     }
     if (db_user == NULL) {
         fprintf(stderr, "Please input database username: \n");
-        fgets(db_user_buf, PASSWDSIZE, stdin);
+        fgets(db_user_buf, USERNAMESIZE, stdin);
         db_user = db_user_buf;
     }
     if (db_password == NULL) {

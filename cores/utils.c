@@ -54,7 +54,7 @@ void
 iso_str_to_tp(const char *buf, struct timespec *tp)
 {
     struct tm time_buf;
-    long nsec;
+    long nsec = 0;
     size_t len = strlen(buf);
 
     strptime(buf, "%Y-%m-%dT%H:%M:%S", &time_buf);
