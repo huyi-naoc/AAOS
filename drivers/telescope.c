@@ -2727,6 +2727,242 @@ virtual_telescope_virtual_table(void)
 }
 
 /*
+ * Driver for Shuangyashan Daxue's 80cm telescope.
+ */
+
+struct SYSU80Protocol {
+    uint32_t field1; /* frame header, 0xFCFCFCFC */
+    uint64_t field2; /* unix time stamp */
+    uint32_t field3; /* payload length */
+    uint32_t field4; /* identifier, for server to client, 0x06010000, for client to server 0x06010001 */
+    unsigned char unused[12];
+    uint32_t command;
+    unsigned char parameter[64];
+};
+
+static int
+SYSU80_status(void *_self, char *status_buffer, size_t status_buffer_size)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+   
+    
+    return AAOS_OK;
+}
+
+static int
+SYSU80_slew(void *_self, double ra, double dec)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    struct SYSU80Protocol prot;
+    struct timespec tp;
+    unsigned char *s;
+    int cfd;
+    ssize_t nread, nwrite;
+    
+    memset(&prot, '\0', sizeof(struct SYSU80Protocol));
+    prot.field1 = 0xFCFCFCFC;
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    prot.field2 = tp.tv_sec;
+    prot.field3 = sizeof(uint32_t) + 2 * sizeof(double);
+    prot.field4 = 0x06010000;
+    prot.command = 0x00010000;
+    s = prot.parameter;
+    memcpy(s, &ra, sizeof(double));
+    s += sizeof(double);
+    memcpy(s, &dec, sizeof(double));
+    
+    if ((cfd = Tcp_connect(self->address, self->port, NULL, NULL)) < 0) {
+        return AAOS_ENETDOWN;
+    }
+    
+    if ((nwrite = Writen(cfd, &prot, sizeof(struct SYSU80Protocol))) < 0) {
+        return AAOS_ENETDOWN;
+    }
+    
+    if ((nwrite = Readn(cfd, &prot, sizeof(struct SYSU80Protocol))) < 0) {
+        return AAOS_ENETDOWN;
+    }
+    
+    return AAOS_OK;
+}
+
+static int
+SYSU80_park(void *_self)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    return AAOS_OK;
+}
+
+static int
+SYSU80_park_off(void *_self)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    return AAOS_OK;
+}
+
+static int
+SYSU80_go_home(void *_self)
+{
+    return AAOS_OK;
+}
+
+static int
+SYSU80_switch_instrument(void *_self, const char *name)
+{
+    
+    return AAOS_OK;
+}
+
+static int
+SYSU80_init(void *_self)
+{
+    return AAOS_OK;
+}
+
+static int
+SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size, void *results, size_t results_size, size_t *return_size)
+{
+    return AAOS_OK;
+}
+
+static const void *sysu80_virtual_table(void);
+
+static void *
+SYSU80_ctor(void *_self, va_list *app)
+{
+    struct SYSU80 *self = super_ctor(SYSU80(), _self, app);
+    
+        
+ 
+    
+    self->_._vtab = sysu80_virtual_table();
+    
+    return (void *) self;
+}
+
+
+static void *
+SYSU80_dtor(void *_self)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    return super_dtor(SYSU80(), _self);
+}
+
+static void *
+SYSU80Class_ctor(void *_self, va_list *app)
+{
+    struct APMountClass *self = super_ctor(APMountClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.inspect.method = (Method) 0;
+    self->_.switch_instrument.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_SYSU80Class;
+
+static void
+SYSU80Class_destroy(void)
+{
+    free((void *)_SYSU80Class);
+}
+
+static void
+SYSU80Class_initialize(void)
+{
+    _SYSU80Class = new(__TelescopeClass(), "SYSU80Class", __TelescopeClass(), sizeof(struct SYSU80Class),
+                       ctor, "", SYSU80Class_ctor,
+                       (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SYSU80Class_destroy);
+#endif
+}
+
+const void *
+SYSU80Class(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, SYSU80Class_initialize);
+#endif
+    
+    return _SYSU80Class;
+}
+
+static const void *_SYSU80;
+
+static void
+SYSU80_destroy(void)
+{
+    free((void *)_SYSU80);
+}
+
+static void
+SYSU80_initialize(void)
+{
+    _SYSU80 = new(SYSU80Class(), "SYSU80", __Telescope(), sizeof(struct SYSU80),
+                  ctor, "ctor", SYSU80_ctor,
+                  dtor, "dtor", SYSU80_dtor,
+                  (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SYSU80_destroy);
+#endif
+}
+
+const void *
+SYSU80(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, SYSU80_initialize);
+#endif
+    
+    return _SYSU80;
+}
+
+const static void * _sysu80_virtual_table;
+
+static void
+sysu80_virtual_table_destroy(void)
+{
+    delete((void *) _sysu80_virtual_table);
+}
+
+static void
+sysu80_virtual_table_initialize(void)
+{
+    _sysu80_virtual_table = new(__TelescopeVirtualTable(),
+                                __telescope_status, "status", SYSU80_status,
+                                __telescope_init, "init", SYSU80_init,
+                                __telescope_park, "park", SYSU80_park,
+                                __telescope_park_off, "park_off", SYSU80_park_off,
+                                __telescope_go_home, "go_home", SYSU80_go_home,
+                                __telescope_slew, "slew", SYSU80_slew,
+                                __telescope_raw, "raw", SYSU80_raw,
+                                //__telescope_inspect, "inspect", APMount_inspect,
+                                (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(sysu80_virtual_table_destroy);
+#endif
+}
+
+static const void *
+sysu80_mount_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, sysu80_virtual_table_initialize);
+#endif
+    
+    return _sysu80_virtual_table;
+}
+
+/*
  * Driver for Astropysics Mount.
  */
 #include "serial_rpc.h"

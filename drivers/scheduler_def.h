@@ -73,7 +73,6 @@
 #define SCHEDULER_UPDATE_TELESCOPE_STATUS           61
 #define SCHEDULER_UPDATE_TARGET_STATUS              62
 
-
 #define SCHEDULER_FORMAT_JSON                       1
 
 #define SCHEDULER_TYPE_GLOBAL                       1

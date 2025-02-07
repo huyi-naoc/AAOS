@@ -61,4 +61,7 @@ extern const void *APMountClass(void);
 extern const void *ASCOMMount(void);
 extern const void *ASCOMMountClass(void);
 
+extern const void *SYSU80(void);
+extern const void *SYSU80Class(void);
+
 #endif /* __telescope_h */

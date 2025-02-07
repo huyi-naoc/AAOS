@@ -190,23 +190,23 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
     if (command == SCHEDULER_DELETE_TELESCOPE_BY_ID) {
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
 #endif
     } else if (command == SCHEDULER_MASK_TELESCOPE_BY_ID) {
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
 #endif
     } else if (command == SCHEDULER_UNMASK_TELESCOPE_BY_ID) {
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE tel_id=%lu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE tel_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
 #endif
     } else if (command == SCHEDULER_ADD_TELESCOPE) {
         uint64_t tel_id, site_id;
@@ -218,30 +218,30 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         description = va_arg(ap, const char *);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestamp) VALUES (\"%s\", %lu, %lu, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestam) VALUES (\"%s\", %lu, %lu, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
 #else
-        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestamp) VALUES (\"%s\", %llu, %llu, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (telescop, tel_id, site_id, tel_des, status, timestam) VALUES (\"%s\", %llu, %llu, \"%s\", %d, %lf)", table, name, tel_id, site_id, description, status, timestamp);
 #endif
     } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_DELETE, timestamp, identifier);
 #endif
     } else if (command == SCHEDULER_MASK_SITE_BY_ID) {
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_MASKED, timestamp, identifier);
 #endif
     } else if (command == SCHEDULER_UNMASK_SITE_BY_ID) {
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE site_id=%lu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE site_id=%llu", table, SCHEDULER_STATUS_OK, timestamp, identifier);
 #endif
     } else if (command == SCHEDULER_ADD_SITE) {
         uint64_t site_id;
@@ -255,33 +255,33 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         site_alt = va_arg(ap, double);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestamp) VALUES (\"%s\", %lu, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestam) VALUES (\"%s\", %lu, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
 #else
-        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestamp) VALUES (\"%s\", %llu, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (sitename, site_id, status, site_lat, site_lon, site_alt, timestam) VALUES (\"%s\", %llu, %d, %lf, %lf, %lf, %lf)", table, name, site_id, status, site_lon, site_lat, site_alt, timestamp);
 #endif
     } if (command == SCHEDULER_DELETE_TARGET_BY_ID) {
         uint32_t nside = va_arg(ap, uint32_t);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_DELETE, timestamp, identifier, nside);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_DELETE, timestamp, identifier, nside);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_DELETE, timestamp, identifier, nside);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_DELETE, timestamp, identifier, nside);
 #endif
     } else if (command == SCHEDULER_MASK_TARGET_BY_ID) {
         uint32_t nside = va_arg(ap, uint32_t);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_MASKED, timestamp, identifier, nside);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_MASKED, timestamp, identifier, nside);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_MASKED, timestamp, identifier, nside);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_MASKED, timestamp, identifier, nside);
 #endif
     } else if (command == SCHEDULER_UNMASK_TARGET_BY_ID) {
         uint32_t nside = va_arg(ap, uint32_t);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE targ_id=%lu AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE targ_id=%llu AND nside=%u", table, SCHEDULER_STATUS_OK, timestamp, identifier, nside);
 #endif
     } else if (command == SCHEDULER_ADD_TARGET) {
         uint32_t nside;
@@ -299,15 +299,15 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         timestamp = va_arg(ap, double);
         if (name != NULL) {
 #ifdef LINUX
-            snprintf(sql, size, "INSERT INTO %s (targname, targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (\"%s\", %lu, %u, %lf, %lf, %d, %d, %lf)", table, name, targ_id, nside, ra, dec, status, priority, timestamp);
+            snprintf(sql, size, "INSERT INTO %s (targname, targ_id, nside, ra_tag, dec_tag, status, priority, timestam) VALUES (\"%s\", %lu, %u, %lf, %lf, %d, %d, %lf)", table, name, targ_id, nside, ra, dec, status, priority, timestamp);
 #else
-            snprintf(sql, size, "INSERT INTO %s (targname, targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (\"%s\", %llu, %u, %lf, %lf, %d, %d, %lf)", table, name, targ_id, nside, ra, dec, status, priority, timestamp);
+            snprintf(sql, size, "INSERT INTO %s (targname, targ_id, nside, ra_tag, dec_tag, status, priority, timestam) VALUES (\"%s\", %llu, %u, %lf, %lf, %d, %d, %lf)", table, name, targ_id, nside, ra, dec, status, priority, timestamp);
 #endif
         } else {
 #ifdef LINUX
-            snprintf(sql, size, "INSERT INTO %s (targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (%lu, %u, %lf, %lf, %d, %d, %lf)", table, targ_id, nside, ra, dec, status, priority, timestamp);
+            snprintf(sql, size, "INSERT INTO %s (targ_id, nside, ra_tag, dec_tag, status, priority, timestam) VALUES (%lu, %u, %lf, %lf, %d, %d, %lf)", table, targ_id, nside, ra, dec, status, priority, timestamp);
 #else
-            snprintf(sql, size, "INSERT INTO %s (targ_id, nside, ra_tag, dec_tag, status, priority, timestamp) VALUES (%llu, %u, %lf, %lf, %d, %d, %lf)", table, targ_id, nside, ra, dec, status, priority, timestamp);
+            snprintf(sql, size, "INSERT INTO %s (targ_id, nside, ra_tag, dec_tag, status, priority, timestam) VALUES (%llu, %u, %lf, %lf, %d, %d, %lf)", table, targ_id, nside, ra, dec, status, priority, timestamp);
 #endif
         }
     } else if (command == SCHEDULER_ADD_TASK_RECORD) {
@@ -325,45 +325,45 @@ __scheduler_create_sql(int command, uint64_t identifier, const char *table, char
         description = va_arg(ap, const char *);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "INSERT INTO %s (task_id, targ_id, nside, tel_id, site_id, status, task_des, obstime, timestamp) VALUES (%lu, %lu, %u, %lu, %lu, %d, \"%s\", %lf, %lf)", table, task_id, targ_id, nside, tel_id, site_id, status, description, obstime, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (task_id, targ_id, nside, tel_id, site_id, status, task_des, obstime, timestam) VALUES (%lu, %lu, %u, %lu, %lu, %d, \"%s\", %lf, %lf)", table, task_id, targ_id, nside, tel_id, site_id, status, description, obstime, timestamp);
 #else
-        snprintf(sql, size, "INSERT INTO %s (task_id, targ_id, nside, tel_id, site_id, status, task_des, obstime, timestamp) VALUES (%llu, %llu, %u, %llu, %llu, %d, \"%s\", %lf, %lf)", table, task_id, targ_id, nside, tel_id, site_id, status, description, obstime, timestamp);
+        snprintf(sql, size, "INSERT INTO %s (task_id, targ_id, nside, tel_id, site_id, status, task_des, obstime, timestam) VALUES (%llu, %llu, %u, %llu, %llu, %d, \"%s\", %lf, %lf)", table, task_id, targ_id, nside, tel_id, site_id, status, description, obstime, timestamp);
 #endif
         
     } else if (command == SCHEDULER_UPDATE_TASK_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE task_id=%lu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE task_id=%lu", table, status, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d, timestamp=%lf WHERE task_id=%llu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d, timestam=%lf WHERE task_id=%llu", table, status, timestamp, identifier);
 #endif
         
     } else if (command == SCHEDULER_UPDATE_SITE_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE site_id=%lu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestam=%lf WHERE site_id=%lu", table, status, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE site_id=%llu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestam=%lf WHERE site_id=%llu", table, status, timestamp, identifier);
 #endif
         
     } else if (command == SCHEDULER_UPDATE_TELESCOPE_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE tel_id=%lu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestam=%lf WHERE tel_id=%lu", table, status, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE tel_id=%llu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestam=%lf WHERE tel_id=%llu", table, status, timestamp, identifier);
 #endif
         
     } else if (command == SCHEDULER_UPDATE_TARGET_STATUS) {
         int status = va_arg(ap, int);
         timestamp = va_arg(ap, double);
 #ifdef LINUX
-        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE targ_id=%lu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestam=%lf WHERE targ_id=%lu", table, status, timestamp, identifier);
 #else
-        snprintf(sql, size, "UPDATE %s SET status=%d,timestamp=%lf WHERE targ_id=%llu", table, status, timestamp, identifier);
+        snprintf(sql, size, "UPDATE %s SET status=%d,timestam=%lf WHERE targ_id=%llu", table, status, timestamp, identifier);
 #endif
         
     } else if (command == SCHEDULER_SITE_INIT) {
@@ -471,29 +471,24 @@ print_site_list(void *arg, va_list *app)
     struct SiteInfo *site_info = arg;
     FILE *fp = va_arg(*app, FILE *);
 
-    cJSON *root_json, *value_json;
+    cJSON *root_json;
     root_json = cJSON_CreateObject();
     char *string;
-
+    
     if (site_info->name != NULL) {
-        value_json = cJSON_CreateString(site_info->name);
-        cJSON_AddItemToObject(root_json, "sitename", value_json);
+        cJSON_AddStringToObject(root_json, "sitename", site_info->name);
     }
-    value_json = cJSON_CreateNumber(site_info->identifier);
-    cJSON_AddItemToObject(root_json, "site_id", value_json);
-    value_json = cJSON_CreateNumber(site_info->status);
-    cJSON_AddItemToObject(root_json, "status", value_json);
-    value_json = cJSON_CreateNumber(site_info->site_lon);
-    cJSON_AddItemToObject(root_json, "site_lon", value_json);
-    value_json = cJSON_CreateNumber(site_info->site_lat);
-    cJSON_AddItemToObject(root_json, "site_lat", value_json);
-    value_json = cJSON_CreateNumber(site_info->site_alt);
-    cJSON_AddItemToObject(root_json, "site_alt", value_json);
+    
+    cJSON_AddNumberToObject(root_json, "site_id", site_info->identifier);
+    cJSON_AddNumberToObject(root_json, "status", site_info->status);
+    cJSON_AddNumberToObject(root_json, "site_lon", site_info->site_lon);
+    cJSON_AddNumberToObject(root_json, "site_lat", site_info->site_lat);
+    cJSON_AddNumberToObject(root_json, "site_alt", site_info->site_alt);
 
     string = cJSON_Print(root_json);
     cJSON_Delete(root_json);
 
-    fprintf(fp, "%s", string);
+    fprintf(fp, "%s\n", string);
     free(string);
 }
 
@@ -503,7 +498,7 @@ print_telescope_list(void *arg, va_list *app)
     struct TelescopeInfo *telescope_info = arg;
     FILE *fp = va_arg(*app, FILE *);
     
-    cJSON *root_json, *value_json, *test_json;
+    cJSON *root_json, *value_json;
     char *string;
     
     if (telescope_info->description != NULL) {
@@ -511,22 +506,26 @@ print_telescope_list(void *arg, va_list *app)
     } else {
         root_json = cJSON_CreateObject();
     }
-
+    
     if (telescope_info->name != NULL && cJSON_GetObjectItemCaseSensitive(root_json, "telescop") == NULL) {
-        value_json = cJSON_CreateString(telescope_info->name);
-        cJSON_AddItemToObject(root_json, "telescop", value_json);
+        cJSON_AddStringToObject(root_json, "telescop", telescope_info->name);
     }
-    if (cJSON_GetObjectItemCaseSensitive(root_json, "tel_id") == NULL) {
-        value_json = cJSON_CreateNumber(telescope_info->identifier);
-        cJSON_AddItemToObject(root_json, "tel_id", value_json);
+    /*
+     * If `description` field contain following field,
+     * set them to the current one;
+     */
+    if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "tel_id")) == NULL) {
+        cJSON_AddNumberToObject(root_json, "tel_id", telescope_info->identifier);
+    } else {
+        cJSON_SetIntValue(value_json, telescope_info->identifier);
     }
-    if (cJSON_GetObjectItemCaseSensitive(root_json, "site_id") == NULL) {
-        value_json = cJSON_CreateNumber(telescope_info->site_id);
-        cJSON_AddItemToObject(root_json, "site_id", value_json);
+    if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "site_id")) == NULL) {
+        cJSON_AddNumberToObject(root_json, "site_id", telescope_info->site_id);
+    } else {
+        cJSON_SetIntValue(value_json, telescope_info->site_id);
     }
     if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "status")) == NULL) {
-        value_json = cJSON_CreateNumber(telescope_info->status);
-        cJSON_AddItemToObject(root_json, "status", value_json);
+        cJSON_AddNumberToObject(root_json, "status", telescope_info->status);
     } else {
         cJSON_SetIntValue(value_json, telescope_info->status);
     }
@@ -534,7 +533,7 @@ print_telescope_list(void *arg, va_list *app)
     string = cJSON_Print(root_json);
     cJSON_Delete(root_json);
 
-    fprintf(fp, "%s", string);
+    fprintf(fp, "%s\n", string);
     free(string);
 }
 
@@ -545,7 +544,7 @@ print_target_list(void *arg, va_list *app)
 
     FILE *fp = va_arg(*app, FILE *);
 
-    cJSON *root_json, *value_json, *test_json;
+    cJSON *root_json, *value_json;
     char *string;
     
     if (target_info->description != NULL) {
@@ -555,42 +554,35 @@ print_target_list(void *arg, va_list *app)
     }
 
     if (target_info->name != NULL && cJSON_GetObjectItemCaseSensitive(root_json, "targname") == NULL) {
-        value_json = cJSON_CreateString(target_info->name);
-        cJSON_AddItemToObject(root_json, "targname", value_json);
+        cJSON_AddStringToObject(root_json, "targname", target_info->name);
     }
     if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "targ_id")) == NULL) {
-        value_json = cJSON_CreateNumber(target_info->identifier);
-        cJSON_AddItemToObject(root_json, "targ_id", value_json);
+        cJSON_AddNumberToObject(root_json, "targ_id", target_info->identifier);
     } else {
         cJSON_SetIntValue(value_json, target_info->identifier);
     }
     if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "nside")) == NULL) {
-        value_json = cJSON_CreateNumber(target_info->nside);
-        cJSON_AddItemToObject(root_json, "nside", value_json);
+        cJSON_AddNumberToObject(root_json, "nside", target_info->nside);
     } else {
         cJSON_SetIntValue(value_json, target_info->nside);
     }
     if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "targ_ra")) == NULL) {
-        value_json = cJSON_CreateNumber(target_info->ra);
-        cJSON_AddItemToObject(root_json, "targ_ra", value_json);
+        cJSON_AddNumberToObject(root_json, "targ_ra", target_info->ra);
     } else {
         cJSON_SetIntValue(value_json, target_info->ra);
     }
     if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "targ_dec")) == NULL) {
-        value_json = cJSON_CreateNumber(target_info->dec);
-        cJSON_AddItemToObject(root_json, "targ_dec", value_json);
+        cJSON_AddNumberToObject(root_json, "targ_dec", target_info->dec);
     } else {
         cJSON_SetIntValue(value_json, target_info->dec);
     }
     if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "status")) == NULL) {
-        value_json = cJSON_CreateNumber(target_info->status);
-        cJSON_AddItemToObject(root_json, "status", value_json);
+        cJSON_AddNumberToObject(root_json, "status", target_info->status);
     } else {
         cJSON_SetIntValue(value_json, target_info->status);
     }
     if ((value_json = cJSON_GetObjectItemCaseSensitive(root_json, "priority")) == NULL) {
-        value_json = cJSON_CreateNumber(target_info->priority);
-        cJSON_AddItemToObject(root_json, "priority", value_json);
+        cJSON_AddNumberToObject(root_json, "priority", target_info->priority);
     } else {
         cJSON_SetIntValue(value_json, target_info->priority);
     }
@@ -598,7 +590,7 @@ print_target_list(void *arg, va_list *app)
     string = cJSON_Print(root_json);
     cJSON_Delete(root_json);
 
-    fprintf(fp, "%s", string);
+    fprintf(fp, "%s\n", string);
     free(string);
 }
 
@@ -619,51 +611,41 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         uint64_t identifier = va_arg(ap, uint64_t);
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
-        value_json = cJSON_CreateString("request");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddStringToObject(general_json, "operate", "request");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         telescope_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "TELESCOPE-INFO", telescope_json);
-        value_json = cJSON_CreateNumber(identifier);
-        cJSON_AddItemToObject(telescope_json, "tel_id", value_json);
+        cJSON_AddNumberToObject(telescope_json, "tel_id", identifier);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_GET_TASK_BY_TELESCOPE_NAME) {
         const char  *name = va_arg(ap, const char *);
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
-        value_json = cJSON_CreateString("request");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
+        cJSON_AddStringToObject(general_json, "operate", "request");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         telescope_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "TELESCOPE-INFO", telescope_json);
-        value_json = cJSON_CreateString(name);
-        cJSON_AddItemToObject(telescope_json, "telescop", value_json);
+        cJSON_AddStringToObject(telescope_json, "telescop", name);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_POP_TASK_BLOCK) {
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
-        value_json = cJSON_CreateString("request");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddStringToObject(general_json, "operate", "request");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_TASK_BLOCK_ACK) {
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
-        value_json = cJSON_CreateString("acknowledge");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddStringToObject(general_json, "operate", "acknowledge");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_PUSH_TASK_BLOCK) {
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
         value_json = cJSON_CreateString("request");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddStringToObject(general_json, "operate", "request");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_DELETE_SITE_BY_ID) {
         uint64_t identifier = va_arg(ap, uint64_t);;
@@ -671,16 +653,12 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         status = SCHEDULER_STATUS_DELETE;
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
-        value_json = cJSON_CreateString("update");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddStringToObject(general_json, "operate", "update");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         site_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
-        value_json = cJSON_CreateNumber(identifier);
-        cJSON_AddItemToObject(site_json, "site_id", value_json);
-        value_json = cJSON_CreateNumber(status);
-        cJSON_AddItemToObject(site_json, "status", value_json);
+        cJSON_AddNumberToObject(site_json, "site_id", identifier);
+        cJSON_AddNumberToObject(site_json, "status", status);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_MASK_SITE_BY_ID) {
         uint64_t identifier;
@@ -689,16 +667,12 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         status = SCHEDULER_STATUS_MASKED;
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
-        value_json = cJSON_CreateString("update");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddStringToObject(general_json, "operate", "update");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         site_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
-        value_json = cJSON_CreateNumber(identifier);
-        cJSON_AddItemToObject(site_json, "site_id", value_json);
-        value_json = cJSON_CreateNumber(status);
-        cJSON_AddItemToObject(site_json, "status", value_json);
+        cJSON_AddNumberToObject(site_json, "site_id", identifier);
+        cJSON_AddNumberToObject(site_json, "status", status);
         json_string = cJSON_Print(root_json);
     } else if (command == SCHEDULER_UNMASK_SITE_BY_ID) {
         uint64_t identifier;
@@ -707,16 +681,12 @@ __scheduler_create_request_json_string(unsigned int command, ...)
         status = SCHEDULER_STATUS_OK;
         general_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "GENERAL-INFO", general_json);
-        value_json = cJSON_CreateString("update");
-        cJSON_AddItemToObject(general_json, "operate", value_json);
-        value_json = cJSON_CreateString(timestamp);
-        cJSON_AddItemToObject(general_json, "timestam", value_json);
+        cJSON_AddStringToObject(general_json, "operate", "update");
+        cJSON_AddStringToObject(general_json, "timestam", timestamp);
         site_json = cJSON_CreateObject();
         cJSON_AddItemToObject(root_json, "SITE-INFO", site_json);
-        value_json = cJSON_CreateNumber(identifier);
-        cJSON_AddItemToObject(site_json, "site_id", value_json);
-        value_json = cJSON_CreateNumber(status);
-        cJSON_AddItemToObject(site_json, "status", value_json);
+        cJSON_AddNumberToObject(site_json, "site_id", identifier);
+        cJSON_AddNumberToObject(site_json, "status", status);
         json_string = cJSON_Print(root_json);
     }
 
@@ -1587,6 +1557,9 @@ __Scheduler_add_site_json(struct __Scheduler *self, const char *info)
             goto end;
         }
     } else {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d: input `%s` is not a legal JSON string.\n", __FILE__, __func__, __LINE__, info);
+#endif
         return AAOS_EINVAL;
     }
 
@@ -1594,13 +1567,17 @@ __Scheduler_add_site_json(struct __Scheduler *self, const char *info)
     timestamp = tp.tv_sec + tp.tv_nsec / 1000000000.;
     __scheduler_create_sql(SCHEDULER_ADD_SITE, 0, self->site_db_table, sql, BUFSIZE, sitename, site_id, site_lon, site_lat, site_alt, timestamp);
     __Scheduler_database_query(self, sql, NULL);
-
+    
     site = (struct SiteInfo *) Malloc(sizeof(struct SiteInfo));
     memset(site, '\0', sizeof(struct SiteInfo));
     site->name = (char *) Malloc(strlen(sitename) + 1);
     snprintf(site->name, strlen(sitename) + 1, "%s", sitename);
     site->status = 0;
-
+    site->identifier = site_id;
+    site->site_lon = site_lon;
+    site->site_lat = site_lat;
+    site->site_alt = site_alt;
+    
     threadsafe_list_push_front(self->site_list, site);
 
 end:

@@ -1432,85 +1432,6 @@ radec2altaz(double jd, double ra, double dec, double lon, double lat, double alt
 }
 #endif
 
-/*
-void
-pix2world_sip(double x, double y, double crval[2], double crpix[2], double CD[2][2], double *A, double *B, size_t A_order, size_t B_order, double *ra, double *dec)
-{
-    double f = 0., g = 0.;
-    size_t i, j;
-    
-    x -= crpix[0];
-    y -= crpix[1];
-    for (i = 0; i < A_order; i++) {
-        double X;
-        if (i != 0) {
-            X = pow(x, i);
-        } else {
-            X = 1.;
-        }
-        for (j = 0; j < B_order; j++) {
-            double Y;
-            if (j != 0) {
-                Y = pow(y, j);
-            } else {
-                Y = 1.;
-            }
-            if (*(A + i * A_order + j) != 0) {
-                f += *(A + i * A_order + j) * X * Y;
-            }
-            if (*(B + i * A_order + j) != 0) {
-                g += *(B + i * A_order + j) * X * Y;
-            }
-        }
-    }
-    *ra = crval[0] + CD[0][0] * (x + f) + CD[0][1] * (y + g);
-    *dec = crval[1] + CD[1][0] * (x + f) + CD[1][1] * (y + g);
-}
-
-void
-world2pix_sip(double ra, double dec, double crval[2], double crpix[2], double CD[2][2], double *A, double *B, size_t A_order, size_t B_order, double *x, double *y)
-{
-    double f = 0., g = 0.;
-    double CD_[2][2];
-    size_t i, j;
-    
-    double coeff = 1./(CD[0][0] * CD[1][1] - CD[1][0] * CD[0][1]);
-    
-    CD_[0][0] = CD[1][1] * coeff;
-    CD_[0][1] = -1. * CD[0][1] * coeff;
-    CD_[1][0] = -1 * CD[1][0] * coeff;
-    CD_[1][1] = CD[0][0] * coeff;
-    
-    ra -= crval[0];
-    dec -= crval[1];
-    for (i = 0; i < A_order; i++) {
-        double RA;
-        if (i != 0) {
-            RA = pow(ra, i);
-        } else {
-            RA = 1.;
-        }
-        for (j = 0; j < B_order; j++) {
-            double DEC;
-            if (j != 0) {
-                DEC = pow(dec, j);
-            } else {
-                DEC = 1.;
-            }
-            if (*(A + i * A_order + j) != 0) {
-                f += *(A + i * A_order + j) * RA * DEC;
-            }
-            if (*(B + i * A_order + j) != 0) {
-                g += *(B + i * A_order + j) * RA * DEC;
-            }
-        }
-    }
-
-    *x = crpix[0] + CD_[0][0] * (ra + f) + CD_[0][1] * (dec + g);
-    *y = crpix[1] + CD_[1][0] * (ra + f) + CD_[1][1] * (dec + g);
-}
-*/
-
 double
 air_mass(double z)
 {
@@ -1518,7 +1439,6 @@ air_mass(double z)
 
     return secz - 0.0018167 * secz_1 - 0.002875 * secz_1 * secz_1 - 0.0008083 * secz_1 * secz_1 * secz_1;
 }
-
 
 #ifdef __USE_SOFA__
 static size_t

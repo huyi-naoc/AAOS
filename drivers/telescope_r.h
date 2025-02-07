@@ -169,24 +169,13 @@ struct ASCOMMountClass {
     struct __TelescopeClass _;
 };
 
-struct KLDIMM {
-    struct APMount _;
-    char *power_address1;
-    char *power_port1;
-    char *power_name1;
-    void *power_rpc1;
-    char *power_address2;
-    char *power_port2;
-    char *power_name2;
-    void *power_rpc2;
-    char *status_address1;
-    char *status_port1;
-    void *status_name1;
-    void *status_rpc1;
-    char *status_address2;
-    char *status_port2;
-    void *status_name2;
-    void *status_rpc2;
+struct SYSU80 {
+    struct __Telescope _;
+    char *address; /* Windows server IP */
+    char *port; /* Windows server port, default is 51042 */
 };
 
+struct SYSU80Class {
+    struct __TelescopeClass _;
+};
 #endif /* telescope_r_h */
