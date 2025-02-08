@@ -11,7 +11,8 @@ install-exec-hook:
 	mkdir -p $(prefix)/data
 	mkdir -p $(prefix)/run
 	chmod 777 $(prefix)/run
-	#mkdir -p $(prefix)/log
+
+#mkdir -p $(prefix)/log
 
 dist-hook:
 	rm -rf `find $(distdir) -name .git`

@@ -1459,8 +1459,9 @@ Scheduler_execute_get_task_by_telescope_id(struct Scheduler *self)
     int ret;
 
     protobuf_get(self, PACKET_U64F0, &tel_id);
-    protobuf_get(self, PACKET_BUF, &buf, &size);
-    //protobuf_get(self, PACKET_SIZE, &size);
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    size = protobuf_payload(self);
+
     if ((ret = __scheduler_get_task_by_telescope_id(scheduler, tel_id, buf, size, NULL, &type)) == AAOS_OK) {
         option = type;
         length = (uint32_t) strlen(buf) + 1;
@@ -1490,8 +1491,8 @@ Scheduler_execute_get_task_by_telescope_name(struct Scheduler *self)
         protobuf_get(self, PACKET_BUF, &name, NULL);
     }
 
-    protobuf_get(self, PACKET_BUF, &buf, &size);
-    //protobuf_get(self, PACKET_SIZE, &size);
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    size = protobuf_payload(self);
 
     if ((ret = __scheduler_get_task_by_telescope_name(scheduler, name, buf, size, NULL, &type)) == AAOS_OK) {
         option = type;
@@ -1509,12 +1510,12 @@ Scheduler_execute_pop_task_block(struct Scheduler *self)
 {
     uint16_t option;
     uint64_t identifier;
-    size_t length;
+    //size_t length;
     char *block_buf;
     unsigned int type;
     int ret;
 
-    protobuf_get(self, PACKET_BUF, &block_buf, &length);
+    protobuf_get(self, PACKET_BUF, &block_buf, NULL);
     protobuf_get(self, PACKET_OPTION, &option);
     type = option;
 
@@ -1530,12 +1531,12 @@ Scheduler_execute_update_status(struct Scheduler *self)
 {
     uint16_t option;
     uint64_t identifier;
-    size_t length;
+    uint32_t length;
     char *buf;
     unsigned int type;
     int ret;
     
-    protobuf_get(self, PACKET_BUF, &buf, &length);
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
     protobuf_get(self, PACKET_OPTION, &option);
     type = option;
 
@@ -1561,7 +1562,8 @@ Scheduler_execute_list_site(struct Scheduler *self)
     size_t size;
     int ret;
 
-    protobuf_get(self, PACKET_BUF, &buf, &size);
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    size = protobuf_payload(self);
     
     if ((ret = __scheduler_list_site(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
@@ -1578,7 +1580,7 @@ static int
 Scheduler_execute_add_site(struct Scheduler *self)
 {   
     uint16_t option;
-    uint32_t length;
+    //uint32_t length;
     char *buf;
     unsigned int type;
     size_t size;
@@ -1713,7 +1715,8 @@ Scheduler_execute_list_telescope(struct Scheduler *self)
     size_t size;
     int ret;
 
-    protobuf_get(self, PACKET_BUF, &buf, &size);
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    size = protobuf_payload(self);
     
     //protobuf_get(self, PACKET_SIZE, &size);
     if ((ret = __scheduler_list_telescope(scheduler, buf, size, &type)) == AAOS_OK) {
@@ -1731,7 +1734,7 @@ static int
 Scheduler_execute_add_telescope(struct Scheduler *self)
 {   
     uint16_t option;
-    uint32_t length;
+    //uint32_t length;
     char *buf;
     unsigned int type;
     size_t size;
@@ -1803,7 +1806,7 @@ static int
 Scheduler_execute_mask_telescope_by_name(struct Scheduler *self)
 {   
     char *name;
-    size_t length;
+    uint32_t length;
     int ret = AAOS_OK;
 
     protobuf_get(self, PACKET_LENGTH, &length);
@@ -1839,7 +1842,7 @@ static int
 Scheduler_execute_unmask_telescope_by_name(struct Scheduler *self)
 {   
     char *name;
-    size_t length;
+    uint32_t length;
     int ret = AAOS_OK;
 
     protobuf_get(self, PACKET_LENGTH, &length);
@@ -1868,7 +1871,8 @@ Scheduler_execute_list_target(struct Scheduler *self)
     int ret;
 
     protobuf_get(self, PACKET_BUF, &buf, &size);
-    //protobuf_get(self, PACKET_SIZE, &size);
+    size = protobuf_payload(self);
+    
     if ((ret = __scheduler_list_target(scheduler, buf, size, &type)) == AAOS_OK) {
         option = type;
         length = (uint32_t) strlen(buf) + 1;
@@ -1884,13 +1888,13 @@ static int
 Scheduler_execute_add_target(struct Scheduler *self)
 {   
     uint16_t option;
-    uint32_t length;
+    //uint32_t length;
     char *buf;
     unsigned int type;
-    size_t size;
+    //size_t size;
     int ret = AAOS_OK;
 
-    protobuf_get(self, PACKET_BUF, &buf, &size);
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
     protobuf_get(self, PACKET_OPTION, &option);
     type = option;
 

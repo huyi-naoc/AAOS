@@ -3276,7 +3276,7 @@ sysu80_virtual_table_initialize(void)
 }
 
 static const void *
-sysu80_mount_virtual_table(void)
+sysu80_virtual_table(void)
 {
 #ifndef _USE_COMPILER_ATTRIBUTION_
     static pthread_once_t once_control = PTHREAD_ONCE_INIT;

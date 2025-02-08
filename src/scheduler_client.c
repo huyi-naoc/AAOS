@@ -24,36 +24,36 @@ static const char *help_string = "\
 Usage:  scheduler [-s|--scheduler] <address:[port]> COMMAND [COMMAND PARAMETERS]\n\
         scheduler [-h|--help]\n\
         -h, --help        print help doc and exit\n\
-        -s, --scheduler   address of schedulerd\n\\n\
+        -s, --scheduler   address of schedulerd\n\n\
 Commands:\n\
-  get_task_by_telescope_id      ID\n\
-  get_task_by_telescope_name    NAME\n\
-  list_site\n\
-  add_site                      INFO (in JSON format)\n\
-  delete_site_by_id ID\n\
-  delete_site_by_name           NAME\n\
-  mask_site_by_id               ID\n\
-  mask_site_by_name             NAME\n\
-  unmask_site_by_id             ID\n\
-  unmask_site_by_name           NAME\n\
-  list_telescope\n\
-  add_telescope                 INFO (in JSON format)\n\
-  delete_telescope_by_id        ID\n\
-  delete_telescope_by_name      NAME\n\
-  mask_telescope_by_id          ID\n\
-  mask_telescope_by_name        NAME\n\
-  unmask_telescope_by_id        ID\n\
-  unmask_telescope_by_name      NAME\n\
-  list_target\n\
-  add_target                    INFO (in JSON format)\n\
-  delete_target_by_id           ID NSIDE\n\
-  delete_target_by_name         NAME\n\
-  mask_target_by_id             ID NSIDE\n\
-  mask_target_by_name           NAME\n\
-  unmask_target_by_id           ID NSIDE\n\
-  unmask_target_by_name         NAME\n\
-  add_task_record               INFO (in JSON format)\n\
-  update_task_record            INFO (in JSON format)\n\
+    get_task_by_telescope_id      ID\n\
+    get_task_by_telescope_name    NAME\n\
+    list_site\n\
+    add_site                      INFO (in JSON format)\n\
+    delete_site_by_id ID\n\
+    delete_site_by_name           NAME\n\
+    mask_site_by_id               ID\n\
+    mask_site_by_name             NAME\n\
+    unmask_site_by_id             ID\n\
+    unmask_site_by_name           NAME\n\
+    list_telescope\n\
+    add_telescope                 INFO (in JSON format)\n\
+    delete_telescope_by_id        ID\n\
+    delete_telescope_by_name      NAME\n\
+    mask_telescope_by_id          ID\n\
+    mask_telescope_by_name        NAME\n\
+    unmask_telescope_by_id        ID\n\
+    unmask_telescope_by_name      NAME\n\
+    list_target\n\
+    add_target                    INFO (in JSON format)\n\
+    delete_target_by_id           ID NSIDE\n\
+    delete_target_by_name         NAME\n\
+    mask_target_by_id             ID NSIDE\n\
+    mask_target_by_name           NAME\n\
+    unmask_target_by_id           ID NSIDE\n\
+    unmask_target_by_name         NAME\n\
+    add_task_record               INFO (in JSON format)\n\
+    update_task_record            INFO (in JSON format)\n\
 ";
 
 static void
