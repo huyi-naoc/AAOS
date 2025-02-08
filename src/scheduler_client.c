@@ -26,32 +26,34 @@ Usage:  scheduler [-s|--scheduler] <address:[port]> COMMAND [COMMAND PARAMETERS]
         -h, --help        print help doc and exit\n\
         -s, --scheduler   address of schedulerd\n\\n\
 Commands:\n\
-  get_task_by_telescope_id     ID\n\
-  get_task_by_telescope_name   NAME\n\
+  get_task_by_telescope_id      ID\n\
+  get_task_by_telescope_name    NAME\n\
   list_site\n\
-  add_site                     INFO (in JSON format)\n\
+  add_site                      INFO (in JSON format)\n\
   delete_site_by_id ID\n\
-  delete_site_by_name          NAME\n\
-  mask_site_by_id              ID\n\
-  mask_site_by_name            NAME\n\
-  unmask_site_by_id            ID\n\
-  unmask_site_by_name          NAME\n\
+  delete_site_by_name           NAME\n\
+  mask_site_by_id               ID\n\
+  mask_site_by_name             NAME\n\
+  unmask_site_by_id             ID\n\
+  unmask_site_by_name           NAME\n\
   list_telescope\n\
-  add_telescope                INFO (in JSON format)\n\
-  delete_telescope_by_id       ID\n\
-  delete_telescope_by_name     NAME\n\
-  mask_telescope_by_id         ID\n\
-  mask_telescope_by_name       NAME\n\
-  unmask_telescope_by_id       ID\n\
-  unmask_telescope_by_name     NAME\n\
+  add_telescope                 INFO (in JSON format)\n\
+  delete_telescope_by_id        ID\n\
+  delete_telescope_by_name      NAME\n\
+  mask_telescope_by_id          ID\n\
+  mask_telescope_by_name        NAME\n\
+  unmask_telescope_by_id        ID\n\
+  unmask_telescope_by_name      NAME\n\
   list_target\n\
-  add_target                   INFO (in JSON format)\n\
-  delete_target_by_id          ID NSIDE\n\
-  delete_target_by_name        NAME\n\
-  mask_target_by_id            ID NSIDE\n\
-  mask_target_by_name          NAME\n\
-  unmask_target_by_id          ID NSIDE\n\
-  unmask_target_by_name        NAME\n\
+  add_target                    INFO (in JSON format)\n\
+  delete_target_by_id           ID NSIDE\n\
+  delete_target_by_name         NAME\n\
+  mask_target_by_id             ID NSIDE\n\
+  mask_target_by_name           NAME\n\
+  unmask_target_by_id           ID NSIDE\n\
+  unmask_target_by_name         NAME\n\
+  add_task_record               INFO (in JSON format)\n\
+  update_task_record            INFO (in JSON format)\n\
 ";
 
 static void
@@ -556,20 +558,20 @@ main(int argc, char *argv[])
             argv += 2;
             continue; 
         }
-        if (strcmp("add_task_record", argv[0]) == 0) {
+        if (strcmp("update_task_record", argv[0]) == 0) {
             if (argc < 3) {
-                fprintf(stderr, "`add_task_record` needs two arguments.\n");
+                fprintf(stderr, "`update_task_record` needs two arguments.\n");
                 exit(EXIT_FAILURE);
             }
             task_id = strtoull(argv[1], NULL, 0);
             if ((ret = scheduler_update_task_record(scheduler, task_id, argv[2], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
-                fprintf(stderr, "`add_task_record` successed.\n");
+                fprintf(stderr, "`update_task_record` successed.\n");
             } else {
-                fprintf(stderr, "`add_task_record` failed.\n");
+                fprintf(stderr, "`update_task_record` failed.\n");
             }
-            argc -= 3;
-            argv += 3;
-            continue; 
+            argc -= 2;
+            argv += 2;
+            continue;
         }
         argc--;
         argv++;

@@ -13,6 +13,7 @@
 #include "telescope.h"
 #include "virtual.h"
 #include "wrapper.h"
+#include <cjson/cJSON.h>
 
 /*
  * TelescopeVirtualTable class.
@@ -2741,10 +2742,313 @@ struct SYSU80Protocol {
 };
 
 static int
+SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size, void *results, size_t results_size, size_t *return_size)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    struct SYSU80Protocol proto;
+    FILE *fp;
+    uint32_t command;
+    int ret;
+    struct timespec tp;
+    int cfd;
+    ssize_t nread, nwrite;
+    
+    memset(&proto, '\0', sizeof(struct SYSU80Protocol));
+    proto.field1 = 0xFCFCFCFC;
+    proto.field4 = 0x06010000;
+    fp = fmemopen((void *) raw_command, size, "r");
+    fscanf(fp, "%x", &command);
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    proto.field2 = (uint64_t) tp.tv_sec;
+    switch (command) {
+        case 0x00010000: /* slew */
+        {
+            double ra, dec;
+            unsigned char *s = proto.parameter;
+            if ((ret = fscanf(fp, "%lf %lf", &ra, &dec)) < 2) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            if (ra < 0. || ra >= 360. || dec > 90. || dec < -90.) {
+                fclose(fp);
+                return AAOS_EINVAL;
+            }
+            proto.field3 = sizeof(uint32_t) + 2 * sizeof(double);
+            memcpy(s, &ra, sizeof(double));
+            s += sizeof(double);
+            memcpy(s, &dec, sizeof(double));
+            proto.command = command;
+        }
+            break;
+        case 0x00000000: /* status */
+        case 0x00010001: /* park */
+            proto.field3 = sizeof(uint32_t);
+            proto.command = command;
+            break;
+        case 0x00020000: /* de-rotation ability */
+        {
+            unsigned char *s = proto.parameter;
+            uint16_t id; /* 0:J, 1:K */
+            uint8_t op;  /* 0:disbale, 1:enable */
+            if ((ret = fscanf(fp, "%hu %hhu", &id, &op)) < 2) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint8_t);
+            memcpy(s, &id, sizeof(uint16_t));
+            s += sizeof(uint16_t);
+            memcpy(s, &op, sizeof(uint8_t));
+            proto.command = command;
+        }
+            break;
+        case 0x00020001: /* derotator bias */
+        {
+            unsigned char *s = proto.parameter;
+            uint16_t id; /* 0:J, 1:K */
+            float offset;
+            if ((ret = fscanf(fp, "%hu %f", &id, &offset)) < 2) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t) + sizeof(float);
+            memcpy(s, &id, sizeof(uint16_t));
+            s += sizeof(uint16_t);
+            memcpy(s, &offset, sizeof(float));
+            proto.command = command;
+        }
+            break;
+        case 0x00030000: /* adjust focus */
+        {
+            unsigned char *s = proto.parameter;
+            uint16_t rel; /* 0:relative, 1:absolute */
+            float length;
+            if ((ret = fscanf(fp, "%hu %f", &rel, &length)) < 2) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t) + sizeof(float);
+            memcpy(s, &rel, sizeof(uint16_t));
+            s += sizeof(uint16_t);
+            memcpy(s, &length, sizeof(float));
+            proto.command = command;
+        }
+            break;
+        case 0x00030001: /* open mirror lid */
+        {
+            unsigned char *s = proto.parameter;
+            uint16_t op; /* 0:close, 1:open */
+            
+            if ((ret = fscanf(fp, "%hu", &op)) < 1) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t);
+            memcpy(s, &op, sizeof(uint16_t));
+            proto.command = command;
+        }
+            break;
+        default:
+            fclose(fp);
+            return AAOS_EBADCMD;
+            break;
+    }
+    fclose(fp);
+    
+    if ((cfd = Tcp_connect(self->address, self->port, NULL, NULL)) < 0) {
+        switch (errno) {
+            case ENETDOWN:
+                return AAOS_ENETDOWN;
+                break;
+            case ENETUNREACH:
+                return AAOS_ENETUNREACH;
+                break;
+            default:
+                return AAOS_ERROR;
+                break;
+        }
+    }
+    
+    if ((nwrite = Writen(cfd, &proto, sizeof(struct SYSU80Protocol))) < 0) {
+        Close(cfd);
+        if (write_size) {
+            *write_size = 0;
+        }
+        switch (errno) {
+            case ENETDOWN:
+                return AAOS_ENETDOWN;
+                break;
+            case ENETUNREACH:
+                return AAOS_ENETUNREACH;
+                break;
+            default:
+                return AAOS_ERROR;
+                break;
+        }
+    }
+    
+    if (command != 0x00000000) {
+        if ((nread = Readn(cfd, &proto, sizeof(struct SYSU80Protocol))) < 0) {
+            close(cfd);
+            if (return_size) {
+                *return_size = 0;
+            }
+            switch (errno) {
+                case ENETDOWN:
+                    return AAOS_ENETDOWN;
+                    break;
+                case ENETUNREACH:
+                    return AAOS_ENETUNREACH;
+                    break;
+                default:
+                    return AAOS_ERROR;
+                    break;
+            }
+        } else {
+            if (return_size) {
+                *return_size = min(results_size, sizeof(proto.parameter));
+            }
+            memcpy(results, proto.parameter, min(results_size, sizeof(proto.parameter)));
+        }
+    } else {
+        unsigned char buf[256];
+        if ((nread = Readn(cfd, buf, 256)) < 0) {
+            Close(cfd);
+            if (return_size) {
+                *return_size = 0;
+            }
+            switch (errno) {
+                case ENETDOWN:
+                    return AAOS_ENETDOWN;
+                    break;
+                case ENETUNREACH:
+                    return AAOS_ENETUNREACH;
+                    break;
+                default:
+                    return AAOS_ERROR;
+                    break;
+            }
+        } else {
+            memcpy(results, buf + 32, min(224, results_size));
+            if (return_size) {
+                *return_size = min(224, results_size);
+            }
+            
+        }
+    }
+    
+    Close(cfd);
+    return AAOS_OK;
+}
+
+static int
 SYSU80_status(void *_self, char *status_buffer, size_t status_buffer_size)
 {
     struct SYSU80 *self = cast(SYSU80(), _self);
-   
+    
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    int ret;
+    
+    snprintf(command, COMMANDSIZE, "0x00000000");
+    
+    if ((ret = SYSU80_raw(self, command, 0, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+    
+    cJSON *root_json, *servo_json, *j_derotator_json, *k_derotator_json, *focus_json, *lid_json;
+    root_json = cJSON_CreateObject();
+    uint8_t state, status, moving;
+    double az, alt, az_err, alt_err, pos, pos_err, bias;
+    
+    char *s = buf, *json_string;
+    servo_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(root_json, "servo", servo_json);
+    state = *s;
+    cJSON_AddNumberToObject(servo_json, "state", state);
+    s += 1;
+    status = *s;
+    cJSON_AddNumberToObject(servo_json, "status", status);
+    s += 1;
+    memcpy(&az, s, sizeof(double));
+    cJSON_AddNumberToObject(servo_json, "az_tel", az);
+    s += sizeof(double);
+    memcpy(&alt, s, sizeof(double));
+    cJSON_AddNumberToObject(servo_json, "alt_tel", alt);
+    s += sizeof(double);
+    memcpy(&az_err, s, sizeof(double));
+    cJSON_AddNumberToObject(servo_json, "az_err", az_err);
+    s += sizeof(double);
+    memcpy(&alt_err, s, sizeof(double));
+    cJSON_AddNumberToObject(servo_json, "alt_tel", alt_err);
+    s += sizeof(double) + 14;
+    
+    j_derotator_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(root_json, "J/derotator", j_derotator_json);
+    state = *s;
+    cJSON_AddNumberToObject(j_derotator_json, "state", state);
+    s += 1;
+    status = *s;
+    cJSON_AddNumberToObject(j_derotator_json, "status", status);
+    s += 1;
+    memcpy(&pos, s, sizeof(double));
+    cJSON_AddNumberToObject(j_derotator_json, "position", pos);
+    s += sizeof(double);
+    memcpy(&pos_err, s, sizeof(double));
+    cJSON_AddNumberToObject(j_derotator_json, "error", pos_err);
+    s += sizeof(double);
+    memcpy(&bias, s, sizeof(double));
+    cJSON_AddNumberToObject(j_derotator_json, "bias", pos_err);
+    s += sizeof(double) + 22;
+    
+    k_derotator_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(root_json, "K/derotator", k_derotator_json);
+    state = *s;
+    cJSON_AddNumberToObject(k_derotator_json, "state", state);
+    s += 1;
+    status = *s;
+    cJSON_AddNumberToObject(k_derotator_json, "status", status);
+    s += 1;
+    memcpy(&pos, s, sizeof(double));
+    cJSON_AddNumberToObject(k_derotator_json, "position", pos);
+    s += sizeof(double);
+    memcpy(&pos_err, s, sizeof(double));
+    cJSON_AddNumberToObject(k_derotator_json, "error", pos_err);
+    s += sizeof(double);
+    memcpy(&bias, s, sizeof(double));
+    cJSON_AddNumberToObject(k_derotator_json, "bias", pos_err);
+    s += sizeof(double) + 22;
+    
+    focus_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(root_json, "focus", focus_json);
+    state = *s;
+    cJSON_AddNumberToObject(focus_json, "state", state);
+    s += 1;
+    status = *s;
+    cJSON_AddNumberToObject(focus_json, "status", status);
+    s += 1;
+    memcpy(&pos, s, sizeof(double));
+    cJSON_AddNumberToObject(focus_json, "position", pos);
+    s += sizeof(double);
+    memcpy(&pos_err, s, sizeof(double));
+    cJSON_AddNumberToObject(focus_json, "error", pos_err);
+    s += sizeof(double) + 14;
+    
+    lid_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(root_json, "lid", lid_json);
+    state = *s;
+    cJSON_AddNumberToObject(lid_json, "state", state);
+    s += 1;
+    status = *s;
+    cJSON_AddNumberToObject(lid_json, "status", status);
+    s += 1;
+    moving = *s;
+    cJSON_AddNumberToObject(lid_json, "moving", moving);
+    
+    json_string = cJSON_Print(root_json);
+    snprintf(status_buffer, status_buffer_size, "%s", json_string);
+    
+    free(json_string);
+    cJSON_Delete(root_json);
     
     return AAOS_OK;
 }
@@ -2754,37 +3058,28 @@ SYSU80_slew(void *_self, double ra, double dec)
 {
     struct SYSU80 *self = cast(SYSU80(), _self);
     
-    struct SYSU80Protocol prot;
-    struct timespec tp;
-    unsigned char *s;
-    int cfd;
-    ssize_t nread, nwrite;
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    int ret;
+    unsigned int state, flag;
     
-    memset(&prot, '\0', sizeof(struct SYSU80Protocol));
-    prot.field1 = 0xFCFCFCFC;
-    Clock_gettime(CLOCK_REALTIME, &tp);
-    prot.field2 = tp.tv_sec;
-    prot.field3 = sizeof(uint32_t) + 2 * sizeof(double);
-    prot.field4 = 0x06010000;
-    prot.command = 0x00010000;
-    s = prot.parameter;
-    memcpy(s, &ra, sizeof(double));
-    s += sizeof(double);
-    memcpy(s, &dec, sizeof(double));
-    
-    if ((cfd = Tcp_connect(self->address, self->port, NULL, NULL)) < 0) {
-        return AAOS_ENETDOWN;
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
     }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
     
-    if ((nwrite = Writen(cfd, &prot, sizeof(struct SYSU80Protocol))) < 0) {
-        return AAOS_ENETDOWN;
-    }
+    snprintf(command, COMMANDSIZE, "0x00010000 %lf %lf", ra, dec);
     
-    if ((nwrite = Readn(cfd, &prot, sizeof(struct SYSU80Protocol))) < 0) {
-        return AAOS_ENETDOWN;
-    }
+    ret = SYSU80_raw(self, command, 0, NULL, buf, BUFSIZE, NULL);
     
-    return AAOS_OK;
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return ret;
 }
 
 static int
@@ -2792,9 +3087,32 @@ SYSU80_park(void *_self)
 {
     struct SYSU80 *self = cast(SYSU80(), _self);
     
-    return AAOS_OK;
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    int ret;
+    unsigned int state, flag;
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    snprintf(command, COMMANDSIZE, "0x00010001");
+    ret = SYSU80_raw(self, command, 0, NULL, buf, BUFSIZE, NULL);
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = TELESCOPE_STATE_PARKED | flag;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return ret;
 }
 
+/*
+ * No park off function, do nothing.
+ */
 static int
 SYSU80_park_off(void *_self)
 {
@@ -2806,27 +3124,25 @@ SYSU80_park_off(void *_self)
 static int
 SYSU80_go_home(void *_self)
 {
+    
     return AAOS_OK;
 }
 
 static int
 SYSU80_switch_instrument(void *_self, const char *name)
 {
-    
-    return AAOS_OK;
+    return AAOS_ENOTSUP;
 }
 
 static int
 SYSU80_init(void *_self)
 {
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
     return AAOS_OK;
 }
 
-static int
-SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size, void *results, size_t results_size, size_t *return_size)
-{
-    return AAOS_OK;
-}
+
 
 static const void *sysu80_virtual_table(void);
 
@@ -2835,8 +3151,13 @@ SYSU80_ctor(void *_self, va_list *app)
 {
     struct SYSU80 *self = super_ctor(SYSU80(), _self, app);
     
-        
- 
+    const char *s;
+    s = va_arg(*app, const char *);
+    self->address = (char *) Malloc(strlen(s) + 1);
+    snprintf(self->address, strlen(s) + 1, "%s", s);
+    s = va_arg(*app, const char *);
+    self->port = (char *) Malloc(strlen(s) + 1);
+    snprintf(self->port, strlen(s) + 1, "%s", s);
     
     self->_._vtab = sysu80_virtual_table();
     
@@ -2849,13 +3170,16 @@ SYSU80_dtor(void *_self)
 {
     struct SYSU80 *self = cast(SYSU80(), _self);
     
+    free(self->address);
+    free(self->port);
+    
     return super_dtor(SYSU80(), _self);
 }
 
 static void *
 SYSU80Class_ctor(void *_self, va_list *app)
 {
-    struct APMountClass *self = super_ctor(APMountClass(), _self, app);
+    struct SYSU80Class *self = super_ctor(SYSU80Class(), _self, app);
     
     self->_.raw.method = (Method) 0;
     self->_.inspect.method = (Method) 0;

@@ -173,6 +173,10 @@ struct SYSU80 {
     struct __Telescope _;
     char *address; /* Windows server IP */
     char *port; /* Windows server port, default is 51042 */
+    char **instruments;
+    size_t n_instrument;
+    size_t default_instrument;
+    size_t current_instrument;
 };
 
 struct SYSU80Class {
