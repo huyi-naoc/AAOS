@@ -54,8 +54,10 @@ int __scheduler_mask_target_by_name(void *_self, const char *name);
 int __scheduler_unmask_target_by_id(void *_self, uint64_t identifier, uint32_t nside);
 int __scheduler_unmask_target_by_name(void *_self, const char *name);
 
+
 int __scheduler_add_task_record(void *_self, int status, const char *info, unsigned int type);
 int __scheduler_update_task_record(void *_self, uint64_t identifier, const char *info);
+int __scheduler_update_task_status(void *_self, uint64_t identifier, int status);
 
 void __scheduler_set_member(void *self, const char *name, ...);
 

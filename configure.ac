@@ -20,10 +20,12 @@ AM_PROG_CC_C_O
 case ${host_os} in
     linux*)
         AC_DEFINE([LINUX], , [Linux operating system])
+        AC_CHECK_HEADERS([libudev.h mntent.h netinet/tcp.h sys/epoll.h sys/sendfile.h])
         AC_CHECK_LIB([udev], [main])
         ;;
     darwin*)
         AC_DEFINE([MACOSX], , [Macintosh operating system])
+        AC_CHECK_HEADERS([sys/event.h uuid/uuid.h])
         ;;
     *)
         ;;
@@ -41,7 +43,7 @@ AC_CHECK_LIB([chealpix], [main])
 
 LIBS="$LIBS -pthread"
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h pthread.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h sys/un.h syslog.h termios.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h pthread.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h sys/un.h syslog.h termios.h unistd.h   chealpix.h cjson/cJSON.h fitsio2.h libconfig.h])
 GOBJECT_INTROSPECTION_CHECK([1.40.0])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL

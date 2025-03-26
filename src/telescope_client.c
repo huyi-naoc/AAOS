@@ -37,10 +37,10 @@ error_handler(int e)
 {
     switch (e) {
         case AAOS_ETIMEDOUT:
-            fprintf(stderr, "Execution is timed out.\n");
+            fprintf(stderr, "Operation is timed out.\n");
             break;
         case AAOS_ECANCELED:
-            fprintf(stderr, "Execution is canceled by other command.\n");
+            fprintf(stderr, "Operation is canceled by other command.\n");
             break;
         case AAOS_EPWROFF:
             fprintf(stderr, "Telescope has been powered off.\n");
@@ -51,20 +51,57 @@ error_handler(int e)
         case AAOS_EINVAL:
             fprintf(stderr, "Input parameter is illegal.\n");
             break;
+        case AAOS_ENOTSUP:
+            fprintf(stderr, "Operation is NOT supported.\n");
+            break;
         default:
             fprintf(stderr, "Unknown error happened.\n");
             break;
     }
 }
 
+static const char *help_string = "\
+Usage:  telescope [options] COMMAND [PARAMETERS ... ]\n\
+        -f, --format      <format>, specify parameter format for slew command\n\
+                          supported formats are string and degree\n\
+                          default is string\n\
+        -h, --help        print help doc and exit\n\
+        -i, --index       <index>, specify telescope's index\n\
+        -n, --name        <name>, specify telescope's name\n\
+        -t, --telescope   <address:[port]> address (and port) of telescoped\n\
+        -u, --unit        <unit>, specify parameter unit for setting command\n\
+                          supported formats are nature, second, minute,\n\
+                          and degree, default is nature\n\n\
+Commands:\n\
+    power_on\n\
+    power_off\n\
+    init\n\
+    park\n\
+    park_off\n\
+    go_home\n\
+    stop\n\
+    status\n\
+    move        DRECTION DURATION\n\
+                DRECTION can be north, south, east, and west\n\
+                DURATION is in seconds\n\
+    try_move    DRECTION DURATION\n\
+    timed_move  DRECTION DURATION TIMEOUT\n\
+    slew        RA DEC\n\
+    try_slew    RA DEC\n\
+    timed_slew  RA DEC TIMEOUT\n\
+    set         NAME\n\
+                NAME can be move_speed, slew_speed, and track_rate\n\
+    get         NAME VALUE1 ... \n\
+                move_speed parameter has one value\n\
+                slew_speed and track_rate have two values\n\
+    focus       ABSOLUTE STEP\n\
+";
+
+
 static void
-usage()
+usage(void)
 {
-    fprintf(stderr, "Usage:\ttelescope [-h|--help][-v|--version]\n");
-    fprintf(stderr, "\t\t[-n|--name <name>] [-i|--index <index>]\n");
-    fprintf(stderr, "\t\t[-t|--telescope <`address`:`port`>]\n");
-    fprintf(stderr, "\t\t[-f|--format [string | degree]] (default: string)\n");
-    fprintf(stderr, "\t\t[-u|--unit [nature | second | minute | degree]] (default: nature)\n");
+    fprintf(stderr, "%s", help_string);
     exit(EXIT_FAILURE);
 }
 
@@ -103,6 +140,9 @@ main(int argc, char *argv[])
     
     unsigned int unit = SPEED_UNIT_NATURE;
     unsigned int format = COORDINATE_FORMAT_STRING;
+    
+    snprintf(address, ADDRSIZE, "localhost");
+    snprintf(port, PORTSIZE, "%s", TELESCOPE_RPC_PORT);
     
     while ((ch = getopt_long(argc, argv, "f:hi:n:t:Nu:", longopts, NULL)) != -1) {
         switch (ch) {
@@ -147,7 +187,7 @@ main(int argc, char *argv[])
                     }
                 } else {
                     snprintf(address, ADDRSIZE, "localhost");
-                    snprintf(port, PORTSIZE, "5001");
+                    snprintf(port, PORTSIZE, TELESCOPE_RPC_PORT);
                 }
                 break;
             case 'u':
@@ -209,30 +249,65 @@ main(int argc, char *argv[])
         while (fscanf(stdin, "%s", command) != EOF) {
             if (strcmp(command, "power_on") == 0) {
                 ret = telescope_power_on(telescope);
+                if (ret == AAOS_OK) {
+                    fprintf(stderr, "power_on success.\n");
+                } else {
+                    error_handler(ret);
+                }
                 continue;
             }
             if (strcmp(command, "power_off") == 0) {
                 ret = telescope_power_off(telescope);
+                if (ret == AAOS_OK) {
+                    fprintf(stderr, "power_off success.\n");
+                } else {
+                    error_handler(ret);
+                }
                 continue;
             }
             if (strcmp(command, "init") == 0) {
                 ret = telescope_init(telescope);
+                if (ret == AAOS_OK) {
+                    fprintf(stderr, "init success.\n");
+                } else {
+                    error_handler(ret);
+                }
                 continue;
             }
             if (strcmp(command, "park") == 0) {
                 ret = telescope_park(telescope);
+                if (ret == AAOS_OK) {
+                    fprintf(stderr, "park success.\n");
+                } else {
+                    error_handler(ret);
+                }
                 continue;
             }
             if (strcmp(command, "park_off") == 0) {
                 ret = telescope_park_off(telescope);
+                if (ret == AAOS_OK) {
+                    fprintf(stderr, "power_off success.\n");
+                } else {
+                    error_handler(ret);
+                }
                 continue;
             }
             if (strcmp(command, "stop") == 0) {
                 ret = telescope_stop(telescope);
+                if (ret == AAOS_OK) {
+                    fprintf(stderr, "stop success.\n");
+                } else {
+                    error_handler(ret);
+                }
                 continue;
             }
             if (strcmp(command, "go_home") == 0) {
                 ret = telescope_go_home(telescope);
+                if (ret == AAOS_OK) {
+                    fprintf(stderr, "go_home success.\n");
+                } else {
+                    error_handler(ret);
+                }
                 continue;
             }
             if (strcmp(command, "move") == 0) {
@@ -256,6 +331,8 @@ main(int argc, char *argv[])
                 fscanf(stdin, "%lf", &duration);
                 if ((ret = telescope_move(telescope, direction, duration)) != AAOS_OK) {
                     error_handler(ret);
+                } else {
+                    fprintf(stderr, "move to %s duration %.4lf success.\n", buf, duration);
                 }
                 continue;
             }
@@ -280,6 +357,8 @@ main(int argc, char *argv[])
                 fscanf(stdin, "%lf", &duration);
                 if ((ret = telescope_try_move(telescope, direction, duration)) != AAOS_OK) {
                     error_handler(ret);
+                } else {
+                    fprintf(stderr, "try_move to %s duration %.4lf success.\n", buf, duration);
                 }
                 continue;
             }
@@ -304,6 +383,8 @@ main(int argc, char *argv[])
                 fscanf(stdin, "%lf %lf", &duration, &timeout);
                 if ((ret = telescope_timed_move(telescope, direction, duration, timeout)) != AAOS_OK) {
                     error_handler(ret);
+                } else {
+                    fprintf(stderr, "timed_move to %s duration %.4lf success.\n", buf, duration);
                 }
                 continue;
             }
@@ -319,6 +400,8 @@ main(int argc, char *argv[])
                 }
                 if ((ret = telescope_slew(telescope, ra, dec)) != AAOS_OK) {
                     error_handler(ret);
+                } else {
+                    fprintf(stderr, "slew to %.6lf %.6lf success.\n", ra, dec);
                 }
                 continue;
             }
@@ -334,6 +417,8 @@ main(int argc, char *argv[])
                 }
                 if ((ret = telescope_try_slew(telescope, ra, dec)) != AAOS_OK) {
                     error_handler(ret);
+                } else {
+                    fprintf(stderr, "try_slew to %.6lf %.6lf success.\n", ra, dec);
                 }
                 continue;
             }
@@ -349,6 +434,8 @@ main(int argc, char *argv[])
                 }
                 if ((ret = telescope_timed_slew(telescope, ra, dec, timeout)) != AAOS_OK) {
                     error_handler(ret);
+                } else {
+                    fprintf(stderr, "timed_slew to %.6lf %.6lf success.\n", ra, dec);
                 }
                 continue;
             }
@@ -468,24 +555,44 @@ main(int argc, char *argv[])
     while (argc > 0) {
         if (strcmp(argv[0], "power_on") == 0) {
             ret = telescope_power_on(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "power_on success.\n");
+            } else {
+                error_handler(ret);
+            }
             argc--;
             argv++;
             continue;
         }
         if (strcmp(argv[0], "power_off") == 0) {
             ret = telescope_power_off(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "power_off success.\n");
+            } else {
+                error_handler(ret);
+            }
             argc--;
             argv++;
             continue;
         }
         if (strcmp(argv[0], "init") == 0) {
             ret = telescope_init(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "init success.\n");
+            } else {
+                error_handler(ret);
+            }
             argc--;
             argv++;
             continue;
         }
         if (strcmp(argv[0], "park") == 0) {
             ret = telescope_park(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "park success.\n");
+            } else {
+                error_handler(ret);
+            }
             argc--;
             argv++;
             continue;
@@ -493,18 +600,33 @@ main(int argc, char *argv[])
         
         if (strcmp(argv[0], "park_off") == 0) {
             ret = telescope_park_off(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "park_off success.\n");
+            } else {
+                error_handler(ret);
+            }
             argc--;
             argv++;
             continue;
         }
         if (strcmp(argv[0], "stop") == 0) {
             ret = telescope_stop(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "stop success.\n");
+            } else {
+                error_handler(ret);
+            }
             argc--;
             argv++;
             continue;
         }
         if (strcmp(argv[0], "go_home") == 0) {
             ret = telescope_go_home(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "go_home success.\n");
+            } else {
+                error_handler(ret);
+            }
             argc--;
             argv++;
             continue;
@@ -655,6 +777,8 @@ main(int argc, char *argv[])
             }
             if ((ret = telescope_slew(telescope, ra, dec)) != AAOS_OK) {
                 error_handler(ret);
+            } else {
+                fprintf(stderr, "slew to %s %s completed.\n", argv[1], argv[2]);
             }
             argc -= 3;
             argv += 3;
@@ -676,6 +800,8 @@ main(int argc, char *argv[])
             }
             if ((ret = telescope_slew(telescope, ra, dec)) != AAOS_OK) {
                 error_handler(ret);
+            } else {
+                fprintf(stderr, "try_slew to %s %s completed.\n", argv[1], argv[2]);
             }
             argc -= 3;
             argv += 3;
@@ -698,6 +824,8 @@ main(int argc, char *argv[])
             timeout = atof(argv[3]);
             if ((ret = telescope_timed_slew(telescope, ra, dec, timeout)) != AAOS_OK) {
                 error_handler(ret);
+            } else {
+                fprintf(stderr, "timed_slew to %s %s completed.\n", argv[1], argv[2]);
             }
             argc -= 4;
             argv += 4;
@@ -792,11 +920,14 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             char buf[BUFSIZE];
+            memset(buf, '\0', BUFSIZE);
             ret = telescope_raw(telescope, argv[1], strlen(argv[1]), buf, BUFSIZE, NULL);
             if (ret == AAOS_OK) {
                 printf("%s\n", buf);
+            } else if (ret == AAOS_EBADCMD) {
+                fprintf(stderr, "Wrong command: `%s`.\n", argv[1]);
             } else {
-                printf("wrong command.\n");
+                error_handler(ret);
             }
             argc -= 2;
             argv += 2;
@@ -807,9 +938,31 @@ main(int argc, char *argv[])
             ret = telescope_status(telescope, buf, BUFSIZE, NULL);
             if (ret == AAOS_OK) {
                 printf("%s\n", buf);
+            } else {
+                error_handler(ret);
             }
             argc-- ;
             argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "focus") == 0) {
+            if (argc < 3) {
+                fprintf(stderr, "Too few parameters for \"focus\" command.\n");
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+            }
+            unsigned int absolute;
+            double step;
+            absolute = atoi(argv[1]);
+            step = atof(argv[2]);
+            ret = telescope_focus(telescope, absolute, step);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "focus complete.\n");
+            } else {
+                fprintf(stderr, "focus failed.\n");
+            }
+            argc -= 3;
+            argv += 3;
             continue;
         }
         fprintf(stderr, "Unknown command `%s`.\n", argv[0]);

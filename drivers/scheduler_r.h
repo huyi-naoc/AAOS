@@ -102,6 +102,7 @@ struct __SchedulerClass {
 
     struct Method add_task_record;
     struct Method update_task_record;
+    struct Method update_task_status;
 
     struct Method register_thread;
 

@@ -48,6 +48,7 @@ struct TelescopeClass {
     struct Method switch_filter;
     struct Method switch_instrument;
     struct Method switch_detector;
+    struct Method focus;
     
     struct Method inspect;
     struct Method reg;

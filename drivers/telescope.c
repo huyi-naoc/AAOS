@@ -236,6 +236,14 @@ __TelescopeVirtualTable_ctor(void *_self, va_list *app)
             self->switch_filter.method = method;
             continue;
         }
+        if (selector == (Method) __telescope_focus) {
+            if (tag) {
+                self->focus.tag = tag;
+                self->focus.selector = selector;
+            }
+            self->focus.method = method;
+            continue;
+        }
     }
     
     return _self;
@@ -482,7 +490,8 @@ __telescope_power_on(void *_self)
 }
 
 static int
-__Telescope_power_on(void *_self) {
+__Telescope_power_on(void *_self)
+{
     return AAOS_ENOTSUP;
 }
 
@@ -558,7 +567,28 @@ __telescope_switch_detector(void *_self, const char *name)
 }
 
 static int
-__Telescope_switch_detector(void *_self) {
+__Telescope_switch_detector(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_focus(void *_self, unsigned int absolute, double step)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->focus.method) {
+        return ((int (*)(void *, unsigned int, double)) class->switch_detector.method)(_self, absolute, step);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_focus, "focus", _self, absolute, step);
+        return result;
+    }
+}
+
+static int
+__Telescope_focus(void *_self, unsigned int absolute, double step)
+{
     return AAOS_ENOTSUP;
 }
 
@@ -945,6 +975,10 @@ __Telescope_forward(const void *_self, void *result, Method selector, const char
     } else if (selector == (Method) __telescope_wait) {
         double timeout = va_arg(*app, double);
         *((int *) result) = ((int (*)(void *, double)) method)(obj, timeout);
+    } else if (selector == (Method) __telescope_focus) {
+        unsigned int absolute = va_arg(*app, unsigned int);
+        double step = va_arg(*app, double);
+        *((int *) result) = ((int (*)(void *, unsigned int, double)) method)(obj, absolute, step);
     } else {
         assert(0);
     }
@@ -1051,6 +1085,12 @@ __Telescope_ctor(void *_self, va_list *app)
             double value;
             value = va_arg(*app, double);
             self->location_lat = value;
+            continue;
+        }
+        if (strcmp(name, "elevation") == 0) {
+            double value;
+            value = va_arg(*app, double);
+            self->location_ele = value;
             continue;
         }
         if (strcmp(name, "gmt_offset") == 0) {
@@ -1305,6 +1345,14 @@ __TelescopeClass_ctor(void *_self, va_list *app)
             self->wait.method = method;
             continue;
         }
+        if (selector == (Method) __telescope_focus) {
+            if (tag) {
+                self->focus.tag = tag;
+                self->focus.selector = selector;
+            }
+            self->focus.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -1367,11 +1415,14 @@ __Telescope_initialize(void)
                        __telescope_get_name, "get_name", __Telescope_get_name,
                        __telescope_set_option, "set_option", __Telescope_set_option,
                        __telescope_raw, "raw", __Telescope_raw,
+                       __telescope_power_on, "power_on", __Telescope_power_on,
+                       __telescope_power_off, "power_off", __Telescope_power_off,
                        __telescope_inspect, "inspect", __Telescope_inspect,
                        __telescope_wait, "wait", __Telescope_wait,
                        __telescope_switch_instrument, "switch_instrument", __Telescope_switch_instrument,
                        __telescope_switch_filter, "switch_filter", __Telescope_switch_filter,
                        __telescope_switch_detector, "switch_detector", __Telescope_switch_detector,
+                       __telescope_focus, "focus", __Telescope_focus,
                        (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(__Telescope_destroy);
@@ -2731,6 +2782,10 @@ virtual_telescope_virtual_table(void)
  * Driver for Shuangyashan Daxue's 80cm telescope.
  */
 
+#define SYSU80_HEADER_SIZE 32
+#define SYSU80_STATUS_SIZE 256
+
+#pragma pack(2)
 struct SYSU80Protocol {
     uint32_t field1; /* frame header, 0xFCFCFCFC */
     uint64_t field2; /* unix time stamp */
@@ -2740,6 +2795,11 @@ struct SYSU80Protocol {
     uint32_t command;
     unsigned char parameter[64];
 };
+#pragma pack()
+
+/*
+ * Raw command 
+ */
 
 static int
 SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size, void *results, size_t results_size, size_t *return_size)
@@ -2774,7 +2834,7 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
                 fclose(fp);
                 return AAOS_EINVAL;
             }
-            proto.field3 = sizeof(uint32_t) + 2 * sizeof(double);
+            proto.field3 = sizeof(struct SYSU80Protocol);
             memcpy(s, &ra, sizeof(double));
             s += sizeof(double);
             memcpy(s, &dec, sizeof(double));
@@ -2783,7 +2843,7 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
             break;
         case 0x00000000: /* status */
         case 0x00010001: /* park */
-            proto.field3 = sizeof(uint32_t);
+            proto.field3 = sizeof(struct SYSU80Protocol);
             proto.command = command;
             break;
         case 0x00020000: /* de-rotation ability */
@@ -2795,7 +2855,7 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
                 fclose(fp);
                 return AAOS_EBADCMD;
             }
-            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint8_t);
+            proto.field3 = sizeof(struct SYSU80Protocol);
             memcpy(s, &id, sizeof(uint16_t));
             s += sizeof(uint16_t);
             memcpy(s, &op, sizeof(uint8_t));
@@ -2811,7 +2871,7 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
                 fclose(fp);
                 return AAOS_EBADCMD;
             }
-            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t) + sizeof(float);
+            proto.field3 = sizeof(struct SYSU80Protocol);
             memcpy(s, &id, sizeof(uint16_t));
             s += sizeof(uint16_t);
             memcpy(s, &offset, sizeof(float));
@@ -2822,15 +2882,15 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
         {
             unsigned char *s = proto.parameter;
             uint16_t rel; /* 0:relative, 1:absolute */
-            float length;
-            if ((ret = fscanf(fp, "%hu %f", &rel, &length)) < 2) {
+            double length;
+            if ((ret = fscanf(fp, "%hu %lf", &rel, &length)) < 2) {
                 fclose(fp);
                 return AAOS_EBADCMD;
             }
-            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t) + sizeof(float);
+            proto.field3 = sizeof(struct SYSU80Protocol);
             memcpy(s, &rel, sizeof(uint16_t));
             s += sizeof(uint16_t);
-            memcpy(s, &length, sizeof(float));
+            memcpy(s, &length, sizeof(double));
             proto.command = command;
         }
             break;
@@ -2843,7 +2903,7 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
                 fclose(fp);
                 return AAOS_EBADCMD;
             }
-            proto.field3 = sizeof(uint32_t) + sizeof(uint16_t);
+            proto.field3 = sizeof(struct SYSU80Protocol);
             memcpy(s, &op, sizeof(uint16_t));
             proto.command = command;
         }
@@ -2887,7 +2947,8 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
         }
     }
     
-    if (command != 0x00000000) {
+    if (command == 0x00000000) {
+        /*
         if ((nread = Readn(cfd, &proto, sizeof(struct SYSU80Protocol))) < 0) {
             close(cfd);
             if (return_size) {
@@ -2910,9 +2971,11 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
             }
             memcpy(results, proto.parameter, min(results_size, sizeof(proto.parameter)));
         }
+         
     } else {
-        unsigned char buf[256];
-        if ((nread = Readn(cfd, buf, 256)) < 0) {
+         */
+        unsigned char buf[SYSU80_STATUS_SIZE];
+        if ((nread = Readn(cfd, buf, SYSU80_STATUS_SIZE)) < 0) {
             Close(cfd);
             if (return_size) {
                 *return_size = 0;
@@ -2929,16 +2992,27 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
                     break;
             }
         } else {
-            memcpy(results, buf + 32, min(224, results_size));
+            memcpy(results, buf + SYSU80_HEADER_SIZE, min(SYSU80_STATUS_SIZE - SYSU80_HEADER_SIZE, results_size));
             if (return_size) {
-                *return_size = min(224, results_size);
+                *return_size = min(SYSU80_STATUS_SIZE - SYSU80_HEADER_SIZE, results_size);
             }
-            
         }
     }
     
     Close(cfd);
     return AAOS_OK;
+}
+
+static int
+SYSU80_status_raw(void *_self, char *status_buffer, size_t status_buffer_size)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    
+    snprintf(command, COMMANDSIZE, "0x00000000");
+    
+    return SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL);
 }
 
 static int
@@ -2951,7 +3025,7 @@ SYSU80_status(void *_self, char *status_buffer, size_t status_buffer_size)
     
     snprintf(command, COMMANDSIZE, "0x00000000");
     
-    if ((ret = SYSU80_raw(self, command, 0, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+    if ((ret = SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
         return ret;
     }
     
@@ -2979,7 +3053,7 @@ SYSU80_status(void *_self, char *status_buffer, size_t status_buffer_size)
     cJSON_AddNumberToObject(servo_json, "az_err", az_err);
     s += sizeof(double);
     memcpy(&alt_err, s, sizeof(double));
-    cJSON_AddNumberToObject(servo_json, "alt_tel", alt_err);
+    cJSON_AddNumberToObject(servo_json, "alt_err", alt_err);
     s += sizeof(double) + 14;
     
     j_derotator_json = cJSON_CreateObject();
@@ -3053,6 +3127,91 @@ SYSU80_status(void *_self, char *status_buffer, size_t status_buffer_size)
     return AAOS_OK;
 }
 
+#define MAX_POLLING_TIME 5
+#define POLLING_INTERVAL 5.0
+static bool
+sysu80_is_slewing(double az_err, double alt_err, double derotator_err)
+{
+    return (az_err < 0.000555 && alt_err < 0.000555 && derotator_err < 0.00555) ? false : true;
+}
+
+static int
+SYSU80_wait_slew(struct SYSU80 *self)
+{
+    char buf[BUFSIZE];
+    cJSON *root_json, *servo_json, *j_derotator_json, *k_derotator_json, *value_json;
+    size_t i, cnt = 0;
+    double az_err, alt_err, j_derotator_err, k_derotator_err, derotator_err;
+    int status, j_status, k_status, ret;
+    
+    for (i = 0; i < MAX_POLLING_TIME; i++) {
+        if ((ret = SYSU80_status(self, buf, BUFSIZE)) != AAOS_OK) {
+            return ret;
+        }
+        if ((root_json = cJSON_Parse(buf)) == NULL) {
+            return AAOS_EFMTNOTSUP;
+        }
+        /*
+         * Get parameters.
+         */
+        servo_json = cJSON_GetObjectItem(root_json, "servo");
+        value_json = cJSON_GetObjectItem(servo_json, "az_err");
+        az_err = value_json->valuedouble;
+        value_json = cJSON_GetObjectItem(servo_json, "alt_err");
+        alt_err = value_json->valuedouble;
+        value_json = cJSON_GetObjectItem(servo_json, "status");
+        status = value_json->valueint;
+        /*
+        if (status == 1) {
+            cJSON_Delete(root_json);
+            return AAOS_EDEVMAL;
+        }
+         */
+        
+        j_derotator_json = cJSON_GetObjectItem(root_json, "J/derotator");
+        value_json = cJSON_GetObjectItem(j_derotator_json, "error");
+        j_derotator_err = value_json->valuedouble;
+        value_json = cJSON_GetObjectItem(j_derotator_json, "status");
+        j_status = value_json->valueint;
+        
+        k_derotator_json = cJSON_GetObjectItem(root_json, "K/derotator");
+        value_json = cJSON_GetObjectItem(k_derotator_json, "error");
+        k_derotator_err = value_json->valuedouble;
+        value_json = cJSON_GetObjectItem(k_derotator_json, "status");
+        k_status = value_json->valueint;
+        
+        if (strcmp(self->instruments[self->current_instrument], "J") == 0) {
+            derotator_err = j_derotator_err;
+            status = j_status;
+        } else if (strcmp(self->instruments[self->current_instrument], "K") == 0) {
+            derotator_err = k_derotator_err;
+            status = k_status;
+        } else {
+            cJSON_Delete(root_json);
+            return AAOS_ENOTFOUND;
+        }
+        /*
+        if (status == 1) {
+            cJSON_Delete(root_json);
+            return AAOS_EDEVMAL;
+        }
+         */
+        
+        cJSON_Delete(root_json);
+        if (!sysu80_is_slewing(az_err, alt_err, derotator_err)) {
+            cnt++;
+            if (cnt == 2) {
+                return AAOS_OK;
+            }
+        } else {
+            cnt = 0;
+        }
+        Nanosleep(POLLING_INTERVAL);
+    }
+    
+    return AAOS_ETIMEDOUT;
+}
+
 static int
 SYSU80_slew(void *_self, double ra, double dec)
 {
@@ -3061,10 +3220,21 @@ SYSU80_slew(void *_self, double ra, double dec)
     char command[COMMANDSIZE], buf[BUFSIZE];
     int ret;
     unsigned int state, flag;
+    struct timespec tp;
+    double jd, alt, az, ha;
+    
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    jd = jd_tp(&tp);
+    radec2altaz(jd, ra, dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -100., -300., &alt, &az, &ha);
+    if (az < 10.) {
+        return AAOS_EINVAL;
+    }
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
     state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
     flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    self->_.ra_to = ra;
+    self->_.dec_to = dec;
     if (flag) {
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
@@ -3073,13 +3243,54 @@ SYSU80_slew(void *_self, double ra, double dec)
     
     snprintf(command, COMMANDSIZE, "0x00010000 %lf %lf", ra, dec);
     
-    ret = SYSU80_raw(self, command, 0, NULL, buf, BUFSIZE, NULL);
+    if ((ret = SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto end;
+    }
     
+    ret = SYSU80_wait_slew(self);
+
+end:
     Pthread_mutex_lock(&self->_.t_state.mtx);
-    self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
+    if (ret == AAOS_OK) {
+        self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
+    } else {
+        self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+    }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     
     return ret;
+}
+
+static int
+SYSU80_wait_park(struct SYSU80 *self)
+{
+    char buf[BUFSIZE], *s;
+    int ret;
+    unsigned int state, status;
+    
+    if ((ret = SYSU80_status_raw(self, buf, BUFSIZE)) < 0) {
+        return ret;
+    }
+    state = *(buf + 32);
+    status = *(buf + 33);
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (state == 0) {
+        return AAOS_OK;
+    }
+    Nanosleep(1.0);
+    if ((ret = SYSU80_status_raw(self, buf, BUFSIZE)) < 0) {
+        return ret;
+    }
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (state == 0) {
+        return AAOS_OK;
+    }
+    
+    return AAOS_ETIMEDOUT;
 }
 
 static int
@@ -3094,6 +3305,13 @@ SYSU80_park(void *_self)
     Pthread_mutex_lock(&self->_.t_state.mtx);
     state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
     flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (state == TELESCOPE_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EUNINIT;
+    } else if (state == TELESCOPE_STATE_POWERED_OFF) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EPWROFF;
+    }
     if (flag) {
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
@@ -3101,7 +3319,13 @@ SYSU80_park(void *_self)
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     
     snprintf(command, COMMANDSIZE, "0x00010001");
-    ret = SYSU80_raw(self, command, 0, NULL, buf, BUFSIZE, NULL);
+
+    if ((ret = SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+    if ((ret = SYSU80_wait_park(self)) != AAOS_OK) {
+        return ret;
+    }
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
     self->_.t_state.state = TELESCOPE_STATE_PARKED | flag;
@@ -3122,16 +3346,256 @@ SYSU80_park_off(void *_self)
 }
 
 static int
-SYSU80_go_home(void *_self)
-{
-    
-    return AAOS_OK;
-}
-
-static int
 SYSU80_switch_instrument(void *_self, const char *name)
 {
     return AAOS_ENOTSUP;
+}
+
+static int
+SYSU80_mirror_lid_wait_open(struct SYSU80 *self)
+{
+    char buf[BUFSIZE];
+    int ret;
+    cJSON *root_json, *lid_json, *value_json;
+    unsigned int moving, status;
+    
+    if ((ret = SYSU80_status(self, buf, BUFSIZE)) != AAOS_OK) {
+        return ret;
+    }
+
+    root_json = cJSON_Parse(buf);
+    lid_json = cJSON_GetObjectItemCaseSensitive(root_json, "lid");
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "status");
+    status = value_json->valueint;
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "moving");
+    moving = value_json->valueint;
+    cJSON_Delete(root_json);
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (moving == 2) {
+        return AAOS_OK;
+    }
+    
+    Nanosleep(30.0);
+    if ((ret = SYSU80_status(self, buf, BUFSIZE)) != AAOS_OK) {
+        return ret;
+    }
+    root_json = cJSON_Parse(buf);
+    lid_json = cJSON_GetObjectItemCaseSensitive(root_json, "lid");
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "status");
+    status = value_json->valueint;
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "moving");
+    moving = value_json->valueint;
+    cJSON_Delete(root_json);
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (moving == 2) {
+        return AAOS_OK;
+    }
+    
+    Nanosleep(5.0);
+    if ((ret = SYSU80_status(self, buf, BUFSIZE)) != AAOS_OK) {
+        return ret;
+    }
+    root_json = cJSON_Parse(buf);
+    lid_json = cJSON_GetObjectItemCaseSensitive(root_json, "lid");
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "status");
+    status = value_json->valueint;
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "moving");
+    moving = value_json->valueint;
+    cJSON_Delete(root_json);
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (moving == 2) {
+        return AAOS_OK;
+    }
+
+    return AAOS_ETIMEDOUT;
+}
+
+static int
+SYSU80_mirror_lid_wait_close(struct SYSU80 *self)
+{
+    char buf[BUFSIZE];
+    int ret;
+    cJSON *root_json, *lid_json, *value_json;
+    unsigned int moving, status;
+    
+    if ((ret = SYSU80_status(self, buf, BUFSIZE)) != AAOS_OK) {
+        return ret;
+    }
+    root_json = cJSON_Parse(buf);
+    lid_json = cJSON_GetObjectItemCaseSensitive(root_json, "lid");
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "status");
+    status = value_json->valueint;
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "moving");
+    moving = value_json->valueint;
+    cJSON_Delete(root_json);
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (moving == 0) {
+        return AAOS_OK;
+    }
+    
+    Nanosleep(30.0);
+    if ((ret = SYSU80_status(self, buf, BUFSIZE)) != AAOS_OK) {
+        return ret;
+    }
+    root_json = cJSON_Parse(buf);
+    lid_json = cJSON_GetObjectItemCaseSensitive(root_json, "lid");
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "status");
+    status = value_json->valueint;
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "moving");
+    moving = value_json->valueint;
+    cJSON_Delete(root_json);
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (moving == 0) {
+        return AAOS_OK;
+    }
+    
+    Nanosleep(5.0);
+    if ((ret = SYSU80_status(self, buf, BUFSIZE)) != AAOS_OK) {
+        return ret;
+    }
+    root_json = cJSON_Parse(buf);
+    lid_json = cJSON_GetObjectItemCaseSensitive(root_json, "lid");
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "status");
+    status = value_json->valueint;
+    value_json = cJSON_GetObjectItemCaseSensitive(lid_json, "moving");
+    moving = value_json->valueint;
+    cJSON_Delete(root_json);
+    if (status == 1) {
+        return AAOS_EDEVMAL;
+    }
+    if (moving == 0) {
+        return AAOS_OK;
+    }
+
+    return AAOS_ETIMEDOUT;
+}
+
+static int
+SYSU80_mirror_lid(void *_self, unsigned int op)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    int ret;
+    
+    snprintf(command, COMMANDSIZE, "0x00030001 %u", op);
+    
+    if ((ret = SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+    
+    if (op == 1) {
+        return SYSU80_mirror_lid_wait_open(self);
+    } else {
+        return SYSU80_mirror_lid_wait_close(self);
+    }
+}
+
+static int
+SYSU80_derotator(void *_self, unsigned int id, unsigned int op)
+// op -- 0:关闭 1:打开
+// id -- 0:J波段消旋, 1:K波段消旋
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    
+    snprintf(command, COMMANDSIZE, "0x00020000 %u %u", id, op);
+    
+    return SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL);
+}
+
+#define FOCUS_MAX_RETRY 5
+
+static int
+SYSU80_focus(void *_self, unsigned int absolute, double step)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    char command[COMMANDSIZE], buf[BUFSIZE], *s = buf;
+    size_t i;
+    int ret;
+    double focus_err;
+    
+    if (absolute == 0) {
+        snprintf(command, COMMANDSIZE, "0x00030000 0 %lf", step);
+    } else {
+        snprintf(command, COMMANDSIZE, "0x00030000 1 %lf", step);
+    }
+    
+    for (i = 0; i < FOCUS_MAX_RETRY; i++) {
+        if ((ret = SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            return ret;
+        }
+        Nanosleep(5.0);
+        if ((ret = SYSU80_status_raw(self, buf, BUFSIZE)) != AAOS_OK) {
+            return ret;
+        }
+        s += 154;
+        memcpy(&focus_err, s, sizeof(double));
+        if (fabs(focus_err) < 5.) {
+            return AAOS_OK;
+        }
+    }
+    
+    return AAOS_ETIMEDOUT;
+}
+
+static int
+SYSU80_go_home(void *_self)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    int ret;
+    /*
+     * Close the lip of the tube.
+     */
+    if ((ret = SYSU80_mirror_lid(self, 0)) != AAOS_OK) {
+        return AAOS_EDEVMAL;
+    }
+    /*
+     * Disable derotator
+     */
+    if (strcmp(self->instruments[self->current_instrument], "J") == 0) {
+        if ((ret = SYSU80_derotator(self, 0, 0)) != AAOS_OK) {
+            return AAOS_EDEVMAL;
+        }
+    } else if (strcmp(self->instruments[self->current_instrument], "K") == 0) {
+        if ((ret = SYSU80_derotator(self, 1, 0)) != AAOS_OK) {
+            return AAOS_EDEVMAL;
+        }
+    } else {
+        return AAOS_ENOTFOUND;
+    }
+    /*
+     * Slew to the home position.
+     */
+    if ((ret = SYSU80_slew(self, self->home_ra, self->home_dec)) != AAOS_OK) {
+        return AAOS_EDEVMAL;
+    }
+    /*
+     * Park the telescope.
+     */
+    if ((ret = SYSU80_park(self)) != AAOS_OK) {
+        return AAOS_EDEVMAL;
+    }
+    
+    /*
+     * Some thing to do wait the derotator to its zero position.
+     */
+    //Nanosleep(200);
+    
+    return AAOS_OK;
 }
 
 static int
@@ -3139,10 +3603,41 @@ SYSU80_init(void *_self)
 {
     struct SYSU80 *self = cast(SYSU80(), _self);
     
+    int ret;
+    /*
+     * Open the lip of the tube.
+     */
+    if ((ret = SYSU80_mirror_lid(self, 1)) != AAOS_OK) {
+        Pthread_mutex_lock(&self->_.t_state.mtx);
+        self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    /*
+     * Enable derotator.
+     */
+    if (strcmp(self->instruments[self->current_instrument], "J") == 0) {
+        if ((ret = SYSU80_derotator(self, 0, 1)) != AAOS_OK) {
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+            return AAOS_EDEVMAL;
+        }
+    } else if (strcmp(self->instruments[self->current_instrument], "K") == 0) {
+        if ((ret = SYSU80_derotator(self, 1, 1)) != AAOS_OK) {
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+            return AAOS_EDEVMAL;
+        }
+    } else {
+        return AAOS_ENOTFOUND;
+    }
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = TELESCOPE_STATE_PARKED;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
     return AAOS_OK;
 }
-
-
 
 static const void *sysu80_virtual_table(void);
 
@@ -3151,7 +3646,7 @@ SYSU80_ctor(void *_self, va_list *app)
 {
     struct SYSU80 *self = super_ctor(SYSU80(), _self, app);
     
-    const char *s;
+    const char *s, *name;
     s = va_arg(*app, const char *);
     self->address = (char *) Malloc(strlen(s) + 1);
     snprintf(self->address, strlen(s) + 1, "%s", s);
@@ -3159,11 +3654,36 @@ SYSU80_ctor(void *_self, va_list *app)
     self->port = (char *) Malloc(strlen(s) + 1);
     snprintf(self->port, strlen(s) + 1, "%s", s);
     
+    while ((s = va_arg(*app, const char *))) {
+        if (strcmp(s, "instruments") == 0) {
+            self->instruments = va_arg(*app, char **);
+            continue;
+        }
+        if (strcmp(s, "n_instrument") == 0) {
+            self->n_instrument = va_arg(*app, size_t);
+            continue;
+        }
+        if (strcmp(s, "default_instrument") == 0) {
+            self->default_instrument = va_arg(*app, size_t);
+            self->current_instrument = self->current_instrument;
+            continue;
+        }
+        if (strcmp(s, "home_ra") == 0) {
+            self->home_ra = va_arg(*app, double);
+            continue;
+        }
+        if (strcmp(s, "home_dec") == 0) {
+            self->home_dec = va_arg(*app, double);
+            continue;
+        }
+    }
+    
+    self->_.t_state.state = TELESCOPE_STATE_POWERED_OFF;
+    
     self->_._vtab = sysu80_virtual_table();
     
     return (void *) self;
 }
-
 
 static void *
 SYSU80_dtor(void *_self)
@@ -3172,6 +3692,14 @@ SYSU80_dtor(void *_self)
     
     free(self->address);
     free(self->port);
+    
+    if (self->instruments != NULL) {
+        size_t i;
+        for (i = 0; i <self->n_instrument; i++) {
+            free(self->instruments[i]);
+        }
+        free(self->instruments);
+    }
     
     return super_dtor(SYSU80(), _self);
 }
@@ -3184,6 +3712,7 @@ SYSU80Class_ctor(void *_self, va_list *app)
     self->_.raw.method = (Method) 0;
     self->_.inspect.method = (Method) 0;
     self->_.switch_instrument.method = (Method) 0;
+    self->_.focus.method = (Method) 0;
     
     return self;
 }
@@ -3268,6 +3797,7 @@ sysu80_virtual_table_initialize(void)
                                 __telescope_go_home, "go_home", SYSU80_go_home,
                                 __telescope_slew, "slew", SYSU80_slew,
                                 __telescope_raw, "raw", SYSU80_raw,
+                                __telescope_focus, "focus", SYSU80_focus,
                                 //__telescope_inspect, "inspect", APMount_inspect,
                                 (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
@@ -3329,6 +3859,7 @@ APMount_get_current_postion(struct APMount *self)
 static int
 APMount_really_parked(struct APMount *self)
 {
+#ifdef APMOUNT_OLD_FASHION
     char command[COMMANDSIZE], az[COMMANDSIZE], old_az[COMMANDSIZE], ra[COMMANDSIZE], old_ra[COMMANDSIZE];
     size_t size;
     int ret;
@@ -3368,6 +3899,20 @@ APMount_really_parked(struct APMount *self)
     } else {
         return AAOS_ERROR;
     }
+#else
+    char command[COMMANDSIZE], status[STATUSSIZE];
+    size_t size;
+    int ret;
+    
+    snprintf(command, COMMANDSIZE, ":GZ#");
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), status, STATUSSIZE, &size) != AAOS_OK)) {
+        return AAOS_EDEVMAL;
+    }
+    if (status[0] == 'P') {
+        return AAOS_OK;
+    }
+    return AAOS_ERROR;
+#endif
 }
 
 static int
@@ -4196,6 +4741,7 @@ APMount_do_slew(void *arg)
     
     Nanosleep(APMOUNT_SLEW_WAIT_TIME);
     
+#ifdef APMOUNT_OLD_FASHION
     for (count = 0; count < APMOUNT_MAX_POLL_COUNT; count++) {
         Pthread_mutex_lock(&self->_.t_state.mtx);
         if ((ret = APMount_get_current_postion(self)) != AAOS_OK) {
@@ -4213,6 +4759,21 @@ APMount_do_slew(void *arg)
             Nanosleep(APMOUNT_POLL_INTERVAL);
         }
     }
+#else
+    char command[COMMANDSIZE], status[STATUSSIZE];
+    size_t size;
+    snprintf(command, COMMANDSIZE, ":GOS#");
+    for (count = 0; count < APMOUNT_MAX_POLL_COUNT; count++) {
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), status, STATUSSIZE, &size) != AAOS_OK)) {
+            return (void *) AAOS_EDEVMAL;
+        }
+        if (status[3] == 'S') {
+            return NULL;
+        } else {
+            Nanosleep(APMOUNT_POLL_INTERVAL);
+        }
+    }
+#endif
     
     return (void *) AAOS_ETIMEDOUT;
 }
@@ -7064,6 +7625,10 @@ __destructor__(void)
     ASCOMMountClass_destroy();
     ascom_mount_virtual_table_destroy();
     
+    SYSU80_destroy();
+    SYSU80Class_destroy();
+    sysu80_virtual_table_destroy();
+    
     APMount_destroy();
     APMountClass_destroy();
     ap_mount_virtual_table_destroy();
@@ -7091,6 +7656,10 @@ __constructor__(void)
     virtual_telescope_virtual_table();
     VirtualTelescopeClass_initializ();
     VirtualTelescope_initialize();
+    
+    sysu80_virtual_table();
+    SYSU80Class_initialize();
+    SYSU80Class_initialize();
     
     ap_mount_virtual_table();
     APMountClass_initializ();

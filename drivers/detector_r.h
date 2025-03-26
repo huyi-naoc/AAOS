@@ -49,12 +49,12 @@ struct DetectorCapability {
     size_t image_height_max;
     
     bool frame_rate_available;
-    double frame_rate_min; /* changing with ROI and binning */
-    double frame_rate_max; /* changing with ROI and binning */
+    double frame_rate_min; /* may change with ROI and binning */
+    double frame_rate_max; /* may change with ROI and binning */
     
     bool exposure_time_available;
-    double exposure_time_min; /* changing with frame rate */
-    double exposure_time_max; /* changing with frame rate */
+    double exposure_time_min; /* may change with ROI and binning */
+    double exposure_time_max; /* may change with ROI and binning */
     
     bool gain_available;
     double gain_min;
@@ -266,6 +266,21 @@ struct VirtualDetector {
 };
 
 struct VirtualDetectorClass {
+    struct __DetectorClass _;
+};
+
+struct USTCCamera {
+    struct __Detector _;
+    unsigned int log_level;
+    unsigned int which;
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
+    char *so_path;
+	void *dlh;
+    size_t erase_count;
+};
+
+struct USTCCameraClass {
     struct __DetectorClass _;
 };
 

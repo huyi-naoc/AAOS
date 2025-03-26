@@ -96,4 +96,7 @@ extern const void *SitianCamClass(void);
 extern const void *VirtualDetector(void);
 extern const void *VirtualDetectorClass(void);
 
+extern const void *USTCCamera(void);
+extern const void *USTCCameraClass(void);
+
 #endif /* detector_h */

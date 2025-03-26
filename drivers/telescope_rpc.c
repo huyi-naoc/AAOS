@@ -241,6 +241,33 @@ Telescope_switch_detector(void *_self, const char *name)
     return rpc_call(self);
 }
 
+int
+telescope_focus(void *_self, unsigned int absolute, double step)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->focus.method) {
+        return ((int (*)(void *, unsigned int, double)) class->focus.method)(_self, absolute, step);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_focus, "focus", _self, absolute, step);
+        return result;
+    }
+}
+
+static int
+Telescope_focus(void *_self, unsigned int absolute, double step)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_FOCUS);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_U32F0, absolute);
+    protobuf_set(self, PACKET_DF1, step);
+    
+    return rpc_call(self);
+}
 
 int
 telescope_status(void *_self, char *res, size_t res_size, size_t *res_len)
@@ -1021,9 +1048,10 @@ static int
 Telescope_execute_switch_filter(struct Telescope *self)
 {
     char *name;
-    int index, ret;
+    int ret;
     uint32_t length;
     void *telescope;
+    uint16_t index;
     
     protobuf_get(self, PACKET_LENGTH, &length);
     protobuf_get(self, PACKET_INDEX, &index);
@@ -1047,9 +1075,10 @@ static int
 Telescope_execute_switch_detector(struct Telescope *self)
 {
     char *name;
-    int index, ret;
+    int ret;
     uint32_t length;
     void *telescope;
+    uint16_t index;
     
     protobuf_get(self, PACKET_LENGTH, &length);
     protobuf_get(self, PACKET_INDEX, &index);
@@ -1067,6 +1096,30 @@ Telescope_execute_switch_detector(struct Telescope *self)
     protobuf_set(self, PACKET_LENGTH, 0);
 
     return __telescope_switch_detector(telescope, name);
+}
+
+static int
+Telescope_execute_focus(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    uint32_t absolute;
+    double step;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    protobuf_get(self, PACKET_U32F0, &absolute);
+    protobuf_get(self, PACKET_DF1, &step);
+
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    protobuf_set(self, PACKET_LENGTH, 0);
+
+    return __telescope_focus(telescope, absolute, step);
 }
 
 static int
@@ -1916,6 +1969,9 @@ Telescope_execute(void *_self)
         case TELESCOPE_COMMAND_SWITCH_DETECTOR:
             ret = Telescope_execute_switch_detector(self);
             break;
+        case TELESCOPE_COMMAND_FOCUS:
+            ret = Telescope_execute_focus(self);
+            break;
         default:
             return Telescope_execute_default(self);
             break;
@@ -2187,6 +2243,15 @@ TelescopeClass_ctor(void *_self, va_list *app)
             self->switch_filter.method = method;
             continue;
         }
+        if (selector == (Method) telescope_focus) {
+            if (tag) {
+                self->focus.tag = tag;
+                self->focus.selector = selector;
+            }
+            self->focus.method = method;
+            continue;
+        }
+        
     }
     
 #ifdef va_copy
@@ -2270,6 +2335,7 @@ Telescope_initialize(void)
                      telescope_switch_instrument, "switch_instrument", Telescope_switch_instrument,
                      telescope_switch_filter, "switch_filter", Telescope_switch_filter,
                      telescope_switch_detector, "switch_detector", Telescope_switch_detector,
+                     telescope_focus, "focus", Telescope_focus,
                      
                      (void *) 0);
     

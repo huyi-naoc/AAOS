@@ -469,15 +469,15 @@ super_omove(const void *_class, void *_self)
  * copy the memory region it points to to a new memory region on the heap.
  */
 void *
-cctor(void *_self, const void *_from)
+cctor(const void *_class, const void *_from)
 {
     void *result;
-    const struct Class *class = classOf(_self);
+    const struct Class *class = classOf(_class);
     
     if (class->cctor.method) {
-        result = ((void * (*)(void *, const void *)) class->cctor.method)(_self, _from);
+        result = ((void * (*)(const void *, const void *)) class->cctor.method)(_class, _from);
     } else {
-        forward(_self, &result, (Method) cctor, "cctor", _self, _from);
+        forward(_class, &result, (Method) cctor, "cctor", _class, _from);
     }
     
     return result;
@@ -497,7 +497,7 @@ super_cctor(const void *_class, const void *_from)
  * Move constructor, avoid deep copy.
  */
 void *
-mctor(void *_self, void *_from)
+mctor(const void *_class, void *_from)
 {
     
     struct Object *result;

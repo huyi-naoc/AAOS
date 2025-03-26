@@ -22,8 +22,8 @@ struct __ObservationThread {
     char *scheduler_addr;
     char *scheduler_port;
     void *scheduler_client;
-    void *scheduler;
-    void *scheduler2;
+    void *scheduler;        /* For requesting observation tasks */
+    void *scheduler2;       /* For registering a thread to the site scheduling system */
     bool has_scheduler;
     
     char *dome_addr;
@@ -31,12 +31,16 @@ struct __ObservationThread {
     char *dome_name;
     void *dome_client;
     void *dome;
+    uint16_t dome_index;
+    uint64_t dome_identifier;
     bool has_dome;
     
     char *telescope_addr;
     char *telescope_port;
     char *telescope_name;
     void *telescope_client;
+    uint16_t telescope_index;
+    uint64_t telescope_identifier;
     void *telescope;
     bool has_telescope;
     

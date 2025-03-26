@@ -45,7 +45,8 @@
 #define TELESCOPE_COMMAND_REGISTER          26
 #define TELESCOPE_COMMAND_SWITCH_INSTRUMENT 27
 #define TELESCOPE_COMMAND_SWITCH_FILTER     28
-#define TELESCOPE_COMMAND_SWITCH_DETECTOR    29
+#define TELESCOPE_COMMAND_SWITCH_DETECTOR   29
+#define TELESCOPE_COMMAND_FOCUS             30
 
 
 int telescope_get_index_by_name(void *_self, const char *name);
@@ -410,6 +411,7 @@ int telescope_register(void *_self, double timeout);
 int telescope_switch_instrument(void *_self, const char *name);
 int telescope_switch_filter(void *_self, const char *name);
 int telescope_switch_detector(void *_self, const char *name);
+int telescope_focus(void *_self, unsigned int absolute, double step);
 
 
 extern const void *Telescope(void);

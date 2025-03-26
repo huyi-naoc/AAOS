@@ -97,6 +97,8 @@ struct __TelescopeClass {
     struct Method switch_instrument;
     struct Method switch_detector;
     
+    struct Method focus;
+    
     struct Method inspect;
     struct Method wait;
 };
@@ -128,6 +130,8 @@ struct __TelescopeVirtualTable {
     struct Method switch_filter;
     struct Method switch_instrument;
     struct Method switch_detector;
+    
+    struct Method focus;
     
     struct Method inspect;
     struct Method wait;
@@ -177,6 +181,10 @@ struct SYSU80 {
     size_t n_instrument;
     size_t default_instrument;
     size_t current_instrument;
+    double home_ra;
+    double home_dec;
+    double home_alt;
+    double home_az;
 };
 
 struct SYSU80Class {

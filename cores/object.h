@@ -31,8 +31,8 @@ void *cast(const void *class, const void *_self);
 Method respondsTo(const void * _self, const char *tag);
 
 void *ctor(void *_self, va_list *app);
-void *cctor(void *_self, const void *_from);
-void *mctor(void *_self, void *_from);
+void *cctor(const void *_class, const void *_from);
+void *mctor(const void *_class, void *_from);
 
 void *dtor(void *_self);
 int puto(const void *_self, FILE *fp);

@@ -11,7 +11,7 @@
 #include "scheduler_def.h"
 #include "scheduler_rpc.h"
 #include "wrapper.h"
-
+#include <cjson/cJSON.h>
 
 static struct option longopts[] = {
     {"help",        no_argument,        NULL,       'h' },
@@ -24,7 +24,7 @@ static const char *help_string = "\
 Usage:  scheduler [-s|--scheduler] <address:[port]> COMMAND [COMMAND PARAMETERS]\n\
         scheduler [-h|--help]\n\
         -h, --help        print help doc and exit\n\
-        -s, --scheduler   address of schedulerd\n\n\
+        -s, --scheduler   <adrress:[port]> address (and port) of schedulerd\n\n\
 Commands:\n\
     get_task_by_telescope_id      ID\n\
     get_task_by_telescope_name    NAME\n\
@@ -91,6 +91,63 @@ fatal_handler(int error, const char *fmt, ...)
     va_end(ap);
     fprintf(stderr, "Exit...\n");
     exit(EXIT_FAILURE);
+}
+
+static char *
+load_file(const char *pathname)
+{
+    struct stat buf;
+    int ret, fd;
+    size_t length;
+    char *string;
+    ssize_t nread;
+    
+    if ((ret = (Stat(pathname, &buf))) < 0) {
+        switch (errno) {
+            case EACCES:
+                fprintf(stderr, "Permission denied: `%s`\n", pathname);
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+                break;
+            case EIO:
+                fprintf(stderr, "Read file failed: `%s`\n", pathname);
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+                break;
+            case ENOENT:
+                fprintf(stderr, "File does not exist: `%s`\n", pathname);
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+                break;
+            case ENOTDIR:
+                fprintf(stderr, "Illegal directory: `%s`\n", pathname);
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+                break;
+            default:
+                break;
+        }
+    }
+    
+    if ((fd = Open(pathname, O_RDONLY)) < 0) {
+        fprintf(stderr, "Open file failed: `%s`\n", pathname);
+        fprintf(stderr, "Exit...\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    length = (size_t) buf.st_size;
+    string = (char *) Malloc(length);
+    if ((nread = (Read(fd, string, length))) < 0) {
+        fprintf(stderr, "Open file failed: `%s`\n", pathname);
+        fprintf(stderr, "Exit...\n");
+        free(string);
+        Close(fd);
+        exit(EXIT_FAILURE);
+    }
+
+    Close(fd);
+    
+    return string;
 }
 
 int
@@ -181,6 +238,7 @@ main(int argc, char *argv[])
             char buf[BUFSIZE];
             if ((ret = scheduler_get_task_by_telescope_id(scheduler, tel_id, buf, BUFSIZE, NULL, NULL)) == AAOS_OK) {
                 fprintf(stderr, "`get_task_by_telescope_id` successed.\n");
+                printf("%s\n", buf);
             } else {
                 fprintf(stderr, "`get_task_by_telescope_id` failed.\n");
             }
@@ -196,6 +254,7 @@ main(int argc, char *argv[])
             char buf[BUFSIZE];
             if ((ret = scheduler_get_task_by_telescope_name(scheduler, argv[1], buf, BUFSIZE, NULL, NULL)) == AAOS_OK) {
                 fprintf(stderr, "`get_task_by_telescope_name` successed.\n");
+                printf("%s\n", buf);
             } else {
                 fprintf(stderr, "`get_task_by_telescope_name` failed.\n");
             }
@@ -220,10 +279,41 @@ main(int argc, char *argv[])
                 fprintf(stderr, "`add_site` needs an argument.\n");
                 exit(EXIT_FAILURE);
             }
-            if ((ret = scheduler_add_site(scheduler, argv[1], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
-                fprintf(stderr, "`add_site` successed.\n");
+            if (argv[1][0] == '@') {
+                char *buf, *pathname = argv[1] + 1;
+                buf = load_file(pathname);
+                cJSON *root_json, *elem_json;
+                if ((root_json = cJSON_Parse(buf)) == NULL) {
+                    fprintf(stderr, "Illegal format: `%s`\n", pathname);
+                    fprintf(stderr, "Exit...\n");
+                    free(buf);
+                    exit(EXIT_FAILURE);
+                }
+                if (cJSON_IsArray(root_json)) {
+                    if ((ret = scheduler_add_site(scheduler, buf, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                        fprintf(stderr, "`add_site` successed.\n");
+                    } else {
+                        fprintf(stderr, "`add_site` failed.\n");
+                    }
+                } else {
+                    cJSON_ArrayForEach(elem_json, root_json) {
+                        char *string = cJSON_PrintUnformatted(elem_json);
+                        if ((ret = scheduler_add_site(scheduler, string, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                            fprintf(stderr, "`add_site` successed.\n");
+                        } else {
+                            fprintf(stderr, "`add_site` failed.\n");
+                        }
+                        free(string);
+                    }
+                }
+                cJSON_Delete(root_json);
+                free(buf);
             } else {
-                fprintf(stderr, "`add_site` failed.\n");
+                if ((ret = scheduler_add_site(scheduler, argv[1], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                    fprintf(stderr, "`add_site` successed.\n");
+                } else {
+                    fprintf(stderr, "`add_site` failed.\n");
+                }
             }
             argc -= 2;
             argv += 2;
@@ -333,10 +423,41 @@ main(int argc, char *argv[])
                 fprintf(stderr, "`add_telescope` needs an argument.\n");
                 exit(EXIT_FAILURE);
             }
-            if ((ret = scheduler_add_telescope(scheduler, argv[1], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
-                fprintf(stderr, "`add_telescope` successed.\n");
+            if (argv[1][0] == '@') {
+                char *buf, *pathname = argv[1] + 1;
+                buf = load_file(pathname);
+                cJSON *root_json, *elem_json;
+                if ((root_json = cJSON_Parse(buf)) == NULL) {
+                    fprintf(stderr, "Illegal format: `%s`\n", pathname);
+                    fprintf(stderr, "Exit...\n");
+                    free(buf);
+                    exit(EXIT_FAILURE);
+                }
+                if (cJSON_IsArray(root_json)) {
+                    if ((ret = scheduler_add_telescope(scheduler, buf, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                        fprintf(stderr, "`add_telescope` successed.\n");
+                    } else {
+                        fprintf(stderr, "`add_telescope` failed.\n");
+                    }
+                } else {
+                    cJSON_ArrayForEach(elem_json, root_json) {
+                        char *string = cJSON_PrintUnformatted(elem_json);
+                        if ((ret = scheduler_add_telescope(scheduler, string, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                            fprintf(stderr, "`add_telescope` successed.\n");
+                        } else {
+                            fprintf(stderr, "`add_telescope` failed.\n");
+                        }
+                        free(string);
+                    }
+                }
+                cJSON_Delete(root_json);
+                free(buf);
             } else {
-                fprintf(stderr, "`add_telescope` failed.\n");
+                if ((ret = scheduler_add_telescope(scheduler, argv[1], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                    fprintf(stderr, "`add_telescope` successed.\n");
+                } else {
+                    fprintf(stderr, "`add_telescope` failed.\n");
+                }
             }
             argc -= 2;
             argv += 2;
@@ -445,10 +566,41 @@ main(int argc, char *argv[])
                 fprintf(stderr, "`add_target` needs an argument.\n");
                 exit(EXIT_FAILURE);
             }
-            if ((ret = scheduler_add_target(scheduler, argv[1], SCHEDULER_FORMAT_JSON) == AAOS_OK)) {
-                fprintf(stderr, "`add_target` successed.\n");
+            if (argv[1][0] == '@') {
+                char *buf, *pathname = argv[1] + 1;
+                buf = load_file(pathname);
+                cJSON *root_json, *elem_json;
+                if ((root_json = cJSON_Parse(buf)) == NULL) {
+                    fprintf(stderr, "Illegal format: `%s`\n", pathname);
+                    fprintf(stderr, "Exit...\n");
+                    free(buf);
+                    exit(EXIT_FAILURE);
+                }
+                if (cJSON_IsArray(root_json)) {
+                    if ((ret = scheduler_add_target(scheduler, buf, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                        fprintf(stderr, "`add_target` successed.\n");
+                    } else {
+                        fprintf(stderr, "`add_target` failed.\n");
+                    }
+                } else {
+                    cJSON_ArrayForEach(elem_json, root_json) {
+                        char *string = cJSON_PrintUnformatted(elem_json);
+                        if ((ret = scheduler_add_target(scheduler, string, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                            fprintf(stderr, "`add_target` successed.\n");
+                        } else {
+                            fprintf(stderr, "`add_target` failed.\n");
+                        }
+                        free(string);
+                    }
+                }
+                cJSON_Delete(root_json);
+                free(buf);
             } else {
-                fprintf(stderr, "`add_target` failed.\n");
+                if ((ret = scheduler_add_target(scheduler, argv[1], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                    fprintf(stderr, "`add_target` successed.\n");
+                } else {
+                    fprintf(stderr, "`add_target` failed.\n");
+                }
             }
             argc -= 2;
             argv += 2;
@@ -549,10 +701,41 @@ main(int argc, char *argv[])
                 fprintf(stderr, "`add_task_record` needs an argument.\n");
                 exit(EXIT_FAILURE);
             }
-            if ((ret = scheduler_add_task_record(scheduler, argv[1], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
-                fprintf(stderr, "`add_task_record` successed.\n");
+            if (argv[1][0] == '@') {
+                char *buf, *pathname = argv[1] + 1;
+                buf = load_file(pathname);
+                cJSON *root_json, *elem_json;
+                if ((root_json = cJSON_Parse(buf)) == NULL) {
+                    fprintf(stderr, "Illegal format: `%s`\n", pathname);
+                    fprintf(stderr, "Exit...\n");
+                    free(buf);
+                    exit(EXIT_FAILURE);
+                }
+                if (cJSON_IsArray(root_json)) {
+                    if ((ret = scheduler_add_task_record(scheduler, buf, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                        fprintf(stderr, "`add_task_record` successed.\n");
+                    } else {
+                        fprintf(stderr, "`add_task_record` failed.\n");
+                    }
+                } else {
+                    cJSON_ArrayForEach(elem_json, root_json) {
+                        char *string = cJSON_PrintUnformatted(elem_json);
+                        if ((ret = scheduler_add_task_record(scheduler, string, SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                            fprintf(stderr, "`add_task_record` successed.\n");
+                        } else {
+                            fprintf(stderr, "`add_task_record` failed.\n");
+                        }
+                        free(string);
+                    }
+                }
+                cJSON_Delete(root_json);
+                free(buf);
             } else {
-                fprintf(stderr, "`add_task_record` failed.\n");
+                if ((ret = scheduler_add_task_record(scheduler, argv[1], SCHEDULER_FORMAT_JSON)) == AAOS_OK) {
+                    fprintf(stderr, "`add_task_record` successed.\n");
+                } else {
+                    fprintf(stderr, "`add_task_record` failed.\n");
+                }
             }
             argc -= 2;
             argv += 2;
@@ -573,6 +756,7 @@ main(int argc, char *argv[])
             argv += 2;
             continue;
         }
+        fprintf(stderr, "Unknown command `%s`.\n", argv[0]);
         argc--;
         argv++;
     }

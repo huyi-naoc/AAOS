@@ -24,8 +24,47 @@ static struct option longopts[] = {
     { NULL,         0,                  NULL,       0 }
 };
 
+
+static const char *help_string = "\
+Usage:  telescope [options]  [COMMAND1, COMMAND2, ...\n\
+        -b, --binary      set how seriald inteprets the input COMMANDs as hex\n\
+                          strings rather than ASCII character strings\n\
+        -c, --check       check whether the serial device works\n\
+        -d, --delay       <timeout>, set timeout of -r option\n\
+        -h, --help        print help doc and exit\n\
+        -i, --index       <index>, specify serial's index\n\
+        -n, --name        <name>, specify serial's name\n\
+        -p, --path        <path>, specify serial's devpath\n\
+        -s, --serial      <address:[port]> address (and port) of seriald\n\
+        -u, --unit        <unit>, specify parameter unit for setting command\n\
+                          supported formats are nature, second, minute,\n\
+                          and degree, default is nature\n\n\
+Commands:\n\
+    power_on\n\
+    power_off\n\
+    init\n\
+    park\n\
+    park_off\n\
+    go_home\n\
+    stop\n\
+    move        DRECTION DURATION\n\
+                DRECTION can be north, south, east, and west\n\
+                DURATION is in seconds\n\
+    try_move    DRECTION DURATION\n\
+    timed_move  DRECTION DURATION TIMEOUT\n\
+    slew        RA DEC\n\
+    try_slew    RA DEC\n\
+    timed_slew  RA DEC TIMEOUT\n\
+    set         NAME\n\
+                NAME can be move_speed, slew_speed, and track_rate\n\
+    get         NAME VALUE1 ... \n\
+                move_speed parameter has one value\n\
+                slew_speed and track_rate have two values\n\
+";
+
+
 static void
-usage()
+usage(void)
 {
     exit(EXIT_FAILURE);
 }

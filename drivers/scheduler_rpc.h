@@ -47,6 +47,7 @@ int scheduler_unmask_target_by_name(void *_self, const char *name);
 
 int scheduler_add_task_record(void *_self, const char *info, unsigned int type);
 int scheduler_update_task_record(void *_self, uint64_t identifier, const char *info, unsigned int type);
+int scheduler_update_task_status(void *_self, uint64_t identifier, int status);
 
 int scheduler_register_thread(void *_self, uint64_t identifier);
 

@@ -44,6 +44,7 @@ int __telescope_wait(void *_self, double timeout);
 int __telescope_switch_instrument(void *_self, const char *name);
 int __telescope_switch_filter(void *_self, const char *name);
 int __telescope_switch_detector(void *_self, const char *name);
+int __telescope_focus(void *_self, unsigned int absolute, double step);
 
 const char *__telescope_get_name(const void *_self);
 

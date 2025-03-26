@@ -3739,6 +3739,14 @@ sitiancam_virtual_table(void)
 }
 
 /*
+ *
+ *
+ */
+
+
+
+
+/*
  * GenICam
  * use libaravis
  * Tested camera:
@@ -5692,8 +5700,739 @@ genicam_virtual_table(void)
     
     return _genicam_virtual_table;
 }
-
 #endif
+
+
+static const void *ustc_camera_virtual_table(void);
+
+static void *
+USTCCamera_ctor(void *_self, va_list *app)
+{
+    struct USTCCamera *self = super_ctor(USTCCamera(), _self, app);
+    
+	const char *s;
+	
+    self->_.d_state.state = DETECTOR_STATE_UNINITIALIZED;
+    s = va_arg(*app, const char *);
+	self->so_path = (char *) Malloc(strlen(s) + 1);
+	snprintf(self->so_path, strlen(s) + 1, "%s", s);
+    self->log_level = va_arg(*app, unsigned int);
+    self->which = va_arg(*app, unsigned int);
+    Pthread_mutex_init(&self->mtx, NULL);
+    Pthread_cond_init(&self->cond, NULL);
+	self->dlh = dlopen(self->so_path, RTLD_LAZY | RTLD_LOCAL);
+    
+    self->_._vtab= ustc_camera_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+USTCCamera_dtor(void *_self)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    Pthread_mutex_destroy(&self->mtx);
+    Pthread_cond_destroy(&self->cond);
+	free(self->so_path);
+	dlclose(self->dlh);
+	
+    return super_dtor(USTCCamera(), _self);
+}
+
+static void *
+USTCCameraClass_ctor(void *_self, va_list *app)
+{
+    struct USTCCameraClass *self = super_ctor(USTCCameraClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.status.method = (Method) 0;
+    
+    self->_.get_binning.method = (Method) 0;
+    self->_.set_binning.method = (Method) 0;
+    self->_.set_exposure_time.method = (Method) 0;
+    self->_.get_exposure_time.method = (Method) 0;
+    self->_.set_frame_rate.method = (Method) 0;
+    self->_.get_frame_rate.method = (Method) 0;
+    self->_.set_gain.method = (Method) 0;
+    self->_.get_gain.method = (Method) 0;
+    self->_.set_region.method = (Method) 0;
+    self->_.get_region.method = (Method) 0;
+    self->_.inspect.method = (Method) 0;
+    //self->_.wait.method = (Method) 0;
+    self->_.wait_for_completion.method = (Method) 0;
+    self->_.raw.method = (Method) 0;
+    self->_.expose.method = (Method) 0;
+    self->_.status.method = (Method) 0;
+    self->_.info.method = (Method) 0;
+    self->_.stop.method = (Method) 0;
+    self->_.abort.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_USTCCameraClass;
+
+static void
+USTCCameraClass_destroy(void)
+{
+    free((void *) _USTCCameraClass);
+}
+
+static void
+USTCCameraClass_initialize(void)
+{
+    _USTCCameraClass = new(__DetectorClass(), "USTCCameraClass", __DetectorClass(), sizeof(struct USTCCameraClass),
+                           ctor, "", USTCCameraClass_ctor,
+                           (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(USTCCameraClass_destroy);
+#endif
+}
+
+const void *
+USTCCameraClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, USTCCameraClass_initialize);
+#endif
+    
+    return _USTCCameraClass;
+}
+
+static const void *_USTCCamera;
+
+static void
+USTCCamera_destroy(void)
+{
+    free((void *)_USTCCamera);
+}
+
+static void
+USTCCamera_initialize(void)
+{
+    _USTCCamera = new(USTCCameraClass(), "USTCCamera", __Detector(), sizeof(struct USTCCamera),
+                      ctor, "ctor", USTCCamera_ctor,
+                      dtor, "dtor", USTCCamera_dtor,
+                      (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(USTCCamera_destroy);
+#endif
+}
+
+const void *
+USTCCamera(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, USTCCamera_initialize);
+#endif
+
+    return _USTCCamera;
+}
+
+static int
+ustc_error_mapping(int ustc_error)
+{
+    /*
+	switch (ustc_error) {
+        case CCD_SUCCESS:
+            return AAOS_OK;
+            break;
+        case CCD_ARG_ERROR:
+            return AAOS_EINVAL;
+            break;
+        case CCD_NOT_INIT:
+            return AAOS_EUNINIT;
+            break;
+        case CCD_ACCESS_ERROR:
+            return AAOS_ECONNREFUSED;
+            break;
+        default:
+            return AAOS_ERROR;
+            break;
+    }
+     */
+    return AAOS_OK;
+}
+
+static int
+USTCCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+{
+	struct USTCCamera *self = cast(USTCCamera(), _self);
+	
+	FILE *fp = fmemopen((void *) write_buffer, write_buffer_size, "r+");
+	char func_name[NAMESIZE];
+	int ret;
+
+	fscanf(fp, "%s", func_name);
+	
+	if (strcmp(func_name, "Initialize") == 0 ) {
+		int (*Initialize) (unsigned int , unsigned int);
+		unsigned int which, log_level;
+		Initialize = dlsym(self->dlh, "Initialize");
+        if ((ret = fscanf(fp, "%u %u", &log_level, &which)) < 2 ){
+			ret = AAOS_EBADCMD;
+        } else {
+			ret = Initialize(log_level, which);
+			ret = ustc_error_mapping(ret);
+        }		
+	} else if (strcmp(func_name, "SetExposureInterval") == 0 ) {
+		int (*SetExposureInterval) (double);
+		double interval;
+		SetExposureInterval = dlsym(self->dlh, "SetExposureInterval");
+		if ((ret = fscanf(fp, "%lf", &interval)) < 1 ){
+			ret = AAOS_EBADCMD;
+        } else {
+			ret = SetExposureInterval(interval);
+			ret = ustc_error_mapping(ret);
+        }
+	} else if (strcmp(func_name, "SetExposureTime") == 0 ) {
+		int (*SetExposureTime) (double);
+		double exposure_time;
+		SetExposureTime = dlsym(self->dlh, "SetExposureTime");
+		if ((ret = fscanf(fp, "%lf", &exposure_time)) < 1 ){
+			ret = AAOS_EBADCMD;
+        } else {
+			ret = SetExposureTime(exposure_time);
+			ret = ustc_error_mapping(ret);
+        }
+	} else if (strcmp(func_name, "SetContinueousExposure") == 0 ) {
+		int (*SetContinueousExposure) (uint16_t);
+		unsigned int n_frame;
+		SetContinueousExposure = dlsym(self->dlh, "SetContinueousExposure");
+		if ((ret = fscanf(fp, "%u", &n_frame)) < 1 ){
+			ret = AAOS_EBADCMD;
+        } else {
+			ret = SetContinueousExposure(n_frame);
+			ret = ustc_error_mapping(ret);
+        }
+	} else if (strcmp(func_name, "StartExposure") == 0 ) {
+		int (*StartExposure) (void);
+		StartExposure = dlsym(self->dlh, "StartExposure");
+		ret = StartExposure();
+		ret = ustc_error_mapping(ret);
+	} else if (strcmp(func_name, "StopExposure") == 0 ) {
+		int (*StopExposure) (void);
+		StopExposure = dlsym(self->dlh, "StopExposure");
+		ret = StopExposure();
+		ret = ustc_error_mapping(ret);
+	} else if (strcmp(func_name, "CancelWait") == 0 ) {
+        int (*CancelWait) (void);
+        CancelWait = dlsym(self->dlh, "CancelWait");
+        ret = CancelWait();
+        ret = ustc_error_mapping(ret);
+    } else if (strcmp(func_name, "CancelWait") == 0 ) {
+        int (*CancelWait) (void);
+        CancelWait = dlsym(self->dlh, "CancelWait");
+        ret = CancelWait();
+        ret = ustc_error_mapping(ret);
+    } else if (strcmp(func_name, "DetectorPowerOn") == 0 ) {
+        int (*DetectorPowerON) (void);
+        DetectorPowerON = dlsym(self->dlh, "DetectorPowerOn");
+        ret = DetectorPowerON();
+        ret = ustc_error_mapping(ret);
+    } else if (strcmp(func_name, "DetectorPowerOff") == 0 ) {
+        int (*DetectorPowerOFF) (void);
+        DetectorPowerOFF = dlsym(self->dlh, "DetectorPowerOff");
+        ret = DetectorPowerOFF();
+        ret = ustc_error_mapping(ret);
+    } else if (strcmp(func_name, "Controller_temperature") == 0 ) {
+        int (*Controller_temperature) (double *);
+        double temperature;
+        Controller_temperature = dlsym(self->dlh, "Controller_temperature");
+        ret = Controller_temperature(&temperature);
+        ret = ustc_error_mapping(ret);
+        memcpy(read_buffer, &temperature, min(read_buffer_size, sizeof(double)));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, sizeof(double));
+        }
+    } else if (strcmp(func_name, "ControllerFan") == 0 ) {
+        int (*ControllerFan) (uint8_t);
+        unsigned int level;
+        if ((ret = fscanf(fp, "%u", &level)) < 1 ){
+            ret = AAOS_EBADCMD;
+        } else {
+            ControllerFan = dlsym(self->dlh, "ControllerFan");
+            ret = ControllerFan(level);
+            ret = ustc_error_mapping(ret);
+        }
+    } else if (strcmp(func_name, "ControllerHeat") == 0 ) {
+        int (*ControllerHeat) (uint8_t);
+        unsigned int heatpwm;
+        if ((ret = fscanf(fp, "%u", &heatpwm)) < 1 ){
+            ret = AAOS_EBADCMD;
+        } else {
+            ControllerHeat = dlsym(self->dlh, "ControllerHeat");
+            ret = ControllerHeat(heatpwm);
+            ret = ustc_error_mapping(ret);
+        }
+    } else if (strcmp(func_name, "CoolerOff") == 0 ) {
+        int (*CoolerOff) (void);
+        CoolerOff = dlsym(self->dlh, "CoolerOff");
+        ret = CoolerOff();
+        ret = ustc_error_mapping(ret);
+    } else if (strcmp(func_name, "CoolerOn") == 0 ) {
+        int (*CoolerOn) (void);
+        CoolerOn = dlsym(self->dlh, "CoolerOn");
+        ret = CoolerOn();
+        ret = ustc_error_mapping(ret);
+    } else if (strcmp(func_name, "entemp") == 0 ) {
+        int (*entemp) (double *);
+        double temperature;
+        entemp = dlsym(self->dlh, "entemp");
+        ret = entemp(&temperature);
+        ret = ustc_error_mapping(ret);
+        memcpy(read_buffer, &temperature, min(read_buffer_size, sizeof(double)));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, sizeof(double));
+        }
+    } else if (strcmp(func_name, "get_power") == 0 ) {
+        int (*get_power) (double *);
+        double power;
+        get_power = dlsym(self->dlh, "get_power");
+        ret = get_power(&power);
+        ret = ustc_error_mapping(ret);
+        memcpy(read_buffer, &power, min(read_buffer_size, sizeof(double)));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, sizeof(double));
+        }
+    } else if (strcmp(func_name, "GetBitDepth") == 0 ) {
+        int (*GetBitDepth) (int *);
+        int depth;
+        GetBitDepth = dlsym(self->dlh, "GetBitDepth");
+        ret = GetBitDepth(&depth);
+        ret = ustc_error_mapping(ret);
+        memcpy(read_buffer, &depth, min(read_buffer_size, sizeof(int)));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, sizeof(int));
+        }
+    } else if (strcmp(func_name, "GetCameraReady") == 0 ) {
+        int (*GetCameraReady) (uint8_t *);
+        uint8_t stat;
+        GetCameraReady = dlsym(self->dlh, "GetCameraReady");
+        ret = GetCameraReady(&stat);
+        ret = ustc_error_mapping(ret);
+        memcpy(read_buffer, &stat, min(read_buffer_size, sizeof(uint8_t)));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, sizeof(uint8_t));
+        }
+    } else if (strcmp(func_name, "GetChipNum") == 0 ) {
+        int (*GetChipNum) (int *);
+        int chipnum;
+        GetChipNum = dlsym(self->dlh, "GetChipNum");
+        ret = GetChipNum(&chipnum);
+        ret = ustc_error_mapping(ret);
+        memcpy(read_buffer, &chipnum, min(read_buffer_size, sizeof(int)));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, sizeof(int));
+        }
+    } else if (strcmp(func_name, "GetCoolerStatus") == 0 ) {
+        int (*GetCoolerStatus) (uint8_t *);
+        uint8_t coolstat;
+        GetCoolerStatus = dlsym(self->dlh, "GetCoolerStatus");
+        ret = GetCoolerStatus(&coolstat);
+        ret = ustc_error_mapping(ret);
+        memcpy(read_buffer, &coolstat, min(read_buffer_size, sizeof(uint8_t)));
+        if (read_size != NULL) {
+            *read_size = min(read_buffer_size, sizeof(uint8_t));
+        }
+    }
+    else {
+		ret = AAOS_EBADCMD;
+	}
+	fclose(fp);
+	
+	return ret;
+}
+
+static int
+USTCCamera_set_frame_rate(void *_self, double frame_rate)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+	int (*SetExposureInterval)(double) = dlsym(self->dlh, "SetExposureInterval");
+    int ret;
+	
+    Pthread_mutex_lock(&self->mtx);
+    ret = SetExposureInterval(1./frame_rate);
+    Pthread_mutex_lock(&self->mtx);
+    
+	return ustc_error_mapping(ret);
+}
+
+static int
+USTCCamera_get_frame_rate(void *_self, double *frame_rate)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_set_exposure_time(void *_self, double exposure_time)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_get_exposure_time(void *_self, double *exposure_time)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_enable_cooling(void *_self)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_disable_cooling(void *_self)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_set_temperature(void *_self, double temperature)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_get_temperature(void *_self, double *temperature)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t width, uint32_t height)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    int ret;
+    
+    int (*ROIEnable)(uint16_t, uint16_t, uint16_t, uint16_t) = dlsym(self->dlh, "ROIEnable");
+    if (ROIEnable == NULL) {
+        return AAOS_ENOTSUP;
+    }
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
+        Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+    }
+    Pthread_mutex_lock(&self->mtx);
+    ret = ROIEnable(x_offset, width, y_offset, height);
+    Pthread_mutex_unlock(&self->mtx);
+    ret = ustc_error_mapping(ret);
+    if (ret == AAOS_OK) {
+        self->_.d_param.image_width = width;
+        self->_.d_param.image_height = height;
+        self->_.d_param.x_offset = x_offset;
+        self->_.d_param.y_offset = y_offset;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+	return ret;
+}
+
+static int
+USTCCamera_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32_t *width, uint32_t *height)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    int ret;
+    uint16_t xo, yo, w, h;
+    
+    int (*GetExposureROI)(uint16_t *, uint16_t *, uint16_t *, uint16_t *) = dlsym(self->dlh, "GetExposureROI");
+    if (GetExposureROI == NULL) {
+        return AAOS_ENOTSUP;
+    }
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetExposureROI(&xo, &w, &yo, &h);
+    Pthread_mutex_unlock(&self->mtx);
+    ret = ustc_error_mapping(ret);
+    if (ret == AAOS_OK) {
+        *x_offset = xo;
+        *y_offset = yo;
+        *width = w;
+        *height = h;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return ret;
+    
+}
+
+static int 
+USTCCamera_set_gain(void *_self, double gain)
+{
+	return AAOS_OK;
+}
+
+static int 
+USTCCamera_get_gain(void *_self, double *gain)
+{
+	return AAOS_OK;
+}
+
+static int 
+USTCCamera_set_readout_speed(void *_self, double readout_speed)
+{
+	return AAOS_OK;
+}
+
+static int 
+USTCCamera_get_readout_speed(void *_self, double *readout_speed)
+{
+	return AAOS_OK;
+}
+
+static int 
+USTCCamera_power_on(void *_self)
+{
+	return AAOS_OK;
+}
+
+static int 
+USTCCamera_power_off(void *_self)
+{
+	return AAOS_OK;
+}
+
+static int
+USTCCamera_init(void *_self)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    int ret;
+	int (*Initialize) (unsigned int , unsigned int);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    if (self->_.d_state.state != DETECTOR_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_OK;
+    }
+    Pthread_mutex_lock(&self->mtx);
+	Initialize = dlsym(self->dlh, "Initialize");
+    ret = Initialize(self->log_level, self->which);
+    Pthread_mutex_lock(&self->mtx);
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return ustc_error_mapping(ret);
+}
+
+void static
+USTCCamera_name_convention(struct USTCCamera *self, char *buf, size_t size, ...)
+{
+    FILE *fp;
+    char time_buf[TIMESTAMPSIZE];
+    struct timespec tp;
+    struct tm tm_buf;
+    
+    fp = fmemopen(buf, size, "rw+");
+    if (self->_.d_proc.image_directory != NULL) {
+        fprintf(fp, "%s/", self->_.d_proc.image_directory);
+    }
+    if (self->_.d_proc.image_prefix != NULL) {
+        fprintf(fp, "%s_", self->_.d_proc.image_prefix);
+    }
+    if (self->_.name != NULL) {
+        fprintf(fp, "%s_", self->_.name);
+    }
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    gmtime_r(&tp.tv_sec, &tm_buf);
+    strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S.fits", &tm_buf);
+    fprintf(fp, "%s", time_buf);
+    
+    fclose(fp);
+}
+
+void static
+USTCCamera_write_image(struct USTCCamera *self, void *buf, const char *pathname)
+{
+    fitsfile *fptr;
+    int status = 0;
+    int naxis = 2;
+    long naxes[2] = {640, 512}, nelements;
+    unsigned short *array = buf;
+    
+    nelements = naxes[0] * naxes[1];
+    fits_create_template(&fptr, pathname, self->_.d_proc.tpl_filename, &status);
+    
+    fits_create_img(fptr, USHORT_IMG, naxis, naxes, &status);
+    fits_write_img(fptr, TSHORT, 1, nelements, array, &status);
+    fits_create_img(fptr, USHORT_IMG, naxis, naxes, &status);
+    fits_write_img(fptr, TSHORT, 1, nelements, array + nelements, &status);
+    fits_create_img(fptr, USHORT_IMG, naxis, naxes, &status);
+    fits_write_img(fptr, TSHORT, 1, nelements, array + 2 * nelements, &status);
+    
+    fits_close_file(fptr, &status);
+}
+
+static int
+USTCCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *app)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    double frame_rate;
+    uint32_t i, n;
+    char *buf;
+	
+    int ret = AAOS_OK;
+	int (*SetExposureInterval)(double) = dlsym(self->dlh, "SetExposureInterval");
+	int (*SetExposureTime)(double)= dlsym(self->dlh, "SetExposureTime");
+	int (*SetContinuousCapture)(uint16_t) = dlsym(self->dlh, "SetContinuousCapture");
+	int (*StartExposure)(void) = dlsym(self->dlh, "StartExposure");
+	int (*StopExposure)(void) = dlsym(self->dlh, "StopExposure");
+    int (*GetImage)(void *, int) = dlsym(self->dlh, "GetImage");
+    int (*WaitForAcquisition)(void) = dlsym(self->dlh, "WaitForAcquisition");
+    int (*SetEraseCount)(uint8_t) = dlsym(self->dlh, "SetEraseCount");
+  
+	
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    switch (self->_.d_state.state) {
+        case DETECTOR_STATE_IDLE:
+        {
+            self->_.d_state.state = DETECTOR_STATE_EXPOSING;
+            self->_.d_param.exposure_time = exposure_time;
+            self->_.d_param.frame_rate = 1. / exposure_time;
+            Pthread_mutex_lock(&self->mtx);
+            ret = SetExposureInterval(exposure_time);
+            ret = ustc_error_mapping(ret);
+            if (ret != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
+                Pthread_mutex_unlock(&self->_.d_state.mtx);
+                goto error;
+            }
+            ret = SetExposureTime(exposure_time);
+            ret = ustc_error_mapping(ret);
+            if (ret != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
+                Pthread_mutex_unlock(&self->_.d_state.mtx);
+                goto error;
+            }
+            ret = SetContinuousCapture(n_frame);
+            ret = ustc_error_mapping(ret);
+            if (ret != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
+                Pthread_mutex_unlock(&self->_.d_state.mtx);
+                goto error;
+            }
+            ret = SetEraseCount(self->erase_count);
+            ret = ustc_error_mapping(ret);
+            if (ret != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
+                Pthread_mutex_unlock(&self->_.d_state.mtx);
+                goto error;
+            }
+            ret = StartExposure();
+            ret = ustc_error_mapping(ret);
+            if (ret != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
+                Pthread_mutex_unlock(&self->_.d_state.mtx);
+                goto error;
+            }
+            ret = WaitForAcquisition();
+            ret = ustc_error_mapping(ret);
+            if (ret != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
+                Pthread_mutex_unlock(&self->_.d_state.mtx);
+                goto error;
+            }
+            
+            n = (uint32_t) (self->_.d_param.image_width * self->_.d_param.image_height);
+            buf = (char *) Malloc(n_frame * n * 2);
+            ret = GetImage(buf, n_frame * n * 2);
+            ret = ustc_error_mapping(ret);
+            self->_.d_state.state = DETECTOR_STATE_READING;
+            Pthread_mutex_unlock(&self->mtx);
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            
+            for (i = 0; i < n_frame; i++) {
+                /*
+                 * save fits file
+                 */
+                //USTCCamera_write_image(buf + i * n_frame * n * 2);
+            }
+            free(buf);
+        }
+            /*
+            ret = StopExposure();
+			ret = ustc_error_mapping(ret);
+			if (ret != AAOS_OK) {
+				goto error2;
+			}
+             */
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            ret = AAOS_EUNINIT;
+            goto error;
+            break;
+        case DETECTOR_STATE_MALFUNCTION:
+            ret = AAOS_EDEVMAL;
+            goto error;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            ret = AAOS_EBUSY;
+            goto error;
+        default:
+            ret = AAOS_ERROR;
+            goto error;
+            break;
+    }
+	
+error2:
+    Pthread_mutex_unlock(&self->mtx);
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+error:
+    return ret;
+}
+
+static const void *_ustc_camera_virtual_table;
+
+static void
+ustc_camera_virtual_table_destroy(void)
+{
+    delete((void *) _ustc_camera_virtual_table);
+}
+
+static void
+ustc_camera_virtual_table_initialize(void)
+{
+    _ustc_camera_virtual_table = new(__DetectorVirtualTable(),
+                                     __detector_init, "init", USTCCamera_init,
+                                     //__detector_info, "info", USTCCamera_info,
+                                     __detector_expose, "expose", USTCCamera_expose,
+                                     //__detector_set_binning, "set_binning", USTCCamera_set_binning,
+                                     //__detector_get_binning, "get_binning", USTCCamera_get_binning,
+                                     __detector_set_exposure_time, "set_exposure_time", USTCCamera_set_exposure_time,
+                                     __detector_get_exposure_time, "get_exposure_time", USTCCamera_get_exposure_time,
+                                     __detector_set_frame_rate, "set_frame_rate", USTCCamera_set_frame_rate,
+                                     __detector_get_frame_rate, "get_frame_rate", USTCCamera_get_frame_rate,
+                                     __detector_set_gain, "set_gain", USTCCamera_set_gain,
+                                     __detector_get_gain, "get_gain", USTCCamera_get_gain,
+                                     __detector_set_region, "set_region", USTCCamera_set_region,
+                                     __detector_get_region, "get_region", USTCCamera_get_region,
+                                     __detector_raw, "raw", USTCCamera_raw,
+                                 //__detector_inspect, "inspect", USTCCamera_inspect,
+                                 //__detector_wait_for_completion, "wait_for_completion", USTCCamera_wait_for_last_completion,
+                                 (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(ustc_camera_virtual_table_destroy);
+#endif
+}
+
+static const void *
+ustc_camera_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, ustc_camera_virtual_table_initialize);
+#endif
+    
+    return _ustc_camera_virtual_table;
+}
 
 #ifdef _USE_COMPILER_ATTRIBUTION_
 
@@ -5702,10 +6441,16 @@ static void __destructor__(void) __attribute__ ((destructor(_DETECTOR_PRIORITY_)
 static void
 __destructor__(void)
 {
+#ifdef __USE_USTC_CAMERA__
+	USTCCamera_destroy();
+	USTCCameraClass_destroy();
+	ustc_camera_virtual_table_destroy();
+#endif
+
 #ifdef __USE_ARAVIS__
     GenICam_destroy();
     GenICamClass_destroy();
-    genicam_serial_virtual_table_destroy();
+    genicam_virtual_table_destroy();
 #endif
     __Detector_destroy();
     __DetectorClass_destroy();
@@ -5720,6 +6465,13 @@ __constructor__(void)
     __DetectorVirtualTable_initialize();
     __DetectorClass_initialize();
     __Detector_initialize();
+	
+#ifdef __USE_USTC_CAMERA__
+	ustc_camera_virtual_table_initialize();
+	USTCCameraClass_initialize();
+	USTCCamera_initialize();
+#endif
+	
 #ifdef __USE_ARAVIS__
     genicam_virtual_table_initialize();
     GenICamClass_initialize();
@@ -5727,3 +6479,5 @@ __constructor__(void)
 #endif
 }
 #endif
+
+

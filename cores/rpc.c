@@ -149,6 +149,8 @@ rpc_process(void *_self)
 /*
  * return AAOS_OK if there is no networking problem.
  * if properly set errorcode according to rpc_execute return value.
+ * positive return value means error happen when excecuting rpc_execute
+ * negative return value means networking error.
  */
 
 static int
@@ -165,7 +167,7 @@ RPC_process(void *_self)
      */
     header = protobuf_header(self);
     if ((ret = tcp_socket_read(self, header, PACKETHEADERSIZE, NULL)) != AAOS_OK) {
-        return ret;
+        return -1 * ret;
     }
     
     protobuf_get(self, PACKET_LENGTH, &length);
@@ -195,6 +197,9 @@ RPC_process(void *_self)
      * call virtual execute function.
      * if rpc_execute failed, tell the RPC caller executing error, return AAOS_OK;
      */
+    uint16_t cmd;
+    protobuf_get(self, PACKET_COMMAND, &cmd);
+
     if ((ret = rpc_execute(self)) != AAOS_OK) {
         if (ret < 0) {
             ret = -1 * ret;
@@ -212,7 +217,7 @@ RPC_process(void *_self)
     header = protobuf_header(self);
     protobuf_get(self, PACKET_LENGTH, &length);
     if ((ret = tcp_socket_write(self, header, (size_t) length + PACKETHEADERSIZE, NULL)) != AAOS_OK) {
-        return ret;
+        return -1 * ret;
     }
 
     return ret;

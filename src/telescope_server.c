@@ -18,7 +18,7 @@ extern size_t n_telescope;
 
 static void *d;
 static void *server;
-static const char *conf_path = "/usr/local/aaos/etc/telescopes.cfg";
+static const char *conf_path = "/usr/local/aaos/etc/telescoped.cfg";
 static bool daemon_flag = true;
 static config_t cfg;
 
@@ -29,10 +29,17 @@ static struct option longopts[] = {
     { NULL,         0,                  NULL,       0 }
 };
 
+static const char *help_string = "\
+Usage:  telescoped [options] \n\
+        -c, --config-file <path>, configuration file\n\
+        -h, --help        print help doc and exit\n\
+        -D                do not enter into daemon process mode\n\
+";
+
 static void
 usage(void)
 {
-    fprintf(stderr, "\t\t[-n|--name <name>] [-i|--index <index>]");
+    fprintf(stderr, "%s\n", help_string);
     exit(EXIT_FAILURE);
 }
 
@@ -50,7 +57,7 @@ read_daemon(void)
         config_setting_lookup_string(setting, "lockfile", &lockfile);
         config_setting_lookup_string(setting, "username", &username);
         config_setting_lookup_int(setting, "daemonized", &daemonized);
-        if (daemonized) {
+        if (daemonized && daemon_flag) {
             d = new(Daemon(), name, rootdir, lockfile, username, true);
         } else {
             d = new(Daemon(), name, rootdir, lockfile, username, false);
@@ -89,12 +96,13 @@ read_configuration(void)
         for (i = 0; i < n_telescope; i++) {
             telescope_setting = config_setting_get_elem(setting, (unsigned int) i);
             const char *name = NULL, *description = NULL, *type = NULL;
-            double lon, lat, gmt_offset = -8.;
+            double lon, lat, ele, gmt_offset = -8.;
             config_setting_lookup_string(telescope_setting, "name", &name);
             config_setting_lookup_string(telescope_setting, "type", &type);
             config_setting_lookup_string(telescope_setting, "description", &description);
             config_setting_lookup_float(telescope_setting, "longitude", &lon);
             config_setting_lookup_float(telescope_setting, "latitude", &lat);
+            config_setting_lookup_float(telescope_setting, "elevation", &ele);
             config_setting_lookup_float(telescope_setting, "gmt_offset", &gmt_offset);
             if (type == NULL) {
                 telescopes[i] = NULL;
@@ -120,7 +128,38 @@ read_configuration(void)
                         mount_type = TELESCOPE_HORIZONTAL;
                     }
                 }
-                telescopes[i] = new(APMount(), name, "description", description, "description", description, "longitude", lon, "latitude", lat, "gmt_offset", gmt_offset, '\0', mount_type, serial_address, serial_port, serial_name);
+                telescopes[i] = new(APMount(), name, "description", description, "longitude", lon, "latitude", lat, "gmt_offset", gmt_offset, '\0', mount_type, serial_address, serial_port, serial_name);
+            } else if (strcmp(type, "SYSU80") == 0) {
+                config_setting_t *sysu80_setting, *instrument_setting;
+                size_t j, n_instrument = 0;
+                int dfl_inst = 0;
+                size_t default_instrument = 0;
+                const char *windows_address, *windows_port;
+                char **instruments = NULL;
+                const char *instrument;
+                double home_ra = 37.95, home_dec = 89.26;
+                
+                if ((sysu80_setting = config_setting_lookup(telescope_setting, "sysu80")) != NULL) {
+                    config_setting_lookup_string(sysu80_setting, "windows_address", &windows_address);
+                    config_setting_lookup_string(sysu80_setting, "windows_port", &windows_port);
+                    config_setting_lookup_int(sysu80_setting, "default_instrument", &dfl_inst);
+                    config_setting_lookup_float(sysu80_setting, "home_ra", &home_ra);
+                    config_setting_lookup_float(sysu80_setting, "home_dec", &home_dec);
+                    
+                    default_instrument = dfl_inst;
+                    instrument_setting = config_setting_lookup(sysu80_setting, "instruments");
+                    if (instrument_setting != NULL) {
+                        n_instrument = config_setting_length(instrument_setting);
+                        instruments = (char **) Malloc(n_instrument * sizeof(char *));
+                        for (j = 0; j < n_instrument; j++) {
+                            instrument = config_setting_get_string_elem(instrument_setting, (int) j);
+                            instruments[j] = (char *) Malloc(strlen(instrument) + 1);
+                            snprintf(instruments[j], strlen(instrument) + 1, "%s", instrument);
+                        }
+                    }
+                }
+                telescopes[i] = new(SYSU80(), name, "description", description, "longitude", lon, "latitude", lat,  "elevation", ele, (void *) 0, windows_address, windows_port, "instruments", instruments, "n_instrument", n_instrument, "default_instrument", default_instrument, "home_ra", home_ra, "home_dec", home_dec, (void *) 0);
+                
             } else {
                 
             }
@@ -218,7 +257,7 @@ main(int argc, char *argv[])
             daemon_stop(d);
         } else {
             fprintf(stderr, "Unknow argument.\n");
-            fprintf(stderr, "Exit...");
+            fprintf(stderr, "Exit...\n");
             exit(EXIT_FAILURE);
         }
     }

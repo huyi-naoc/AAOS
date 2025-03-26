@@ -50,28 +50,27 @@
 #define SCHEDULER_UNMASK_SITE_BY_ID                 29
 #define SCHEDULER_UNMASK_SITE_BY_NAME               30
 #define SCHEDULER_ADD_TASK_RECORD                   31
-#define SCHEDULER_UPDATE_TASK_STATUS                32
+#define SCHEDULER_UPDATE_TASK_RECORD                32
+#define SCHEDULER_UPDATE_TASK_STATUS                33
 
-#define SCHEDULER_UPDATE_STATUS                     33
-#define SCHEDULER_TASK_BLOCK_ACK                    38
-#define SCHEDULER_POP_TASK_BLOCK                    39
-#define SCHEDULER_PUSH_TASK_BLOCK                   40
+#define SCHEDULER_TASK_BLOCK_ACK                    34
+#define SCHEDULER_POP_TASK_BLOCK                    35
+#define SCHEDULER_PUSH_TASK_BLOCK                   36
 
+#define SCHEDULER_SITE_INIT                         37
+#define SCHEDULER_TELESCOPE_INIT                    38
+#define SCHEDULER_TARGET_INIT                       39
+#define SCHEDULER_TASK_RECORD_INIT                  40
 
-#define SCHEDULER_UPDATE_TASK_RECORD                49
-#define SCHEDULER_SITE_INIT                         50
-#define SCHEDULER_TELESCOPE_INIT                    51
-#define SCHEDULER_TARGET_INIT                       52
-#define SCHEDULER_TASK_RECORD_INIT                  53
+#define SCHEDULER_SITE_MANAGE                       41
+#define SCHEDULER_TELESCOPE_MANAGE                  42
 
-#define SCHEDULER_SITE_MANAGE                       54
-#define SCHEDULER_TELESCOPE_MANAGE                  55
+#define SCHEDULER_REGISTER_THREAD                   43
 
-#define SCHEDULER_REGISTER_THREAD                   56
-
-#define SCHEDULER_UPDATE_SITE_STATUS                60
-#define SCHEDULER_UPDATE_TELESCOPE_STATUS           61
-#define SCHEDULER_UPDATE_TARGET_STATUS              62
+#define SCHEDULER_UPDATE_STATUS                     44
+#define SCHEDULER_UPDATE_SITE_STATUS                45
+#define SCHEDULER_UPDATE_TELESCOPE_STATUS           46
+#define SCHEDULER_UPDATE_TARGET_STATUS		    47
 
 #define SCHEDULER_FORMAT_JSON                       1
 

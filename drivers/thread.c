@@ -8,6 +8,7 @@
 #include "def.h"
 #include "detector_rpc.h"
 #include "rpc.h"
+#include "scheduler_def.h"
 #include "scheduler_rpc.h"
 #include "telescope_rpc.h"
 #include "thread.h"
@@ -174,7 +175,7 @@ __ObservationThread_cycle(void *_self)
     }
     Pthread_mutex_unlock(&self->mtx);
     
-    int ret;
+    int ret = AAOS_OK;
     
     if (self->has_scheduler && (ret = __ObservationThread_check_scheduler(self)) != AAOS_OK) {
 
@@ -196,8 +197,16 @@ __ObservationThread_cycle(void *_self)
         
     }
     */
-    char buf[BUFSIZE];
     
+    Pthread_mutex_lock(&self->mtx);
+    while (self->state == OT_STATE_STOP || self->state == OT_STATE_CANCEL) {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+        ret = AAOS_ECANCELED;
+        goto end;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    char buf[BUFSIZE];
     if (((ret = scheduler_get_task_by_telescope_id(self->scheduler, self->tel_id, buf, BUFSIZE, NULL, NULL))) != AAOS_OK) {
         /*
          * 
@@ -215,11 +224,17 @@ __ObservationThread_cycle(void *_self)
      * Bad weather and daytime.
      */
     if ((root_json = cJSON_Parse(buf)) == NULL) {
-        return AAOS_ERROR;
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d: Bad format of SIU, `%s`.\n", __FILE__, __func__, __LINE__, buf);
+#endif
+        return AAOS_EBADCMD;
     }
 
     if (((target_json = cJSON_GetObjectItemCaseSensitive(root_json, "TARGET-INFO"))) == NULL) {
-        return AAOS_ERROR;
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d: SIU does not contain `TARGET-INFO`.\n", __FILE__, __func__, __LINE__);
+#endif
+        return AAOS_EBADCMD;
     }
      value_json = cJSON_GetObjectItemCaseSensitive(target_json, "targname");
     if (value_json != NULL && cJSON_IsString(value_json)) {
@@ -244,6 +259,16 @@ __ObservationThread_cycle(void *_self)
         cJSON_Delete(root_json);
         return AAOS_OK;
     }
+    
+    Pthread_mutex_lock(&self->mtx);
+    while (self->state == OT_STATE_STOP || self->state == OT_STATE_CANCEL) {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+        if (self->state == OT_STATE_CANCEL) {
+            ret = AAOS_ECANCELED;
+        }
+        goto end;
+    }
+    Pthread_mutex_unlock(&self->mtx);
 
     if (self->has_telescope) {
         if ((telescope_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) == NULL) {
@@ -289,6 +314,14 @@ __ObservationThread_cycle(void *_self)
         }
     }
     
+    Pthread_mutex_lock(&self->mtx);
+    while (self->state == OT_STATE_STOP || self->state == OT_STATE_CANCEL) {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+        ret = AAOS_ECANCELED;
+        goto end;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
     if (self->has_detector) {
         if ((ret = detector_get_index_by_name(self->detector, detname)) != AAOS_OK) {
             return AAOS_ERROR;
@@ -300,12 +333,13 @@ __ObservationThread_cycle(void *_self)
             return AAOS_ERROR;
         }
     }
-
+    
     Pthread_mutex_lock(&self->mtx);
+end:
     self->state = OT_STATE_IDLE;
     Pthread_mutex_unlock(&self->mtx);
     
-    return AAOS_OK;
+    return ret;
 }
 
 int
@@ -323,16 +357,29 @@ __observation_thread_start(void *_self)
 }
 
 static int
-__ObserbationThread_start(void *_self)
+__ObservationThread_start(void *_self)
 {
     struct __ObservationThread *self = cast(__ObservationThread(), _self);
-
+    
+    Pthread_mutex_lock(&self->mtx);
+    self->tid = pthread_self();
+    Pthread_mutex_unlock(&self->mtx);
     int ret;
     for (; ;) {
         ret = __observation_thread_cycle(_self);
     }
-
+    
     return AAOS_OK;
+}
+
+static void *
+__ObservationThread_thr(void *_self)
+{
+    int ret;
+    
+    ret = __ObservationThread_start(_self);
+    
+    return NULL;
 }
 
 int
@@ -543,3 +590,245 @@ __ObservationThread_set_member(void *_self, const char *name, va_list *app)
         return;
     }
 }
+
+
+static void *
+__ObservationThread_ctor(void *_self, va_list *app)
+{
+    struct __ObservationThread *self = super_ctor(__ObservationThread(), _self, app);
+    
+    /*
+    const char *s, *key, *value;
+    
+    s = va_arg(*app, const char *);
+    if (s) {
+        self->name = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->name, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, const char *);
+    if (s) {
+        self->path = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->path, strlen(s) + 1, "%s", s);
+    }
+    
+    self->read_timeout = READTIMEOUT;
+    self->write_timeout = WRITETIMEOUT;
+    
+    while ((key = va_arg(*app, const char *))) {
+        if (strcmp(key, "description") == 0) {
+            value = va_arg(*app, const char *);
+            if (value) {
+                self->description = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->description, strlen(value) + 1, "%s", value);
+            }
+            
+            continue;
+        } else if (strcmp(key, "read_timeout") == 0) {
+            self->read_timeout = va_arg(*app, double);
+            continue;
+        } else if (strcmp(key, "write_timeout") == 0) {
+            self->write_timeout = va_arg(*app, double);
+            continue;
+        } else if (strcmp(key, "read_buffer_size") == 0) {
+            self->read_buffer_size = va_arg(*app, size_t);
+            self->read_buffer = Malloc(self->read_buffer_size);
+            if (!self->write_buffer) {
+                self->write_buffer = self->read_buffer;
+                self->write_buffer_size = self->read_buffer_size;
+            }
+            continue;
+        } else if (strcmp(key, "write_buffer_size") == 0) {
+            self->write_buffer_size = va_arg(*app, size_t);
+            self->write_buffer = Malloc(self->write_buffer_size);
+            if (!self->read_buffer) {
+                self->read_buffer = self->write_buffer;
+                self->read_buffer_size = self->write_buffer_size;
+            }
+            continue;
+        }
+         
+    }*/
+    
+    return (void *) self;
+}
+
+static void *
+__ObservationThread_dtor(void *_self)
+{
+    struct __ObservationThread *self = cast(__ObservationThread(), _self);
+    
+    if (self->has_dome) {
+        if (self->dome) {
+            delete(self->dome);
+        }
+        if (self->dome_client) {
+            delete(self->dome_client);
+        }
+        free(self->dome_name);
+        free(self->dome_addr);
+        free(self->dome_port);
+    }
+    
+    if (self->has_detector) {
+        if (self->detector) {
+            delete(self->detector);
+        }
+        if (self->detector_client) {
+            delete(self->detector_client);
+        }
+        free(self->detector_name);
+        free(self->detector_addr);
+        free(self->detector_port);
+    }
+    
+    if (self->has_scheduler) {
+        if (self->detector) {
+            delete(self->detector);
+        }
+        if (self->detector_client) {
+            delete(self->detector_client);
+        }
+        free(self->detector_name);
+        free(self->detector_addr);
+        free(self->detector_port);
+        
+    }
+    
+    free(self->detector_addr);
+    free(self->detector_port);
+    if (self->detector_client) {
+        delete(self->detector_client);
+    }
+    
+    return super_dtor(__ObservationThread(), _self);
+}
+
+
+static void *
+__ObservationThreadClass_ctor(void *_self, va_list *app)
+{
+    struct __ObservationThreadClass *self = super_ctor(__ObservationThreadClass(), _self, app);
+    Method selector;
+    
+#ifdef va_copy
+    va_list ap;
+    va_copy(ap, *app);
+#else
+    va_list ap = *app;
+#endif
+    
+    while ((selector = va_arg(ap, Method))) {
+        const char *tag = va_arg(ap, const char *);
+        Method method = va_arg(ap, Method);
+        if (selector == (Method) __observation_thread_start) {
+            if (tag) {
+                self->start.tag = tag;
+                self->start.selector = selector;
+            }
+            self->start.method = method;
+            continue;
+        }
+        if (selector == (Method) __observation_thread_stop) {
+            if (tag) {
+                self->stop.tag = tag;
+                self->stop.selector = selector;
+            }
+            self->stop.method = method;
+            continue;
+        }
+        if (selector == (Method) __observation_thread_suspend) {
+            if (tag) {
+                self->suspend.tag = tag;
+                self->suspend.selector = selector;
+            }
+            self->suspend.method = method;
+            continue;
+        }
+        if (selector == (Method) __observation_thread_cancel) {
+            if (tag) {
+                self->cancel.tag = tag;
+                self->cancel.selector = selector;
+            }
+            self->cancel.method = method;
+            continue;
+        }
+        if (selector == (Method) __observation_thread_cycle) {
+            if (tag) {
+                self->cycle.tag = tag;
+                self->cycle.selector = selector;
+            }
+            self->cycle.method = method;
+            continue;
+        }
+        
+    }
+    
+#ifdef va_copy
+    va_end(ap);
+#endif
+    
+    return (void *) self;
+}
+
+static const void *___ObservationThreadClass;
+
+static void
+__ObservationThreadClass_destroy(void)
+{
+    free((void *) ___ObservationThreadClass);
+}
+
+static void
+__ObservationThreadClass_initialize(void)
+{
+    ___ObservationThreadClass = new(Class(), "__ObservationThreadClass", Class(), sizeof(struct __ObservationThreadClass),
+                                    ctor, "ctor", __ObservationThreadClass_ctor,
+                                    (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(__ObservationThreadClass_destroy);
+#endif
+}
+
+const void *
+__ObservationThreadClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, __ObservationThreadClass_initialize);
+#endif
+    
+    return ___ObservationThreadClass;
+}
+
+static const void *___ObservationThread;
+
+static void
+__ObservationThread_destroy(void)
+{
+    free((void *)___ObservationThread);
+}
+
+static void
+__ObservationThread_initialize(void)
+{
+    ___ObservationThread = new(__ObservationThreadClass(), "__ObservationThread", Object(), sizeof(struct __ObservationThread),
+                               ctor, "ctor", __ObservationThread_ctor,
+                               dtor, "dtor", __ObservationThread_dtor,
+                               
+                               (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(__ObservationThread_destroy);
+#endif
+}
+
+const void *
+__ObservationThread(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, __ObservationThread_initialize);
+#endif
+    
+    return ___ObservationThread;
+}
+
