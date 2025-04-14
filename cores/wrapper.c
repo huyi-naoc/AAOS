@@ -907,6 +907,17 @@ Pthread_rwlock_wrlock(pthread_rwlock_t *lock)
     return s;
 }
 
+int
+Pthread_rwlock_unlock(pthread_rwlock_t *lock)
+{
+    int s;
+    s = pthread_rwlock_unlock(lock);
+    if (s != 0) {
+        err_warn("pthread_rwlock_unlock", s);
+    }
+    return s;
+}
+
 /*
  * User library functions.
  */

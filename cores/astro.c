@@ -1459,6 +1459,11 @@ read_iers_a(void)
             goto error;
         }
     }
+    if (access("share/finals2000A.all", R_OK) == 0) {
+        if ((fp = fopen("share/finals2000A.all", "r")) != NULL) {
+            goto error;
+        }
+    }
     if (access("/usr/local/aaos/share/finals2000A.all", R_OK) == 0) {
         if ((fp = fopen("/usr/local/aaos/share/finals2000A.all", "r")) != NULL) {
             goto error;

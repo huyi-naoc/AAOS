@@ -27,6 +27,7 @@ struct DetectorState {
 struct DetectorCapability {
     size_t width;               //full image width without binning, with overscan
     size_t height;              //full image height without binning, with overscan
+    size_t n_chip;              //number of chips (number of MOSAIC chips, not number of readout channels)
     
     bool binning_available;
     size_t x_binning_min;

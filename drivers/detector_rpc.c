@@ -111,7 +111,6 @@ Detector_get_result(void *protobuf, int command, ...)
         case DETECTOR_COMMAND_GET_PREFIX:
         case DETECTOR_COMMAND_GET_TEMPLATE:
         case DETECTOR_COMMAND_GET_DIRECTORY:
-            
         {
             uint32_t length;
             void *res = va_arg(ap, void *);
@@ -1374,7 +1373,7 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     struct Detector *self = cast(Detector(), _self);
     
     void *protobuf = self->_.protobuf;
-    uint16_t option;
+    uint16_t option, error_code;
     int ret = AAOS_OK;
     char filename[FILENAMESIZE];
     uint32_t i, length;
@@ -1383,10 +1382,17 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_EXPOSE);
     protobuf_set(protobuf, PACKET_DF0, exposure_time);
     protobuf_set(protobuf, PACKET_U32F2, n_frame);
+    char *string = va_arg(*app, char *);
+    if (string == NULL) {
+        protobuf_set(protobuf, PACKET_LENGTH, 0);
+    } else {
+        protobuf_set(protobuf, PACKET_BUF, string, strlen(string) + 1);
+    }
     
     /*
      * Serialize the input parameters.
      */
+    /*
     protobuf_get(protobuf, PACKET_LENGTH, &length);
     char *buffer = NULL;
     cJSON *params = cJSON_CreateObject(), *entry = NULL;
@@ -1416,22 +1422,28 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     }
     
     free(buffer);
-    
+    */
     if ((ret = rpc_write(self)) != AAOS_OK) {
         return ret;
     }
     protobuf_get(protobuf, PACKET_OPTION, &option);
     if (option & DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
-        
         if (option & DETECTOR_OPTION_NOTIFY_LAST_FILLING) {
+            /*
+             * Must call detector_wait_for_completion.
+             */
             for (i = 0; i < n_frame - 1; i++) {
                 if ((ret = rpc_read(self)) != AAOS_OK) {
-                    goto error;
+                    return -1 * ret;
+                }
+                protobuf_get(self, PACKET_ERRORCODE, &error_code);
+                if (error_code != AAOS_OK) {
+                    return error_code;
                 }
                 memset(filename, '\0', FILENAMESIZE);
                 Detector_get_result(protobuf, DETECTOR_COMMAND_EXPOSE, filename, FILENAMESIZE, NULL);
                 if (image_callback == NULL) {
-                    fprintf(stderr, "%s", filename);
+                    fprintf(stdout, "%s", filename);
                 } else {
                     image_callback(_self, filename);
                 }
@@ -1439,12 +1451,16 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
         } else {
             for (i = 0; i < n_frame; i++) {
                 if ((ret = rpc_read(self)) != AAOS_OK ) {
-                    goto error;
+                    return -1 * ret;
+                }
+                protobuf_get(self, PACKET_ERRORCODE, &error_code);
+                if (error_code != AAOS_OK) {
+                    return error_code;
                 }
                 memset(filename, '\0', FILENAMESIZE);
                 Detector_get_result(protobuf, DETECTOR_COMMAND_EXPOSE, filename, FILENAMESIZE, NULL);
                 if (image_callback == NULL) {
-                    fprintf(stderr, "%s", filename);
+                    fprintf(stdout, "%s", filename);
                 } else {
                     image_callback(_self, filename);
                 }
@@ -1452,7 +1468,18 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
         }
     } else {
         if ((ret = rpc_read(self)) != AAOS_OK ) {
-            goto error;
+            return -1 * ret;
+        }
+        protobuf_get(self, PACKET_ERRORCODE, &error_code);
+        if (error_code != AAOS_OK) {
+            return error_code;
+        }
+        memset(filename, '\0', FILENAMESIZE);
+        Detector_get_result(protobuf, DETECTOR_COMMAND_EXPOSE, filename, FILENAMESIZE, NULL);
+        if (image_callback == NULL) {
+            fprintf(stdout, "%s", filename);
+        } else {
+            image_callback(_self, filename);
         }
     }
     
@@ -1859,7 +1886,6 @@ Detector_execute_expose(struct Detector *self)
     protobuf_get(self, PACKET_DF0, &exposure_time);
     protobuf_get(self, PACKET_U32F0, &n_frame);
     
-    
     if (index == 0) {
         uint32_t length;
         char *s;
@@ -1889,6 +1915,7 @@ Detector_execute_expose(struct Detector *self)
         }
     }
     
+    protobuf_set(self, PACKET_LENGTH, 0);
     return __detector_expose(detector, exposure_time, n_frame, self);
 }
 

@@ -154,7 +154,7 @@ int Pthread_rwlock_destroy(pthread_rwlock_t *);
 int Pthread_rwlock_init(pthread_rwlock_t *, const pthread_rwlockattr_t *);
 int Pthread_rwlock_rdlock(pthread_rwlock_t *);
 int Pthread_rwlock_wrlock(pthread_rwlock_t *);
-
+int Pthread_rwlock_unlock(pthread_rwlock_t *);
 
 int Getidbyname(const char *, uid_t *, gid_t *);
 void mkdirp(const char *);

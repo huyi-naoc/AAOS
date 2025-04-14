@@ -1,4 +1,4 @@
-#AAOS - Introduction
+# AAOS - Introduction
 
 Automatic Astronomical Observatory Operating System
 

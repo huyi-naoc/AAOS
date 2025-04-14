@@ -784,7 +784,6 @@ __Serial_read3(void *_self, void *read_buffer, size_t request_size, size_t *read
     }
 }
 
-
 int
 __serial_write(void *_self, const void *write_buffer, size_t request_size, size_t *write_size)
 {
@@ -4254,8 +4253,8 @@ sms_serial_virtual_table(void)
 /*
  * Data flag
  */
-#define KLTP_ACQ_ON_FLAG    0x01
-#define KLTP_ACQ_MODE_FLAG  0x02
+#define KLTP_ACQ_ON_FLAG    0x01    //acquisiction start, if set.
+#define KLTP_ACQ_MODE_FLAG  0x02    //AC mode, if set.
 
 static unsigned char KLTP_ACQ_OFF[] = {0x55, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x1E};
 static unsigned char KLTP_ACQ_ON[] = {0x55, 0x05, 0x00, 0x00, 0xFF, 0x00, 0x81, 0xEE};
@@ -4313,6 +4312,7 @@ KLTPSerial_ctor(void *_self, va_list *app)
 
     self->queue = new(ThreadsafeCircularQueue(), self->size, self->length);
     self->read_buf = (unsigned char *) Malloc(self->output_len);
+    Pthread_mutex_init(&self->data_flag_mtx, NULL);
     Pthread_mutex_init(&self->mtx, NULL);
     Pthread_cond_init(&self->cond, NULL);
     
@@ -4331,6 +4331,7 @@ KLTPSerial_dtor(void *_self)
     free(self->read_buf);
     Pthread_mutex_destroy(&self->mtx);
     Pthread_cond_destroy(&self->cond);
+    Pthread_mutex_destroy(&self->data_flag_mtx);
     return super_dtor(KLTPSerial(), _self);
 }
 
@@ -4543,12 +4544,15 @@ kltp_print_data_2(const unsigned char *buf)
 }
 #endif
 
-static int
+static unsigned int
 KLTPSerial_get_data_flag(struct KLTPSerial *self, unsigned char *buf)
 {
-    int data_flag;
+    unsigned int data_flag;
     if (buf == NULL) {
-        __atomic_load(&self->data_flag, &data_flag, __ATOMIC_SEQ_CST);
+        Pthread_mutex_lock(&self->data_flag_mtx);
+        data_flag = self->data_flag;
+        Pthread_mutex_unlock(&self->data_flag_mtx);
+        //__atomic_load(&self->data_flag, &data_flag, __ATOMIC_SEQ_CST);
     } else {
         if (buf[2]&0x80) {
             /*
@@ -4577,7 +4581,7 @@ KLTPSerial_get_data_flag(struct KLTPSerial *self, unsigned char *buf)
 static void
 KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
 {
-    static int old_data_flag = (~KLTP_ACQ_ON_FLAG)&KLTP_ACQ_MODE_FLAG , current_data_flag;
+    static unsigned int old_data_flag = (~KLTP_ACQ_ON_FLAG)&KLTP_ACQ_MODE_FLAG , current_data_flag;
     
     static FILE *fp = NULL;
     static uint32_t ac_data_cnt = 0, dc_data_cnt = 0;
@@ -4590,6 +4594,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     if (!(old_data_flag&KLTP_ACQ_ON_FLAG) && !(current_data_flag&KLTP_ACQ_ON_FLAG)) {
 #ifdef DEBUG
         fprintf(stderr, "KLTP acquisition status is still off, do nothing.\n");
+        syslog(LOG_DEBUG, "KLTP acquisition status is still off, do nothing.\n");
 #endif
         return;
     }
@@ -4603,6 +4608,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
         if (fp != NULL) {
 #ifdef DEBUG
             fprintf(stderr, "KLTP acquisition status is from off to on, update AC or DC header, close the file.\n");
+            syslog(LOG_DEBUG, "KLTP acquisition status is from off to on, update AC or DC header, close the file.\n");
 #endif
             if (!(old_data_flag&KLTP_ACQ_MODE_FLAG))  {
                 /*
@@ -4651,6 +4657,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     if (!(old_data_flag == KLTP_ACQ_MODE_FLAG) &&  !(current_data_flag == KLTP_ACQ_MODE_FLAG) && fp == NULL) {
 #ifdef DEBUG
         fprintf(stderr, "KLTP acquisition mode is still AC, and file has not been opened yet, do nothing.\n");
+        syslog(LOG_DEBUG, "KLTP acquisition mode is still AC, and file has not been opened yet, do nothing.\n");
 #endif
         return;
     }
@@ -4662,6 +4669,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
     if (fp != NULL && !(old_data_flag&KLTP_ACQ_MODE_FLAG) && (current_data_flag&KLTP_ACQ_MODE_FLAG)) {
 #ifdef DEBUG
         fprintf(stderr, "KLTP acquisition mode is from AC to DC, update AC header, and then close file.\n");
+        syslog(LOG_DEBUG, "KLTP acquisition mode is from AC to DC, update AC header, and then close file.\n");
 #endif
         struct timespec tp;
         uint32_t t[2];
@@ -4681,6 +4689,7 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
 
 #ifdef DEBUG
         fprintf(stderr, "Open a new file.\n");
+        syslog(LOG_DEBUG, "Open a new file.\n");
 #endif
         char path[PATHSIZE], datetime[FILENAMESIZE];
         struct timespec tp;
@@ -4710,7 +4719,8 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
             fwrite(t, sizeof(uint32_t) * 8, 1, fp);
         } else {
 #ifdef DEBUG
-        fprintf(stderr, "Creating file %s failed.\n", path);
+            fprintf(stderr, "Creating file %s failed.\n", path);
+            syslog(LOG_DEBUG, "Creating file %s failed.\n", path);
 #endif
         }
         dc_data_cnt = 0;
@@ -4727,13 +4737,13 @@ KLTPSerial_raw_data(struct KLTPSerial *self, unsigned char *buf)
         /*
          * DC mode
          */
-
         if (old_data_flag&KLTP_ACQ_MODE_FLAG) {
             /*
              * If old data flag is DC, and current is AC, update DC header.
              */
 #ifdef DEBUG
             fprintf(stderr, "KLTP acquisition mode is from DC to AC, update DC header.\n");
+            syslog(LOG_DEBUG, "KLTP acquisition mode is from DC to AC, update DC header.\n");
 #endif
             struct timespec tp;
             uint32_t t[2];
@@ -4849,12 +4859,13 @@ static int KLTPSerial_aligned_read(struct KLTPSerial *self)
 {
     unsigned char buf[self->length * 2];
     int ret;
-    size_t i, read_size, output_len = self->output_len, nleft = 0;
+    size_t i, read_size, output_len = self->output_len, nleft = 0, nread = 0;
     uint16_t crc, crc2;
 
     memset(buf, '\0', self->length * 2);
+    ret = __Serial_read3(self, buf, output_len, &read_size);
 
-    ret = __Serial_read3(self, buf + nleft, output_len - nleft, &read_size);
+    //ret = __Serial_read3(self, buf + nleft, output_len - nleft, &read_size);
     if (ret == AAOS_OK) {
         memcpy(&crc, buf + output_len - 2, 2);
         crc2 =  MODBUS_CRC16_v3(buf, (unsigned int) output_len - 2);
@@ -4864,14 +4875,16 @@ static int KLTPSerial_aligned_read(struct KLTPSerial *self)
         if (crc == crc2 && buf[0] == 0x55) {
             return AAOS_OK;
         } else {
-            ret = __Serial_read3(self, buf + nleft, output_len - nleft, &read_size);
+            /*
+             * Read again.
+             */
+            ret = __Serial_read3(self, buf + nread, output_len, &read_size);
             if (ret == AAOS_OK) {
                 for (i = 1; i <= output_len; i++) {
-                    nleft = output_len - i;
                     memcpy(&crc, buf + i + output_len - 2, 2);
                     crc2 = MODBUS_CRC16_v3(buf + i, (unsigned int) output_len - 2);
                     if (crc == crc2 && buf[i] == 0x55) {
-                        memmove(buf, buf + i + output_len, nleft);
+                        memmove(buf, buf + i, output_len);
                         return AAOS_OK;
                         break;
                     }
@@ -4950,7 +4963,7 @@ KLTPSerial_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
     
     int ret = AAOS_OK;
     unsigned char *buf;
-    int expected, desired;
+    //int expected, desired;
 #ifdef DEBUG
     fprintf(stderr, "%s extucte binary command: ", __func__);
     print_binary_bytes((const unsigned char *) write_buffer, write_buffer_size);
@@ -4997,10 +5010,64 @@ KLTPSerial_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
         write_size -= sizeof(uint16_t);
     }
     Pthread_mutex_unlock(&self->mtx);
+    
+    if (memcmp(KLTP_ACQ_OFF, buf, 6) == 0) {
+        Pthread_mutex_lock(&myself->data_flag_mtx);
+        myself->data_flag &= ~KLTP_ACQ_ON_FLAG;
+        Pthread_mutex_unlock(&myself->data_flag_mtx);
+        //__atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
+        //do {
+        //    desired = expected&(~KLTP_ACQ_ON_FLAG);
+        //} while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+        /*
+         * Push a pseudo KLTP data record to inform the data process thread
+         * that a KLTP ACQ OFF command is send.
+         */
+        unsigned char mybuf[] = {0x55,0x55,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
+        threadsafe_circular_queue_push(myself->queue, mybuf);
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition stop.\n");
+        syslog(LOG_DEBUG, "KLTP acquisition stop.\n");
+#endif
+    } else if (memcmp(KLTP_ACQ_ON, buf, 6) == 0) {
+        Pthread_mutex_lock(&myself->data_flag_mtx);
+        myself->data_flag |= KLTP_ACQ_ON_FLAG;
+        Pthread_mutex_unlock(&myself->data_flag_mtx);
+        //__atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
+        //do {
+        //    desired = expected|KLTP_ACQ_ON_FLAG;
+        //} while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition start.\n");
+        syslog(LOG_DEBUG, "KLTP acquisition start.\n");
+#endif
+    } else if (memcmp(KLTP_ACQ_AC, buf, 6) == 0) {
+        Pthread_mutex_lock(&myself->data_flag_mtx);
+        myself->data_flag &= ~KLTP_ACQ_MODE_FLAG;
+        Pthread_mutex_unlock(&myself->data_flag_mtx);
+        //__atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
+        //do {
+        //    desired = expected&(~KLTP_ACQ_MODE_FLAG);
+        //} while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition mode to AC.\n");
+        syslog(LOG_DEBUG, "KLTP acquisition mode to AC.\n");
+#endif
+    } else if (memcmp(KLTP_ACQ_DC, buf, 6) == 0) {
+        Pthread_mutex_lock(&myself->data_flag_mtx);
+        myself->data_flag |= KLTP_ACQ_MODE_FLAG;
+        Pthread_mutex_unlock(&myself->data_flag_mtx);
+        //__atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
+        //do {
+        //    desired = expected|KLTP_ACQ_MODE_FLAG;
+        //} while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
+#ifdef DEBUG
+        fprintf(stderr, "KLTP acquisition mode to DC.\n");
+        syslog(LOG_DEBUG, "KLTP acquisition mode to DC.\n");
+#endif
+    }
 
-    
     struct timespec tp;
-    
     tp.tv_sec = floor(self->read_timeout);
     tp.tv_nsec = (self->read_timeout - tp.tv_sec) * 1000000000;
 
@@ -5039,45 +5106,6 @@ KLTPSerial_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
         Pthread_mutex_unlock(&myself->mtx);
     }
 
-    if (memcmp(KLTP_ACQ_OFF, buf, 6) == 0) {
-        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
-        do {
-            desired = expected&(~KLTP_ACQ_ON_FLAG);
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-        /*
-         * Push a pseudo KLTP data record to inform the data process thread
-         * that a KLTP ACQ OFF command is send.
-         */
-        unsigned char mybuf[] = {0x55,0x55,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0xC1};
-        threadsafe_circular_queue_push(myself->queue, mybuf);
-#ifdef DEBUG
-        fprintf(stderr, "KLTP acquisition stop.\n");
-#endif
-    } else if (memcmp(KLTP_ACQ_ON, buf, 6) == 0) {
-        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
-        do {
-            desired = expected|KLTP_ACQ_ON_FLAG;
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-#ifdef DEBUG
-        fprintf(stderr, "KLTP acquisition start.\n");
-#endif
-    } else if (memcmp(KLTP_ACQ_AC, buf, 6) == 0) {
-        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
-        do {
-            desired = expected&(~KLTP_ACQ_MODE_FLAG);
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-#ifdef DEBUG
-        fprintf(stderr, "KLTP acquisition mode to AC.\n");
-#endif
-    } else if (memcmp(KLTP_ACQ_DC, buf, 6) == 0) {
-        __atomic_load(&myself->data_flag, &expected, __ATOMIC_SEQ_CST);
-        do {
-            desired = expected|KLTP_ACQ_MODE_FLAG;
-        } while (!__atomic_compare_exchange(&myself->data_flag, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST));
-#ifdef DEBUG
-        fprintf(stderr, "KLTP acquisition mode to DC.\n");
-#endif
-    }
     free(buf);
     return AAOS_OK;
 }

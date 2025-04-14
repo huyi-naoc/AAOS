@@ -24,14 +24,14 @@ main(int argc, char *argv[])
     while ((ch = getopt_long(argc, argv, "a", long_options, &longindex)) != -1) {
         switch (ch) {
             case 'a':
-#ifdef MACOSX
-                flag = 1;
-#else
+#ifdef LINUX
                 flag = TIMER_ABSTIME;
+#else
+                flag = 1;
 #endif
                 break;
             default:
-		printf("?? getopt returned character code 0%x ??\n", ch);
+                fprintf(stderr, "?? getopt returned character code 0%x ??\n", ch);
                 fprintf(stderr, "Illegal option.\n");
                 exit(EXIT_FAILURE);
                 break;
@@ -66,7 +66,9 @@ main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
     }
-#ifdef MACOSX
+#ifdef LINUX
+    clock_nanosleep(clock_id, flag, &request, &remain);
+#else
     if (flag == 0) {
         nanosleep(&request, &remain);
     } else {
@@ -83,9 +85,6 @@ main(int argc, char *argv[])
         req.tv_nsec = (diff - req.tv_sec) * 1000000000;
         nanosleep(&req, &remain);
     }
-
-#else
-    clock_nanosleep(clock_id, flag, &request, &remain);
 #endif
     exit(EXIT_SUCCESS);
 }

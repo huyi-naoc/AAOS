@@ -154,7 +154,8 @@ struct KLTPSerial {
     size_t output_len;
     unsigned char *read_buf;
     int flag;
-    int data_flag;
+    unsigned int data_flag;
+    pthread_mutex_t data_flag_mtx;
     pthread_t tid; /* read thread */
     pthread_mutex_t mtx;
     pthread_cond_t cond;

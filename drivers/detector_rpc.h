@@ -82,7 +82,7 @@
  * @retval AAOS_EDEVMAL
  * Detector is in MALFUNCTION state.
  */
-int detector_expose(void *_self, double exposure_time, uint32_t n_frames, void (*image_callback)(void *_self, const char *filename, ...), ...);
+int detector_expose(void *_self, double exposure_time, uint32_t n_frames, void (*image_callback)(void *_self, const char *pathname, ...), ...);
 
 /**
  * Wait for last frame completion method of detector object.
