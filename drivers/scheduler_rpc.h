@@ -13,6 +13,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *result, size_t size, size_t *length, unsigned int *type);
 int scheduler_get_task_by_telescope_name(void *_self, const char *name, char *result, size_t size, size_t *length, unsigned int *type);
 
@@ -59,6 +63,10 @@ extern const void *SchedulerClientClass(void);
 
 extern const void *SchedulerServer(void);
 extern const void *SchedulerServerClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 extern void *scheduler;
 

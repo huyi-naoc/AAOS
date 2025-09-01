@@ -8,13 +8,16 @@
 #ifndef thread_h
 #define thread_h
 
-#define OT_STATE_SLEW       1
-#define OT_STATE_EXPOSE     2
-#define OT_STATE_SUSPEND    3
-#define OT_STATE_CANCEL     4
-#define OT_STATE_STOP       5
-#define OT_STATE_IDLE       6
+#define OT_STATE_SLEW       0x0001
+#define OT_STATE_EXPOSE     0x0002
+#define OT_STATE_SUSPEND    0x0004
+#define OT_STATE_CANCEL     0x0008
+#define OT_STATE_STOP       0x0010
+#define OT_STATE_IDLE       0x8000
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int __observation_thread_cycle(void *_sef);
 int __observation_thread_start(void *_self);
@@ -25,4 +28,8 @@ int __observation_thread_resume(void *_self);
 
 const void *__ObservationThread(void);
 const void *__ObservationThreadClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif /* thread_h */

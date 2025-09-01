@@ -19,18 +19,9 @@
 #include <config.h>
 #endif
 
-#define DETECTOR_STATE_OFFLINE          0x00000001
-#define DETECTOR_STATE_UNINITIALIZED    0x00000002
-#define DETECTOR_STATE_IDLE             0x00000004
-#define DETECTOR_STATE_EXPOSING         0x00000008
-#define DETECTOR_STATE_READING          0x00000010
-#define DETECTOR_STATE_MALFUNCTION      0x80000000
-
-#define DETECTOR_OPTION_IGNORE_DEVMAL   0x0001
-#define DETECTOR_OPTION_ONESHOT         0x8000
-
-#define DETECTOR_OPTION_NOTIFY_LAST_FILLING     0x0001
-#define DETECTOR_OPTION_NOTIFY_EACH_COMPLETION  0x0002
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern const void *__Detector(void);
 extern const void *__DetectorClass(void);
@@ -46,9 +37,12 @@ int __detector_enable_cooling(void *_self);
 int __detector_disable_cooling(void *_self);
 int __detector_init(void *_self);
 int __detector_inspect(void *_self);
+int __detector_register(void *_self, double timeout);
 int __detector_wait(void *_self, double timeout);
 int __detector_wait_for_completion(void *_self);
 
+void __detector_set(void *_self, const char *keyname, ...);
+void __detector_get(void *_self, const char *keyname, ...);
 void __detector_set_option(void *_self, uint16_t option);
 uint16_t __detector_get_option(void *_self);
 void __detector_clear_option(void *_self);
@@ -71,6 +65,8 @@ int __detector_set_frame_rate(void *_self, double frame_rate);
 int __detector_get_frame_rate(void *_self, double *frame_rate);
 int __detector_set_exposure_time(void *_self, double exposure_time);
 int __detector_get_exposure_time(void *_self, double *exposure_time);
+int __detector_set_pixel_format(void *_self, uint32_t pixel_format);
+int __detector_get_pixel_format(void *_self, uint32_t *pixel_format);
 int __detector_set_readout_rate(void *_self, double readout_rate);
 int __detector_get_readout_rate(void *_self, double *readout_rate);
 int __detector_set_gain(void *_self, double gain);
@@ -98,5 +94,9 @@ extern const void *VirtualDetectorClass(void);
 
 extern const void *USTCCamera(void);
 extern const void *USTCCameraClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* detector_h */

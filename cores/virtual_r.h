@@ -11,7 +11,7 @@
 
 #include "object_r.h"
 
-#define _VIRTUAL_PRIORITY_ 102
+//#define _VIRTUAL_PRIORITY_ 102
 
 struct VirtualTable {
     const struct Object _;

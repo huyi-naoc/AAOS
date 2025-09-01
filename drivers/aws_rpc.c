@@ -1470,7 +1470,7 @@ AWS_execute_data_log(struct AWS *self)
     fp = open_memstream(&buf, &size);
     __aws_data_log(aws, fp);
     fclose(fp);
-    protobuf_set(self, PACKET_BUF, buf, size);
+    protobuf_set(self, PACKET_BUF, buf, size + 1); // ensure nul-terminated
     free(buf);
   
     return AAOS_OK;
@@ -1498,7 +1498,7 @@ AWS_execute_data_field(struct AWS *self)
     fp = open_memstream(&buf, &size);
     __aws_data_field(aws, fp);
     fclose(fp);
-    protobuf_set(self, PACKET_BUF, buf, size);
+    protobuf_set(self, PACKET_BUF, buf, size + 1); // ensure nul-terminated
     free(buf);
     
     return AAOS_OK;

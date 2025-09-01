@@ -91,6 +91,10 @@ struct sf_hdtr {
 };
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void err_open(const char *, const char *, int);
 void err_close(void);
 
@@ -108,11 +112,13 @@ int Chdir(const char *);
 int Clock_gettime(clockid_t, struct timespec *);
 int Clock_nanosleep(clockid_t, int, const struct timespec *, struct timespec *);
 int Close(int);
+int Closedir(DIR *dirp);
 int Dup(int);
 int Fcntl(int, int, ...);
 pid_t Fork(void);
 int Ftruncate(int, off_t);
 int Getrlimit(int, struct rlimit *);
+int Getsockname(int, SA *addr, socklen_t *addrlen);
 int Kill(pid_t, int);
 int Mount(const char *, const char *, const char *, unsigned long, void *);
 void *Mmap(void *, size_t, int, int, int, off_t);
@@ -139,6 +145,8 @@ int Pthread_create(pthread_t *, const pthread_attr_t *, void*(*start_routine)(vo
 int Pthread_create2(pthread_t *, const pthread_attr_t *, void*(*start_routine)(void *), ...);
 int Pthread_detach(pthread_t);
 int Pthread_join(pthread_t, void **);
+int Pthread_key_create(pthread_key_t *, void (*)(void *));
+int Pthread_key_delete(pthread_key_t);
 int Pthread_mutex_lock(pthread_mutex_t *);
 int Pthread_mutex_trylock(pthread_mutex_t *);
 #ifdef LINUX
@@ -163,10 +171,16 @@ ssize_t Writen(int, const void *, size_t);
 ssize_t Readn(int, void *, size_t);
 ssize_t Writen2(int, const void *, size_t);
 ssize_t Readn2(int, void *, size_t);
+ssize_t Readn3(int, void *, size_t, const void *, size_t);
 ssize_t Sendfile(int, int, off_t, off_t *, struct sf_hdtr *, int);
 int Tcp_connect(const char *, const char *, SA *, socklen_t *);
 int Tcp_connect_nb(const char *, const char *, SA *, socklen_t *, double);
 int Tcp_listen(const char *, const char *, SA *, socklen_t *);
-int Un_stream_connect(const char *path);
+int Un_stream_connect(const char *);
+int Un_stream_listen(const char *);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* wrapper_h */

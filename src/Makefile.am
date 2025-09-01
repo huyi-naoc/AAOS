@@ -1,5 +1,5 @@
-bin_PROGRAMS = aws pdu scheduler serial telescope thermal
-sbin_PROGRAMS = awsd pdud schedulerd seriald telescoped thermald
+bin_PROGRAMS = aws detector dome pdu scheduler serial telescope thermal
+sbin_PROGRAMS = awsd detectord domed pdud schedulerd seriald telescoped thermald
 
 aws_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
 aws_LDADD = ../cores/libaaoscore.la  ../drivers/libaaosdriver.la
@@ -8,6 +8,22 @@ aws_SOURCES = aws_client.c
 awsd_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
 awsd_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
 awsd_SOURCES = aws_server.c
+
+detector_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
+detector_LDADD = ../cores/libaaoscore.la  ../drivers/libaaosdriver.la
+detector_SOURCES = detector_client.c
+
+detectord_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
+detectord_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
+detectord_SOURCES = detector_server.c
+
+dome_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
+dome_LDADD = ../cores/libaaoscore.la  ../drivers/libaaosdriver.la
+dome_SOURCES = dome_client.c
+
+domed_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
+domed_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
+domed_SOURCES = dome_server.c
 
 pdu_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
 pdu_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la

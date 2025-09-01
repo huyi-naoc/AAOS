@@ -19,7 +19,7 @@ extern size_t n_pdu;
 
 static void *d;
 static void *server;
-static const char *config_path = "/usr/local/aaos/etc/pdud.cfg";
+static const char *config_path = "/opt/aaos/etc/pdud.cfg";
 static bool daemon_flag = true;
 
 static struct option longopts[] = {
@@ -29,6 +29,8 @@ static struct option longopts[] = {
     { NULL,         0,                  NULL,       0 }
 };
 
+static config_t cfg;
+
 static void
 usage(void)
 {
@@ -37,26 +39,14 @@ usage(void)
 }
 
 static void
-read_daemon(const char *pathname)
+read_daemon(void)
 {
     int ret;
-    config_t cfg;
-    config_init(&cfg);
     config_setting_t *setting;
-    
-    if ((ret = Access(pathname, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if(config_read_file(&cfg, pathname) == CONFIG_FALSE) {
-        fprintf(stderr, "fail to read configuration file.\n");
-        exit(EXIT_FAILURE);
-    }
-    
+        
     setting = config_lookup(&cfg, "daemon");
     if (setting != NULL) {
-        const char *name = NULL, *username = "aaos", *rootdir = "/", *lockfile = NULL;
+        const char *name = NULL, *username = "   ", *rootdir = "/", *lockfile = NULL;
         int daemonized = 1;
         config_setting_lookup_string(setting, "name", &name);
         config_setting_lookup_string(setting, "rootdir", &rootdir);
@@ -69,26 +59,13 @@ read_daemon(const char *pathname)
             d = new(Daemon(), name, rootdir, lockfile, username, false);
         }
     }
-    config_destroy(&cfg);
 }
 
 static void
-read_configuration(const char *pathname)
+read_configuration(void)
 {
     int ret;
-    config_t cfg;
-    config_init(&cfg);
     config_setting_t *setting;
-    
-    if ((ret = Access(pathname, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if(config_read_file(&cfg, pathname) == CONFIG_FALSE) {
-        fprintf(stderr, "fail to read configuration file.\n");
-        exit(EXIT_FAILURE);
-    }
     
     setting = config_lookup(&cfg, "server");
     if (setting == NULL) {
@@ -98,16 +75,6 @@ read_configuration(const char *pathname)
         const char *port;
         config_setting_lookup_string(setting, "port", &port);
         server = new(PDUServer(), port);
-    }
-    
-    if ((ret = Access(pathname, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if(config_read_file(&cfg, pathname) == CONFIG_FALSE) {
-        fprintf(stderr, "fail to read configuration file.\n");
-        exit(EXIT_FAILURE);
     }
     
     setting = config_lookup(&cfg, "pdus");
@@ -194,12 +161,13 @@ read_configuration(const char *pathname)
             }
         }
     }
-    config_destroy(&cfg);
 }
 
 static void
 init(void)
 {
+    read_configuration();
+    
     rpc_server_start(server);
 }
 
@@ -224,7 +192,7 @@ destroy(void)
 int
 main(int argc, char *argv[])
 {
-    int ch;
+    int ch, ret;
     
     while ((ch = getopt_long(argc, argv, "c:Dv", longopts, NULL)) != -1) {
         switch (ch) {
@@ -243,25 +211,42 @@ main(int argc, char *argv[])
     argc -= optind;
     argv += optind;
     
-    read_daemon(config_path);
+    if ((ret = Access(config_path, F_OK)) < 0) {
+        if ((ret = Access("pdud.cfg", F_OK)) == 0) {
+            config_path = "pdud.cfg";
+        } else if ((ret = Access("etc/pdud.cfg", F_OK)) == 0) {
+            config_path = "etc/pdud.cfg";
+        } else if ((ret = Access("/opt/aaos/etc/pdud.cfg", F_OK)) == 0) {
+            config_path = "/opt/aaos/etc/pdud.cfg";
+        } else if ((ret = Access("/usr/local/aaos/etc/pdud.cfg", F_OK)) == 0) {
+            config_path = "/usr/local/aaos/etc/pdud.cfg";
+        } else if ((ret = Access("/etc/aaos/pdud.cfg", F_OK)) == 0) {
+            config_path = "/etc/aaos/pdud.cfg";
+        } else if ((ret = Access("/etc/pdud.cfg", F_OK)) == 0) {
+            config_path = "/etc/pdud.cfg";
+        } else {
+            fprintf(stderr, "configuration file does not exist.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
+    config_init(&cfg);
+    
+    read_daemon();
     if (argc == 0) {
         daemon_start(d);
-        read_configuration(config_path);
         init();
     } else {
         if (strcmp(argv[0], "start") == 0) {
             daemon_start(d);
-            read_configuration(config_path);
             init();
         } else if (strcmp(argv[0], "restart") == 0) {
             daemon_stop(d);
             daemon_start(d);
-            read_configuration(config_path);
             init();
         } else if (strcmp(argv[0], "reload") == 0) {
             daemon_stop(d);
             daemon_reload(d);
-            read_configuration(config_path);
             init();
         } else if (strcmp(argv[0], "stop") == 0) {
             daemon_stop(d);
@@ -275,5 +260,3 @@ main(int argc, char *argv[])
     destroy();
     return 0;
 }
-
-

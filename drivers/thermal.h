@@ -11,6 +11,10 @@
 
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int __thermal_unit_turn_on(void *_self);
 int __thermal_unit_turn_off(void *_self);
 int __thermal_unit_get_temperature(const void *_self, double *temperature);
@@ -30,5 +34,9 @@ extern const void *SimpleThermalUnitClass(void);
 
 extern const void *KLCAMSimpleThermalUnit(void);
 extern const void *KLCAMSimpleThermalUnitClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* thermal_h */

@@ -153,7 +153,7 @@ set *parameter* [*value1* [*value2*, [...]]]
 status
 ------
 
-Print the status of the undeline telescope to the stdout. The status contains at least the currrent location of the telescope, the *STATE* of the telewscope. 
+Print the status of the undeline telescope to the stdout. The status contains at least the currrent location of the telescope, the *STATE* of the telescope. 
 
 stop
 ----

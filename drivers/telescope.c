@@ -439,6 +439,18 @@ __Telescope_wait(void *_self, double timeout)
     tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000;
     
     Pthread_mutex_lock(&self->t_state.mtx);
+	if (!(self->t_state.state & TELESCOPE_STATE_MALFUNCTION)) {
+		ret = AAOS_OK;
+	} else {
+		if (timeout < 0) {
+			while (self->t_state.state & TELESCOPE_STATE_MALFUNCTION) {
+				Pthread_cond_timedwait(&self->t_state.cond, &self->t_state.mtx, &tp);
+			}
+		} else {
+			ret = Pthread_cond_timedwait(&self->t_state.cond, &self->t_state.mtx, &tp);
+		}
+	}
+	
     while (self->t_state.state & TELESCOPE_STATE_MALFUNCTION) {
         if (timeout > 0) {
             ret = Pthread_cond_timedwait(&self->t_state.cond, &self->t_state.mtx, &tp);
@@ -2779,6 +2791,181 @@ virtual_telescope_virtual_table(void)
 }
 
 /*
+ * Driver for AIC equatorial mount. http://aic-optics.com
+ */
+
+static int
+AICMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_size, void *results, size_t results_size, size_t *return_size)
+{
+    struct AICMount *self = cast(SYSU80(), _self);
+    
+    int cfd;
+    ssize_t nwrite, nread;
+    
+    if (strncmp(raw_command, "AIC", 3) == 0) {
+        if ((cfd = Tcp_connect(self->address, self->port2, NULL, NULL)) < 0) {
+            switch (errno) {
+                case ENETDOWN:
+                    return AAOS_ENETDOWN;
+                    break;
+                case ENETUNREACH:
+                    return AAOS_ENETUNREACH;
+                    break;
+                default:
+                    return AAOS_ERROR;
+                    break;
+            }
+        }
+        if ((nwrite = Writen(cfd, raw_command, size)) < 0) {
+            Close(cfd);
+            if (write_size) {
+                *write_size = 0;
+            }
+            switch (errno) {
+                case ENETDOWN:
+                    return AAOS_ENETDOWN;
+                    break;
+                case ENETUNREACH:
+                    return AAOS_ENETUNREACH;
+                    break;
+                default:
+                    return AAOS_ERROR;
+                    break;
+            }
+        }
+        if ((nread = Readn3(cfd, results, results_size, "\n", 1)) < 0) {
+            Close(cfd);
+            if (return_size) {
+                *return_size = 0;
+            }
+            switch (errno) {
+                case ENETDOWN:
+                    return AAOS_ENETDOWN;
+                    break;
+                case ENETUNREACH:
+                    return AAOS_ENETUNREACH;
+                    break;
+                default:
+                    return AAOS_ERROR;
+                    break;
+            }
+        } else {
+            if (return_size != NULL) {
+                *return_size = nread;
+            }
+        }
+    } else {
+        if ((cfd = Tcp_connect(self->address, self->port2, NULL, NULL)) < 0) {
+            switch (errno) {
+                case ENETDOWN:
+                    return AAOS_ENETDOWN;
+                    break;
+                case ENETUNREACH:
+                    return AAOS_ENETUNREACH;
+                    break;
+                default:
+                    return AAOS_ERROR;
+                    break;
+            }
+        }
+        if ((nwrite = Writen(cfd, raw_command, size)) < 0) {
+            Close(cfd);
+            if (write_size) {
+                *write_size = 0;
+            }
+            switch (errno) {
+                case ENETDOWN:
+                    return AAOS_ENETDOWN;
+                    break;
+                case ENETUNREACH:
+                    return AAOS_ENETUNREACH;
+                    break;
+                default:
+                    return AAOS_ERROR;
+                    break;
+            }
+        }
+        if (strcmp(raw_command, "ReadScopeStatus\n") == 0 || strcmp(raw_command, "ReadScopeDestination\n") == 0) {
+            if ((nread = Readn3(cfd, results, results_size, "_", 1)) < 0) {
+                Close(cfd);
+                if (return_size) {
+                    *return_size = 0;
+                }
+                switch (errno) {
+                    case ENETDOWN:
+                        return AAOS_ENETDOWN;
+                        break;
+                    case ENETUNREACH:
+                        return AAOS_ENETUNREACH;
+                        break;
+                    default:
+                        return AAOS_ERROR;
+                        break;
+                }
+            } else {
+                if (return_size != NULL) {
+                    *return_size = nread;
+                }
+            }
+        } else {
+            char delimeter[COMMANDSIZE];
+            snprintf(delimeter, COMMANDSIZE, "_%s", (char *) raw_command);
+        }
+    }
+    
+    return AAOS_OK;
+}
+
+static int
+AICMount_slew(void *_self, double ra, double dec)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    int ret;
+    unsigned int state, flag;
+    struct timespec tp;
+    double jd, alt, az, ha;
+    
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    jd = jd_tp(&tp);
+    radec2altaz(jd, ra, dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -100., -300., &alt, &az, &ha);
+    if (az < 10.) {
+        return AAOS_EINVAL;
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    self->_.ra_to = ra;
+    self->_.dec_to = dec;
+    if (flag) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    snprintf(command, COMMANDSIZE, "0x00010000 %lf %lf", ra, dec);
+    
+    if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto end;
+    }
+    
+    //ret = SYSU80_wait_slew(self);
+
+end:
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    if (ret == AAOS_OK || ret == AAOS_ETIMEDOUT) {
+        self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
+    } else {
+        self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return ret;
+}
+
+/*
  * Driver for Shuangyashan Daxue's 80cm telescope.
  */
 
@@ -2948,32 +3135,6 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
     }
     
     if (command == 0x00000000) {
-        /*
-        if ((nread = Readn(cfd, &proto, sizeof(struct SYSU80Protocol))) < 0) {
-            close(cfd);
-            if (return_size) {
-                *return_size = 0;
-            }
-            switch (errno) {
-                case ENETDOWN:
-                    return AAOS_ENETDOWN;
-                    break;
-                case ENETUNREACH:
-                    return AAOS_ENETUNREACH;
-                    break;
-                default:
-                    return AAOS_ERROR;
-                    break;
-            }
-        } else {
-            if (return_size) {
-                *return_size = min(results_size, sizeof(proto.parameter));
-            }
-            memcpy(results, proto.parameter, min(results_size, sizeof(proto.parameter)));
-        }
-         
-    } else {
-         */
         unsigned char buf[SYSU80_STATUS_SIZE];
         if ((nread = Readn(cfd, buf, SYSU80_STATUS_SIZE)) < 0) {
             Close(cfd);
@@ -3013,6 +3174,28 @@ SYSU80_status_raw(void *_self, char *status_buffer, size_t status_buffer_size)
     snprintf(command, COMMANDSIZE, "0x00000000");
     
     return SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL);
+}
+
+static int
+SYSU80_inspect(void *_self)
+{
+	struct SYSU80 *self = cast(SYSU80(), _self);
+	
+	int ret;
+	char buf[BUFSIZE];
+	
+	if ((ret = SYSU80_raw(self, "0x00000000", 11, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		Pthread_mutex_lock(&self->_.t_state.mtx);
+        self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+		Pthread_mutex_unlock(&self->_.t_state.mtx);
+		return ret;
+    } else {
+		Pthread_mutex_lock(&self->_.t_state.mtx);
+		self->_.t_state.state &= (~TELESCOPE_STATE_MALFUNCTION);
+		Pthread_mutex_unlock(&self->_.t_state.mtx);
+		Pthread_cond_broadcast(&self->_.t_state.cond);
+		return AAOS_OK;
+    }
 }
 
 static int
@@ -3251,7 +3434,7 @@ SYSU80_slew(void *_self, double ra, double dec)
 
 end:
     Pthread_mutex_lock(&self->_.t_state.mtx);
-    if (ret == AAOS_OK) {
+    if (ret == AAOS_OK || ret == AAOS_ETIMEDOUT) {
         self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
     } else {
         self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
@@ -3712,7 +3895,7 @@ SYSU80Class_ctor(void *_self, va_list *app)
     self->_.raw.method = (Method) 0;
     self->_.inspect.method = (Method) 0;
     self->_.switch_instrument.method = (Method) 0;
-    self->_.focus.method = (Method) 0;
+    self->_.focus.method = (Method) 0; 
     
     return self;
 }
@@ -3798,7 +3981,7 @@ sysu80_virtual_table_initialize(void)
                                 __telescope_slew, "slew", SYSU80_slew,
                                 __telescope_raw, "raw", SYSU80_raw,
                                 __telescope_focus, "focus", SYSU80_focus,
-                                //__telescope_inspect, "inspect", APMount_inspect,
+                                __telescope_inspect, "inspect", SYSU80_inspect,
                                 (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(sysu80_virtual_table_destroy);

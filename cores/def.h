@@ -47,6 +47,7 @@
 #define PROTO_DETECTOR  8
 #define PROTO_THERMAL   9
 #define PROTO_SCHEDULER 10
+#define PROTO_DOME      11
 #define PROTO_SYSTEM    0xFFFF   /* system error recovery */
 
 #define SYSTEM_COMMAND_REGISTER 0xFFFF
@@ -57,11 +58,13 @@
 #define SERIAL_RPC_PORT         "12000"
 #define DETECTOR_RPC_PORT       "12001"
 
-#define TELESCOPE_RPC_PORT      "13000"
+#define TEL_RPC_PORT            "13000"
 #define AWS_RPC_PORT            "13001"
 #define PDU_RPC_PORT            "13002"
 #define SMS_RPC_PORT            "13003"
 #define THM_RPC_PORT            "13004"
+#define DET_RPC_PORT            "13005"
+#define DOM_RPC_PORT            "13006"
 
 #define SCHEDULER_RPC_SITE_PORT   "12500"
 #define SCHEDULER_RPC_GLOBAL      "12501"
@@ -73,7 +76,7 @@ enum {AAOS_OK, AAOS_EACCES, AAOS_EAGAIN, AAOS_EBADF, AAOS_EBADMSG, AAOS_EBUSY, A
 
 #define MYDEBUG do {printf("%s %s %d\n", __FILE__, __func__, __LINE__); } while(0)
 
-#define MYDEBUG2(x) do {printf("%s\n", nameOf(classOf((x)))); } while(0);
+#define MYDEBUG2(x) do {printf("%s %s %d: %s\n", __FILE__, __func__, __LINE__, nameOf(classOf((x)))); } while(0);
 
 #define AAOS_LEVEL0          102
 #define AAOS_LEVEL1          103
@@ -81,6 +84,39 @@ enum {AAOS_OK, AAOS_EACCES, AAOS_EAGAIN, AAOS_EBADF, AAOS_EBADMSG, AAOS_EBUSY, A
 #define AAOS_LEVEL2H         105
 #define AAOS_LEVEL3          106
 #define AAOS_LEVLE4          107
+
+#ifndef _VIRTUAL_PRIORITY_
+#define _VIRTUAL_PRIORITY_		100
+#endif
+
+#ifndef _NET_PRIORITY_
+#define _NET_PRIORITY_          101
+#endif
+
+#ifndef _RPC_PRIORITY_
+#define _RPC_PRIORITY_          102
+#endif
+
+#ifndef _SERIAL_PRIORITY_
+#define _SERIAL_PRIORITY_       101
+#endif
+
+#ifndef _SERIAL_RPC_PRIORITY_
+#define _SERIAL_RPC_PRIORITY_   103
+#endif
+
+#ifndef _DOME_PRIORITY_
+#define _DOME_PRIORITY_         104
+#endif
+
+#ifndef _DETECTOR_RPC_PRIORITY_
+#define _DETECTOR_RPC_PRIORITY_	105
+#endif
+
+#ifndef _DOME_RPC_PRIORITY_
+#define _DOME_RPC_PRIORITY_     105
+#endif
+
 
 extern int load_sofa_library;
 #endif /* def_h */

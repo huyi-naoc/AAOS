@@ -28,6 +28,10 @@ Makefile
 Makefile.in
 src/aws
 src/awsd
+src/detector
+src/detectord
+src/dome
+src/domed
 src/pdu
 src/pdud
 src/scheduler
@@ -47,6 +51,7 @@ togitlab.sh
 *.la
 *.lo
 *.o
+*.swp
 
 aaos-*.tar.gz
 

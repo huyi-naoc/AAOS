@@ -20,19 +20,270 @@
 #include <fitsio2.h>
 #include <cjson/cJSON.h>
 
+
 static int
-detector_post_acquisition(void *detector, const char *filename, ...)
+__Detector_default_pre_acquisition(struct __Detector *self, const char *filename, ...)
 {
+    int ret = AAOS_OK, status = 0;
+    struct timespec tp;
+    struct tm tm_buf;
+    char buf[TIMESTAMPSIZE];
+    fitsfile *fptr;
+    
     va_list ap;
     va_start(ap, filename);
+    fptr = va_arg(ap, fitsfile *);
+    va_end(ap);
+    
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    gmtime_r(&tp.tv_sec, &tm_buf);
+    strftime(buf, TIMESTAMPSIZE, "%Y-%m-%d", &tm_buf);
+    fits_update_key_str(fptr, "DATE-OBS", buf, NULL, &status);
+    strftime(buf, TIMESTAMPSIZE, "%H:%m:%d", &tm_buf);
+    snprintf(buf + strlen(buf), TIMESTAMPSIZE - strlen(buf), ".%03d", (int) floor(tp.tv_nsec / 1000000));
+    fits_update_key_str(fptr, "TIME-OBS", buf, NULL, &status);
+    
+    return ret;
+}
+
+static void
+__detector_json_string_to_header(fitsfile *fptr, const char *json_string)
+{
+    cJSON *root_json, *general_json, *telescope_json, *site_setting, *value_json;
+    int status = 0;
+    
+    if ((root_json = cJSON_Parse(json_string)) == NULL) {
+        return;
+    }
+    
+    if ((general_json = cJSON_GetObjectItemCaseSensitive(root_json, "GENERAL-INFO")) != NULL) {
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "task_id"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_lng(fptr, "TASK_ID", (long) value_json->valueint, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "category"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "CATEGORY", value_json->string, NULL, &status);
+        }
+        
+    }
+    
+    if ((general_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) != NULL) {
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "telescop"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "TELESCOP", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "tel_id"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_lng(fptr, "TEL_ID", (long) value_json->valueint, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "ra"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "RA", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "dec"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "DEC", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "tel_ra"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "TEL_RA", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "tel_dec"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "TEL_DEC", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "instrume"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "INSTRUME", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "mode"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "MODE", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "detname"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "DETNAME", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "filter"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "FILTER", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "grating"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "GRATING", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "exptime"))) != NULL && cJSON_IsString(value_json)) {
+            fits_update_key_fixdbl(fptr, "EXPTIME", value_json->valuedouble, 3, NULL, &status);
+        }
+    }
+    
+    if ((general_json = cJSON_GetObjectItemCaseSensitive(root_json, "TARGET-INFO")) != NULL) {
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "targname"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "TARGNAME", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "targ_id"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_lng(fptr, "TARG_ID", (long) value_json->valueint, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "targ_ra"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "TARG_RA", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "targ_dec"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "TARG_DEC", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "sun_alt"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SUN_ALT", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "sun_az"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SUN_AZ", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "moon_alt"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "MOON_ALT", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "moon_az"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "MOON_AZ", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "moonphas"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "MOONPHAS", value_json->valuedouble, 6, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "source"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_longstr(fptr, "SOURCE", value_json->string, NULL, &status);
+        }
+    }
+    if ((general_json = cJSON_GetObjectItemCaseSensitive(root_json, "SITE-INFO")) != NULL) {
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "sitename"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "SITENAME", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_id"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_lng(fptr, "SITE_ID", (long) value_json->valueint, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_lon"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "SITE_LON", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_lat"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+            fits_update_key_str(fptr, "SITE_LAT", value_json->string, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_alt"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITE_ALT", value_json->valuedouble, 1, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "sitetemp"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITETEMP", value_json->valuedouble, 2, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_ws"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "WITE_WS", value_json->valuedouble, 2, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_wd"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITE_WD", value_json->valuedouble, 2, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_rh"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITE_RH", value_json->valuedouble, 2, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_dp"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITE_DP", value_json->valuedouble, 2, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_ap"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITE_AP", value_json->valuedouble, 2, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_see"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITE_SEE", value_json->valuedouble, 2, NULL, &status);
+        }
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "site_bgk"))) != NULL && cJSON_IsNumber(value_json)) {
+            fits_update_key_fixdbl(fptr, "SITE_BGK", value_json->valuedouble, 2, NULL, &status);
+        }
+    }
+    cJSON_free(root_json);
+}
+
+static int
+__Detector_default_post_acquisition(struct __Detector *self, const char *filename, ...)
+{
+    struct timespec tp;
+    struct tm tm_buf;
+    char buf[TIMESTAMPSIZE];
+    
+    va_list ap;
+    va_start(ap, filename);
+    fitsfile *fptr = va_arg(ap, fitsfile *);
+    const char *string = va_arg(ap, const char *);
+    unsigned int format = va_arg(ap, unsigned int);
     void *rpc = va_arg(ap, void *);
     va_end(ap);
-    int ret;
+    int status = 0, hdutype, ret = AAOS_OK;
+    char *basec, *bname;
     
-    protobuf_set(rpc, PACKET_BUF, filename, strlen(filename) + 1);
-    ret = rpc_write(rpc);
+    basec = strdup(filename);
+    bname = basename(basec);
     
-    return AAOS_OK;
+    if (fptr != NULL) {
+        /*
+         * TODO, relocate CHDU to PHDU,
+         */
+        fits_movabs_hdu(fptr, 1, &hdutype, &status);
+        if (!(self->d_state.options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
+            fits_update_key_lng(fptr, "NEXTEND", self->d_exp.success_frames, NULL, &status);
+        }
+
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        gmtime_r(&tp.tv_sec, &tm_buf);
+        strftime(buf, TIMESTAMPSIZE, "%Y-%m-%d", &tm_buf);
+        fits_update_key_str(fptr, "DATE", buf, NULL, &status);
+        strftime(buf, TIMESTAMPSIZE, "%H:%m:%d", &tm_buf);
+        snprintf(buf + strlen(buf), TIMESTAMPSIZE - strlen(buf), ".%03d", (int) floor(tp.tv_nsec / 1000000));
+        fits_update_key_str(fptr, "TIME", buf, NULL, &status);
+        fits_update_key_dbl(fptr, "EXPTIME", self->d_param.exposure_time, 3, NULL, &status);
+        
+        fits_update_key_str(fptr, "FILENAME", bname, NULL, &status);
+        if (string != NULL) {
+            if (format == DETECTOR_OPTION_STRING_FORMART_JSON) {
+                __detector_json_string_to_header(fptr, string);
+            }
+        }
+        
+    }
+
+    if (rpc == NULL) {
+        printf("%s\n", bname);
+    } else {
+        Pthread_mutex_lock(&self->d_exp.mtx);
+        if ((rpc != self->d_exp.rpc && self->d_exp.rpc != NULL) || rpc == self->d_exp.rpc) {
+            protobuf_set(rpc, PACKET_LENGTH, strlen(bname) + 1);
+            protobuf_set(rpc, PACKET_BUF, bname, strlen(bname) + 1);
+            ret = rpc_write(rpc);
+        } else {
+            ret = AAOS_OK;
+        }
+        Pthread_mutex_unlock(&self->d_exp.mtx);
+    }
+    
+    free(basec);
+
+    return ret;
+}
+
+void static
+__Detector_default_name_convention(struct __Detector *self, char *buf, size_t size, ...)
+{
+    FILE *fp;
+    static char time_buf[TIMESTAMPSIZE];
+    struct timespec tp;
+    struct tm tm_buf;
+    size_t i, n;
+    va_list ap;
+
+    va_start(ap, size);
+    i = va_arg(ap, size_t);
+    n = va_arg(ap, size_t);
+    va_end(ap);
+    
+    fp = fmemopen(buf, size, "w");
+    if (self->d_proc.image_directory != NULL) {
+        fprintf(fp, "%s/", self->d_proc.image_directory);
+    }
+    if (self->d_proc.image_prefix != NULL) {
+        fprintf(fp, "%s_", self->d_proc.image_prefix);
+    }
+    if (self->name != NULL) {
+        fprintf(fp, "%s_", self->name);
+    }
+    if (i == 1 || n == 1) {
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        gmtime_r(&tp.tv_sec, &tm_buf);
+        strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S.fits", &tm_buf);
+    }
+    if (n == 1) {
+        fprintf(fp, "%s", time_buf);
+    } else {
+        fprintf(fp, "%s_%04lu.fits", time_buf, i);
+    }
+    
+    fclose(fp);
 }
 
 /*
@@ -92,6 +343,8 @@ __DetectorVirtualTable_ctor(void *_self, va_list *app)
                 self->get_gain.tag = tag;
                 self->get_gain.selector = selector;
             }
+    void *rpc;
+
             self->get_gain.method = method;
             continue;
         }
@@ -165,6 +418,22 @@ __DetectorVirtualTable_ctor(void *_self, va_list *app)
                 self->get_region.selector = selector;
             }
             self->get_region.method = method;
+            continue;
+        }
+        if (selector == (Method) __detector_set_pixel_format) {
+            if (tag) {
+                self->set_pixel_format.tag = tag;
+                self->set_pixel_format.selector = selector;
+            }
+            self->set_pixel_format.method = method;
+            continue;
+        }
+        if (selector == (Method) __detector_get_pixel_format) {
+            if (tag) {
+                self->get_pixel_format.tag = tag;
+                self->get_pixel_format.selector = selector;
+            }
+            self->get_pixel_format.method = method;
             continue;
         }
         if (selector == (Method) __detector_expose) {
@@ -287,6 +556,22 @@ __DetectorVirtualTable_ctor(void *_self, va_list *app)
             self->set_prefix.method = method;
             continue;
         }
+        if (selector == (Method) __detector_set) {
+            if (tag) {
+                self->set.tag = tag;
+                self->set.selector = selector;
+            }
+            self->set.method = method;
+            continue;
+        }
+        if (selector == (Method) __detector_get) {
+            if (tag) {
+                self->get.tag = tag;
+                self->get.selector = selector;
+            }
+            self->get.method = method;
+            continue;
+        }
     }
     
     return _self;
@@ -332,6 +617,275 @@ __DetectorVirtualTable(void)
 /*
  * Detector class method.
  */
+
+
+void
+__detector_get(void *_self, const char *keyname, ...)
+{
+    const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
+    
+    va_list ap;
+    va_start(ap, keyname);
+    
+    if (isOf(class, __DetectorClass()) && class->get.method) {
+        ((void (*)(void *, const char *, va_list *)) class->get.method)(_self, keyname, &ap);
+    } else {
+        forward(_self, (void *) 0, (Method) __detector_get, "get", _self, keyname, &ap);
+    }
+    va_end(ap);
+}
+
+static void
+__Detector_get(void *_self, const char *keyname, va_list *app)
+{
+    struct __Detector *self = cast(__Detector(), _self);
+
+if (strcmp(keyname, "width") == 0) {
+	uint32_t *width = va_arg(*app, uint32_t *);
+	*width = self->d_cap.width;
+} else if (strcmp(keyname, "height") == 0) {
+	uint32_t *heigth = va_arg(*app, uint32_t *);
+	*heigth = self->d_cap.height;
+} else if (strcmp(keyname, "n_chip") == 0) {
+	uint32_t *n_chip = va_arg(*app, uint32_t *);
+	*n_chip = (uint32_t) self->d_cap.n_chip;
+} else if (strcmp(keyname, "x_n_chip") == 0) {
+	uint32_t *x_n_chip = va_arg(*app, uint32_t *);
+	*x_n_chip = (uint32_t) self->d_cap.x_n_chip;
+} else if (strcmp(keyname, "y_n_chip") == 0) {
+	uint32_t *y_n_chip = va_arg(*app, uint32_t *);
+	*y_n_chip = (uint32_t) self->d_cap.y_n_chip;
+} else if (strcmp(keyname, "flip_map") == 0) {
+	bool **flip_map = va_arg(*app, bool **);
+	uint32_t *x_n_chip = va_arg(*app, uint32_t *);
+	uint32_t *y_n_chip = va_arg(*app, uint32_t *);
+	*x_n_chip = (uint32_t) self->d_cap.x_n_chip;
+	*y_n_chip = (uint32_t) self->d_cap.y_n_chip;
+	if (*x_n_chip == 0 || *y_n_chip == 0 || self->d_cap.flip_map == NULL) {
+		*flip_map = NULL;
+	} else {
+		*flip_map = (bool *) Malloc(sizeof(bool) * *x_n_chip * *y_n_chip);
+		memcpy(*flip_map, self->d_cap.flip_map, sizeof(bool) * *x_n_chip * *y_n_chip);
+	}
+	
+} else if (strcmp(keyname, "mirror_map") == 0) {
+	bool **mirror_map = va_arg(*app, bool **);
+	uint32_t *x_n_chip = va_arg(*app, uint32_t *);
+	uint32_t *y_n_chip = va_arg(*app, uint32_t *);
+	*x_n_chip = (uint32_t) self->d_cap.x_n_chip;
+	*y_n_chip = (uint32_t) self->d_cap.y_n_chip;
+	if (*x_n_chip == 0 || *y_n_chip == 0 || self->d_cap.mirror_map == NULL) {
+		*mirror_map = NULL;
+	} else { 
+		*mirror_map = (bool *) Malloc(sizeof(bool) * *x_n_chip * *y_n_chip);
+		memcpy(*mirror_map, self->d_cap.flip_map, sizeof(bool) * *x_n_chip * *y_n_chip);
+	}
+} else if (strcmp(keyname, "x_binning_min") == 0) {
+	uint32_t *x_binning_min = va_arg(*app, uint32_t *);
+	*x_binning_min = self->d_cap.x_binning_min;
+} else if (strcmp(keyname, "x_binning_max") == 0) {
+	uint32_t *x_binning_max = va_arg(*app, uint32_t *);
+	*x_binning_max = self->d_cap.x_binning_max;
+} else if (strcmp(keyname, "x_binning_array") == 0) {
+	uint32_t **x_binning_array = va_arg(*app, uint32_t **);
+	uint32_t *n_x_binning = va_arg(*app, uint32_t *);
+	*n_x_binning = self->d_cap.n_x_binning;
+	if (*n_x_binning == 0 || self->d_cap.x_binning_array == 0) {
+		*x_binning_array = NULL;
+	} else {
+		*x_binning_array = (uint32_t *) Malloc(sizeof(uint32_t) * *n_x_binning);
+		memcpy(*x_binning_array, self->d_cap.x_binning_array, sizeof(uint32_t) * *n_x_binning);
+	}
+} else if (strcmp(keyname, "y_binning_min") == 0) {
+	uint32_t *y_binning_min = va_arg(*app, uint32_t *);
+	*y_binning_min = self->d_cap.y_binning_min;
+} else if (strcmp(keyname, "y_binning_max") == 0) {
+	uint32_t *y_binning_max = va_arg(*app, uint32_t *);
+	*y_binning_max = self->d_cap.y_binning_max;
+} else if (strcmp(keyname, "y_binning_array") == 0) {
+	uint32_t **y_binning_array = va_arg(*app, uint32_t **);
+	uint32_t *n_y_binning = va_arg(*app, uint32_t *);
+	*n_y_binning = self->d_cap.n_y_binning;
+	if (*n_y_binning == 0 || self->d_cap.y_binning_array == 0) {
+		*y_binning_array = NULL;
+	} else {
+		*y_binning_array = (uint32_t *) Malloc(sizeof(uint32_t) * *n_y_binning);
+		memcpy(*y_binning_array, self->d_cap.x_binning_array, sizeof(uint32_t) * *n_y_binning);
+	}
+} else if (strcmp(keyname, "") == 0) {
+	
+}
+
+}
+
+void
+__detector_set(void *_self, const char *keyname, ...)
+{
+    const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
+    
+    va_list ap;
+    va_start(ap, keyname);
+    
+    if (isOf(class, __DetectorClass()) && class->set.method) {
+        ((void (*)(void *, const char *, va_list *)) class->set.method)(_self, keyname, &ap);
+    } else {
+        forward(_self, (void *) 0, (Method) __detector_get, "set", _self, keyname, &ap);
+    }
+    va_end(ap);
+}
+
+static void
+__Detector_set(void *_self, const char *keyname, va_list *app)
+{
+    struct __Detector *self = cast(__Detector(), _self);
+    
+    if (strcmp(keyname, "width") == 0) {
+        uint32_t width = va_arg(*app, uint32_t);
+        self->d_cap.width = width;
+    } else if (strcmp(keyname, "height") == 0) {
+        uint32_t height = va_arg(*app, uint32_t);
+        self->d_cap.height = height;
+    } else if (strcmp(keyname, "n_chip") == 0) {
+        uint32_t n_chip = va_arg(*app, uint32_t);
+        self->d_cap.n_chip = n_chip;
+    } else if (strcmp(keyname, "x_n_chip") == 0) {
+        uint32_t x_n_chip = va_arg(*app, uint32_t);
+        self->d_cap.x_n_chip = x_n_chip;
+    } else if (strcmp(keyname, "y_n_chip") == 0) {
+        uint32_t y_n_chip = va_arg(*app, uint32_t);
+        self->d_cap.y_n_chip = y_n_chip;
+    } else if (strcmp(keyname, "flip_map") == 0) {
+        bool *flip_map = va_arg(*app, bool *);
+        uint32_t n_chip = va_arg(*app, uint32_t);
+        self->d_cap.flip_map = Realloc(self->d_cap.flip_map, sizeof(bool) * n_chip);
+        memcpy(self->d_cap.flip_map, flip_map, sizeof(bool) * n_chip);
+    } else if (strcmp(keyname, "mirror_map") == 0) {
+        bool *mirror_map = va_arg(*app, bool *);
+        uint32_t n_chip = va_arg(*app, uint32_t);
+        self->d_cap.mirror_map = Realloc(self->d_cap.mirror_map, sizeof(bool) * n_chip);
+        memcpy(self->d_cap.mirror_map, mirror_map, sizeof(bool) * n_chip);
+    } else if (strcmp(keyname, "binning_available") == 0) {
+        bool binning_available = va_arg(*app, int);
+        self->d_cap.binning_available = binning_available;
+    } else if (strcmp(keyname, "x_binning_max") == 0) {
+        double x_binning_max = va_arg(*app, double);
+        self->d_cap.x_binning_max = x_binning_max;
+    } else if (strcmp(keyname, "x_binning_min") == 0) {
+        double x_binning_min = va_arg(*app, double);
+        self->d_cap.x_binning_min = x_binning_min;
+    } else if (strcmp(keyname, "x_binning_array") == 0) {
+        double *x_binning_array = va_arg(*app, double *);
+        uint32_t n_x_binning = va_arg(*app, uint32_t);
+        self->d_cap.x_binning_array = Realloc(self->d_cap.x_binning_array, sizeof(double) * n_x_binning);
+        memcpy(self->d_cap.x_binning_array, x_binning_array, sizeof(double) * n_x_binning);
+        self->d_cap.n_x_binning = n_x_binning;
+    } else if (strcmp(keyname, "y_binning_max") == 0) {
+        double y_binning_max = va_arg(*app, double);
+        self->d_cap.y_binning_max = y_binning_max;
+    } else if (strcmp(keyname, "y_binning_min") == 0) {
+        double y_binning_min = va_arg(*app, double);
+        self->d_cap.y_binning_min = y_binning_min;
+    } else if (strcmp(keyname, "y_binning_array") == 0) {
+        double *y_binning_array = va_arg(*app, double *);
+        uint32_t n_y_binning = va_arg(*app, uint32_t);
+        self->d_cap.y_binning_array = Realloc(self->d_cap.y_binning_array, sizeof(double) * n_y_binning);
+        memcpy(self->d_cap.y_binning_array, y_binning_array, sizeof(double) * n_y_binning);
+        self->d_cap.n_y_binning = n_y_binning;
+    } else if (strcmp(keyname, "offset_available") == 0) {
+        bool offset_available = va_arg(*app, int);
+        self->d_cap.offset_available = offset_available;
+    } else if (strcmp(keyname, "x_offset_min") == 0) {
+        uint32_t x_offset_min = va_arg(*app, uint32_t);
+        self->d_cap.x_offset_min = x_offset_min;
+    } else if (strcmp(keyname, "x_offset_max") == 0) {
+        uint32_t x_offset_max = va_arg(*app, uint32_t);
+        self->d_cap.x_offset_max = x_offset_max;
+    } else if (strcmp(keyname, "y_offset_min") == 0) {
+        uint32_t y_offset_min = va_arg(*app, uint32_t);
+        self->d_cap.y_offset_min = y_offset_min;
+    } else if (strcmp(keyname, "y_offset_max") == 0) {
+        uint32_t y_offset_max = va_arg(*app, uint32_t);
+        self->d_cap.y_offset_max = y_offset_max;
+    } else if (strcmp(keyname, "image_width_min") == 0) {
+        uint32_t image_width_min = va_arg(*app, uint32_t);
+        self->d_cap.image_width_min = image_width_min;
+    } else if (strcmp(keyname, "image_width_max") == 0) {
+        uint32_t image_width_max = va_arg(*app, uint32_t);
+        self->d_cap.image_width_max = image_width_max;
+    } else if (strcmp(keyname, "image_height_min") == 0) {
+        uint32_t image_height_min = va_arg(*app, uint32_t);
+        self->d_cap.image_height_min = image_height_min;
+    } else if (strcmp(keyname, "image_height_max") == 0) {
+        uint32_t image_height_max = va_arg(*app, uint32_t);
+        self->d_cap.image_height_max = image_height_max;
+    } else if (strcmp(keyname, "frame_rate_available") == 0) {
+        bool frame_rate_available = va_arg(*app, int);
+        self->d_cap.frame_rate_available = frame_rate_available;
+    } else if (strcmp(keyname, "frame_rate_min") == 0) {
+        double frame_rate_min = va_arg(*app, double);
+        self->d_cap.frame_rate_min = frame_rate_min;
+    } else if (strcmp(keyname, "frame_rate_max") == 0) {
+        double frame_rate_max = va_arg(*app, double);
+        self->d_cap.frame_rate_max = frame_rate_max;
+    } else if (strcmp(keyname, "exposure_time_available") == 0) {
+        bool exposure_time_available = va_arg(*app, int);
+        self->d_cap.exposure_time_available = exposure_time_available;
+    } else if (strcmp(keyname, "exposure_time_min") == 0) {
+        double exposure_time_min = va_arg(*app, double);
+        self->d_cap.exposure_time_min = exposure_time_min;
+    } else if (strcmp(keyname, "exposure_time_max") == 0) {
+        double exposure_time_max = va_arg(*app, double);
+        self->d_cap.exposure_time_max = exposure_time_max;
+    } else if (strcmp(keyname, "gain_available") == 0) {
+        bool gain_available = va_arg(*app, int);
+        self->d_cap.gain_available = gain_available;
+    } else if (strcmp(keyname, "gain_min") == 0) {
+        double gain_min = va_arg(*app, double);
+        self->d_cap.gain_min = gain_min;
+    } else if (strcmp(keyname, "gain_max") == 0) {
+        double gain_max = va_arg(*app, double);
+        self->d_cap.gain_max = gain_max;
+    } else if (strcmp(keyname, "gain_array") == 0) {
+        double *gain_array = va_arg(*app, double *);
+        uint32_t n_gain = va_arg(*app, uint32_t);
+        self->d_cap.gain_array = Realloc(self->d_cap.gain_array, sizeof(double) * n_gain);
+        memcpy(self->d_cap.gain_array, gain_array, sizeof(double) * n_gain);
+        self->d_cap.n_gain = n_gain;
+    } else if (strcmp(keyname, "pixel_format_available") == 0) {
+        bool pixel_format_available = va_arg(*app, int);
+        self->d_cap.pixel_format_available = pixel_format_available;
+    } else if (strcmp(keyname, "pixel_format_array") == 0) {
+        unsigned int *pixel_format_array = va_arg(*app, unsigned int *);
+        uint32_t n_pixel_format = va_arg(*app, uint32_t);
+        self->d_cap.pixel_format_array = Realloc(self->d_cap.pixel_format_array, sizeof(unsigned int) * n_pixel_format);
+        memcpy(self->d_cap.pixel_format_array, pixel_format_array, sizeof(unsigned int) * n_pixel_format);
+        self->d_cap.n_pixel_format = n_pixel_format;
+    } else if (strcmp(keyname, "readout_rate_available") == 0) {
+        bool readout_rate_available = va_arg(*app, int);
+        self->d_cap.readout_rate_available = readout_rate_available;
+    } else if (strcmp(keyname, "readout_rate_min") == 0) {
+        double readout_rate_min = va_arg(*app, double);
+        self->d_cap.readout_rate_min = readout_rate_min;
+    } else if (strcmp(keyname, "readout_rate_max") == 0) {
+        double readout_rate_max = va_arg(*app, double);
+        self->d_cap.readout_rate_max = readout_rate_max;
+    } else if (strcmp(keyname, "readout_rate_array") == 0) {
+        double *readout_rate_array = va_arg(*app, double *);
+        uint32_t n_readout = va_arg(*app, uint32_t);
+        self->d_cap.readout_rate_array = Realloc(self->d_cap.readout_rate_array, sizeof(double) * n_readout);
+        memcpy(self->d_cap.readout_rate_array, readout_rate_array, sizeof(double) * n_readout);
+        self->d_cap.n_readout = n_readout;
+    } else if (strcmp(keyname, "cooling_available") == 0) {
+        bool cooling_available = va_arg(*app, int);
+        self->d_cap.cooling_available = cooling_available;
+    } else if (strcmp(keyname, "cooling_temperature_min") == 0) {
+        double cooling_temperature_min = va_arg(*app, double);
+        self->d_cap.cooling_temperature_min = cooling_temperature_min;
+    } else if (strcmp(keyname, "cooling_temperature_max") == 0) {
+        double cooling_temperature_max = va_arg(*app, double);
+        self->d_cap.cooling_temperature_max = cooling_temperature_max;
+    }
+}
 
 void
 __detector_clear_option(void *_self)
@@ -409,7 +963,7 @@ __Detector_get_option(void *_self)
     Pthread_mutex_lock(&self->d_state.mtx);
     result = self->d_state.options;
     Pthread_mutex_unlock(&self->d_state.mtx);
-    
+
     return result;
 }
 
@@ -519,7 +1073,7 @@ void
 __detector_set_template(void *_self, const char *template)
 {
     const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
-    
+
     if (isOf(class, __DetectorClass()) && class->set_template.method) {
         return ((void (*)(void *, const char *)) class->set_template.method)(_self, template);
     } else {
@@ -1040,6 +1594,35 @@ __Detector_set_temperature(void *_self, double temperature)
     return AAOS_OK;
 }
 
+int
+__detector_set_pixel_format(void *_self, uint32_t pixel_format)
+{
+    const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
+    
+    if (isOf(class, __DetectorClass()) && class->set_pixel_format.method) {
+        return ((int (*)(void *, uint32_t)) class->set_pixel_format.method)(_self, pixel_format);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __detector_set_pixel_format, "set_pixel_format", _self, pixel_format);
+        return result;
+    }
+}
+
+int
+__detector_get_pixel_format(void *_self, uint32_t *pixel_format)
+{
+    const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
+    
+    if (isOf(class, __DetectorClass()) && class->get_pixel_format.method) {
+        return ((int (*)(void *, uint32_t *)) class->get_pixel_format.method)(_self, pixel_format);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __detector_get_pixel_format, "get_pixel_format", _self, pixel_format);
+        return result;
+    }
+}
+
+
 const char *
 __detector_get_name(const void *_self)
 {
@@ -1239,8 +1822,8 @@ __Detector_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
     }
     
     Pthread_mutex_lock(&self->d_state.mtx);
-    self->d_param.x_binning = (size_t) x_binning;
-    self->d_param.y_binning = (size_t) y_binning;
+    self->d_param.x_binning = x_binning;
+    self->d_param.y_binning = y_binning;
     Pthread_mutex_unlock(&self->d_state.mtx);
     
     return AAOS_OK;
@@ -1312,13 +1895,13 @@ __detector_expose(void *_self, double exposure_time, uint32_t n_frame, ...)
     va_list ap;
     va_start(ap, n_frame);
     int result;
-    
+
     if (isOf(class, __DetectorClass()) && class->expose.method) {
-        result = ((int (*)(void *, double, uint32_t, void *)) class->expose.method)(_self, exposure_time, n_frame, &ap);
+        result = ((int (*)(void *, double, uint32_t, va_list *)) class->expose.method)(_self, exposure_time, n_frame, &ap);
     } else {
         forward(_self, &result, (Method) __detector_expose, "expose", _self, exposure_time, n_frame, &ap);
-        return result;
     }
+
     va_end(ap);
     
     return result;
@@ -1467,19 +2050,19 @@ __Detector_forward(const void *_self, void *result, Method selector, const char 
         double value = va_arg(*app, double);
         *((int *) result) = ((int (*)(void *, double)) method)(obj, value);
     } else if (selector == (Method) __detector_get_region) {
-        double *x_offset, *y_offset, *width, *height;
-        x_offset = va_arg(*app, double *);
-        y_offset = va_arg(*app, double *);
-        width = va_arg(*app, double *);
-        height = va_arg(*app, double *);
-        *((int *) result) = ((int (*)(void *, double *, double *, double *, double *)) method)(obj, x_offset, y_offset, width, height);
+        uint32_t *x_offset, *y_offset, *width, *height;
+        x_offset = va_arg(*app, uint32_t *);
+        y_offset = va_arg(*app, uint32_t *);
+        width = va_arg(*app, uint32_t *);
+        height = va_arg(*app, uint32_t *);
+        *((int *) result) = ((int (*)(void *, uint32_t *, uint32_t *, uint32_t *, uint32_t *)) method)(obj, x_offset, y_offset, width, height);
     } else if (selector == (Method) __detector_set_region) {
         double x_offset, y_offset, width, height;
-        x_offset = va_arg(*app, double);
-        y_offset = va_arg(*app, double);
-        width = va_arg(*app, double);
-        height = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, double, double, double, double)) method)(obj, x_offset, y_offset, width, height);
+        x_offset = va_arg(*app, uint32_t);
+        y_offset = va_arg(*app, uint32_t);
+        width = va_arg(*app, uint32_t);
+        height = va_arg(*app, uint32_t);
+        *((int *) result) = ((int (*)(void *, uint32_t, uint32_t, uint32_t, uint32_t)) method)(obj, x_offset, y_offset, width, height);
     } else if (selector == (Method) __detector_get_binning) {
         uint32_t *x_binning, *y_binning;
         x_binning = va_arg(*app, uint32_t *);
@@ -1493,10 +2076,11 @@ __Detector_forward(const void *_self, void *result, Method selector, const char 
     } else if (selector == (Method) __detector_expose) {
         double exposure_time;
         uint32_t n_frame;
+        va_list *app2;
         exposure_time = va_arg(*app, double);
         n_frame = va_arg(*app, uint32_t);
-        void *callback_param = va_arg(*app, void *);
-        *((int *) result) = ((int (*)(void *, double, uint32_t, void *)) method)(obj, exposure_time, n_frame, callback_param);
+        app2 = va_arg(*app, va_list *);
+        *((int *) result) = ((int (*)(void *, double, uint32_t, va_list *)) method)(obj, exposure_time, n_frame, app2);
     } else if (selector == (Method) __detector_raw) {
         const void *write_buffer = va_arg(*app, const void *);
         size_t write_buffer_size = va_arg(*app, size_t);
@@ -1511,10 +2095,17 @@ __Detector_forward(const void *_self, void *result, Method selector, const char 
     } else if (selector == (Method) __detector_status || selector == (Method) __detector_info) {
         char *buffer = va_arg(*app, char *);
         size_t size = va_arg(*app, size_t);
-        *((int *) result) = ((int (*)(void *, char *, size_t)) method)(obj, buffer, size);
+        size_t *res_len = va_arg(*app, size_t *);
+        *((int *) result) = ((int (*)(void *, char *, size_t, size_t *)) method)(obj, buffer, size, res_len);
     } else if (selector == (Method) __detector_set_prefix || selector == (Method) __detector_set_prefix) {
         const char *value = va_arg(*app, const char *);
         *((int *) result) = ((int (*)(void *, const char *)) method)(obj, value);
+    } else if (selector == (Method) __detector_set_pixel_format) {
+        uint32_t pixel_format = va_arg(*app, uint32_t);
+        *((int *) result) = ((int (*)(void *, uint32_t)) method)(obj, pixel_format);
+    } else if (selector == (Method) __detector_get_pixel_format) {
+        uint32_t *pixel_format = va_arg(*app, uint32_t *);
+        *((int *) result) = ((int (*)(void *, uint32_t *)) method)(obj, pixel_format);
     } else {
         assert(0);
     }
@@ -1567,11 +2158,11 @@ __Detector_ctor(void *_self, va_list *app)
         }
     }
     
-    self->d_state.state = DETECTOR_STATE_UNINITIALIZED;
-    self->d_state.options = DETECTOR_OPTION_NOTIFY_EACH_COMPLETION;
-    self->d_exp.notify_each_frame_done = 1;
+    self->d_state.state = DETECTOR_STATE_OFFLINE;
+    //self->d_state.options = DETECTOR_OPTION_NOTIFY_EACH_COMPLETION;
+    //self->d_exp.notify_each_frame_done = 1;
 
-    self->d_proc.queue = new(ThreadsafeQueue(), free);
+    //self->d_proc.queue = new(ThreadsafeQueue(), free);
     Pthread_cond_init(&self->d_exp.cond, NULL);
     Pthread_mutex_init(&self->d_exp.mtx, NULL);
     Pthread_cond_init(&self->d_state.cond, NULL);
@@ -1862,6 +2453,22 @@ __DetectorClass_ctor(void *_self, va_list *app)
             self->get_region.method = method;
             continue;
         }
+        if (selector == (Method) __detector_set_pixel_format) {
+            if (tag) {
+                self->set_pixel_format.tag = tag;
+                self->set_pixel_format.selector = selector;
+            }
+            self->set_pixel_format.method = method;
+            continue;
+        }
+        if (selector == (Method) __detector_get_pixel_format) {
+            if (tag) {
+                self->get_pixel_format.tag = tag;
+                self->get_pixel_format.selector = selector;
+            }
+            self->get_pixel_format.method = method;
+            continue;
+        }
         if (selector == (Method) __detector_expose) {
             if (tag) {
                 self->expose.tag = tag;
@@ -1998,6 +2605,22 @@ __DetectorClass_ctor(void *_self, va_list *app)
             self->disable_cooling.method = method;
             continue;
         }
+        if (selector == (Method) __detector_set) {
+            if (tag) {
+                self->set.tag = tag;
+                self->set.selector = selector;
+            }
+            self->set.method = method;
+            continue;
+        }
+        if (selector == (Method) __detector_get) {
+            if (tag) {
+                self->get.tag = tag;
+                self->get.selector = selector;
+            }
+            self->get.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -2087,6 +2710,8 @@ __Detector_initialize(void)
                       __detector_set_region, "set_region", __Detector_set_region,
                       __detector_get_region, "get_region", __Detector_get_region,
                       __detector_get_name, "get_name", __Detector_get_name,
+                      __detector_get, "get", __Detector_get,
+                      __detector_set, "set", __Detector_set,
                       
                       //__detector_raw, "raw", __Detector_raw,
                       //__detector_load, "load", __Detector_load,
@@ -2113,6 +2738,13 @@ __Detector(void)
  * Virtual detector.
  */
 
+struct VirtualDetectorExposureArg {
+    struct VirtualDetector *detector;
+    void *rpc;
+    void *string; /* serialized header data string. */
+    int format; /* string format */
+};
+
 static const void *virtual_detector_virtual_table(void);
 
 static void *
@@ -2122,9 +2754,62 @@ VirtualDetector_ctor(void *_self, va_list *app)
     
     self->_.d_state.state = DETECTOR_STATE_UNINITIALIZED;
     const char *name = va_arg(*app, const char *);
+
+    self->_.d_cap.width = 1024;
+    self->_.d_cap.height = 1024;
+    self->_.d_cap.n_chip = 1;
+
+    self->_.d_cap.binning_available = true;
+    self->_.d_cap.n_x_binning = 2;
+    self->_.d_cap.x_binning_array = (uint32_t *) Malloc(sizeof(size_t) * self->_.d_cap.n_x_binning);
+    self->_.d_cap.x_binning_array[0] = 2;
+
+    self->_.d_cap.x_binning_array[1] = 4;
+    self->_.d_cap.n_y_binning = 2;
+    self->_.d_cap.y_binning_array = (uint32_t *) Malloc(sizeof(size_t) * self->_.d_cap.n_y_binning);
+    self->_.d_cap.y_binning_array[0] = 2;
+    self->_.d_cap.y_binning_array[1] = 4;
+
+    self->_.d_cap.offset_available = true;
+    self->_.d_cap.x_offset_min = 0;
+    self->_.d_cap.x_offset_max = 1024;
+    self->_.d_cap.y_offset_min = 0;
+    self->_.d_cap.y_offset_max = 1024;
+    self->_.d_cap.image_width_min = 0;
+    self->_.d_cap.image_width_max = 1024;
+    self->_.d_cap.image_height_min = 0;
+    self->_.d_cap.image_height_max = 1024;
     
-   
+    self->_.d_cap.frame_rate_available = true;
+    self->_.d_cap.frame_rate_min = 0.;
+    self->_.d_cap.frame_rate_max = 1. / 0.001;
     
+    self->_.d_cap.exposure_time_available = true;
+    self->_.d_cap.exposure_time_max = 7200.;
+    self->_.d_cap.exposure_time_min = 0.;
+    
+    self->_.d_cap.gain_available = true;
+    self->_.d_cap.n_gain = 2;
+    self->_.d_cap.gain_array = (double *) Malloc(sizeof(double) * self->_.d_cap.n_gain);
+    self->_.d_cap.gain_array[0] = 3.;
+    self->_.d_cap.gain_array[1] = 7.;
+    
+    self->_.d_cap.pixel_format_available = false;
+    
+    self->_.d_cap.cooling_available = false;
+    
+    self->_.d_param.image_width = self->_.d_cap.width;
+    self->_.d_param.image_height = self->_.d_cap.height;
+    self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_MONO_16;
+    self->_.d_param.gain = self->_.d_cap.gain_array[0];
+    
+    self->_.d_exp.last_frame_filling_flag = false;
+    self->_.d_exp.stop_flag = false;
+    self->_.d_exp.notify_each_frame_done = true;
+    self->_.d_state.options |= DETECTOR_OPTION_NOTIFY_EACH_COMPLETION;
+    //self->_.d_exp.notify_last_frame_filling = true;
+    //self->_.d_state.options |= DETECTOR_OPTION_NOTIFY_LAST_FILLING;
+
     self->_._vtab= virtual_detector_virtual_table();
     
     return (void *) self;
@@ -2158,6 +2843,7 @@ VirtualDetectorClass_ctor(void *_self, va_list *app)
     self->_.set_region.method = (Method) 0;
     self->_.get_region.method = (Method) 0;
     self->_.inspect.method = (Method) 0;
+self->_.reg.method = (Method) 0;
     //self->_.wait.method = (Method) 0;
     self->_.wait_for_completion.method = (Method) 0;
     self->_.raw.method = (Method) 0;
@@ -2236,10 +2922,45 @@ VirtualDetector_power_on(void *_self)
 {
     struct VirtualDetector *self = cast(VirtualDetector(), _self);
     
+    unsigned int state;
+    uint16_t options;
+
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    if (self->_.d_state.state == DETECTOR_STATE_OFFLINE) {
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
     }
+    if (state == DETECTOR_STATE_OFFLINE) {
+        self->_.d_state.state &= ~DETECTOR_STATE_MALFUNCTION;
+        self->_.d_state.state |= DETECTOR_STATE_UNINITIALIZED;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_power_off(void *_self)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    while (self->_.d_state.state == DETECTOR_STATE_READING || self->_.d_state.state == DETECTOR_STATE_EXPOSING) {
+        Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+    }
+    self->_.d_state.state = DETECTOR_STATE_OFFLINE;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
     return AAOS_OK;
@@ -2250,9 +2971,20 @@ VirtualDetector_init(void *_self)
 {
     struct VirtualDetector *self = cast(VirtualDetector(), _self);
     
+    unsigned int state;
+    uint16_t options;
+
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    if (self->_.d_state.state == DETECTOR_STATE_UNINITIALIZED) {
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    if (state == DETECTOR_STATE_UNINITIALIZED) {
+        self->_.d_state.state &= ~DETECTOR_STATE_MALFUNCTION;
+        self->_.d_state.state |= DETECTOR_STATE_IDLE;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
@@ -2260,56 +2992,883 @@ VirtualDetector_init(void *_self)
 }
 
 static int
-VirtualDetector_power_off(void *_self)
+VirtualDetector_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
 {
     struct VirtualDetector *self = cast(VirtualDetector(), _self);
     
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    while (self->_.d_state.state == DETECTOR_STATE_READING || self->_.d_state.state == DETECTOR_STATE_EXPOSING) {
-        Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.binning_available) {
+        return AAOS_ENOTSUP;
     }
-    self->_.d_state.state = DETECTOR_STATE_OFFLINE;
+    
+    if (self->_.d_cap.x_binning_array != NULL) {
+        for (i = 0; i < self->_.d_cap.n_x_binning; i++) {
+            if (x_binning == self->_.d_cap.x_binning_array[i]) {
+                break;
+            }
+        }
+        if (i == self->_.d_cap.n_x_binning) {
+            return AAOS_EINVAL;
+        }
+    } else {
+        if (x_binning > self->_.d_cap.x_binning_max || x_binning < self->_.d_cap.x_binning_min) {
+            return AAOS_EINVAL;
+        }
+    }
+    
+    if (self->_.d_cap.y_binning_array != NULL) {
+        for (i = 0; i < self->_.d_cap.n_y_binning; i++) {
+            if (y_binning == self->_.d_cap.y_binning_array[i]) {
+                break;
+            }
+        }
+        if (i == self->_.d_cap.n_y_binning) {
+            return AAOS_EINVAL;
+        }
+    } else {
+        if (y_binning > self->_.d_cap.y_binning_max || y_binning < self->_.d_cap.y_binning_min) {
+            return AAOS_EINVAL;
+        }
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            break;
+    }
+    self->_.d_param.x_binning = x_binning;
+    self->_.d_param.y_binning = y_binning;
+    self->_.d_param.x_offset = 0;
+    self->_.d_param.y_offset = 0;
+    self->_.d_param.image_width = self->_.d_cap.width / self->_.d_param.x_binning;
+    self->_.d_param.image_height = self->_.d_cap.height / self->_.d_param.y_binning;
+    self->_.d_cap.width = self->_.d_param.image_width;
+    self->_.d_cap.height = self->_.d_param.image_height;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
     return AAOS_OK;
 }
 
+static int
+VirtualDetector_get_binning(void *_self, size_t *x_binning, size_t *y_binning)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            break;
+    }
+    *x_binning = self->_.d_param.x_binning;
+    *y_binning = self->_.d_param.y_binning;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_set_exposure_time(void *_self, double exposure_time)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.exposure_time_available) {
+        return AAOS_ENOTSUP;
+    }
+    if (exposure_time > self->_.d_cap.exposure_time_max|| exposure_time < self->_.d_cap.exposure_time_min) {
+        return AAOS_EINVAL;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            break;
+    }
+    self->_.d_param.exposure_time = exposure_time;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_get_exposure_time(void *_self, double *exposure_time)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        //case DETECTOR_STATE_READING:
+        //case DETECTOR_STATE_EXPOSING:
+        //    Pthread_mutex_unlock(&self->_.d_state.mtx);
+        //    return AAOS_EBUSY;
+        //    break;
+        default:
+            break;
+    }
+    *exposure_time = self->_.d_param.exposure_time;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_set_frame_rate(void *_self, double frame_rate)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.frame_rate_available) {
+        return AAOS_ENOTSUP;
+    }
+    if (frame_rate > self->_.d_cap.frame_rate_max || frame_rate < self->_.d_cap.frame_rate_min) {
+        return AAOS_EINVAL;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            break;
+    }
+    self->_.d_param.frame_rate = frame_rate;
+    //self->_.d_cap.exposure_time_min = 1. / frame_rate;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_get_frame_rate(void *_self, double *frame_rate)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        //case DETECTOR_STATE_READING:
+        //case DETECTOR_STATE_EXPOSING:
+        //    Pthread_mutex_unlock(&self->_.d_state.mtx);
+        //    return AAOS_EBUSY;
+        //    break;
+        default:
+            break;
+    }
+    *frame_rate = self->_.d_param.frame_rate;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_set_gain(void *_self, double gain)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.gain_available) {
+        return AAOS_ENOTSUP;
+    }
+    
+    if (self->_.d_cap.gain_array != NULL) {
+        for (i = 0; i < self->_.d_cap.n_gain; i++) {
+            if (fabs(self->_.d_cap.gain_array[i] - gain) < 0.001) {
+                gain = self->_.d_cap.gain_array[i];
+                break;
+            }
+        }
+        if (i == self->_.d_cap.n_gain) {
+            return AAOS_EINVAL;
+        }
+    } else {
+        if (gain > self->_.d_cap.gain_max || gain < self->_.d_cap.gain_min) {
+            return AAOS_EINVAL;
+        }
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            break;
+    }
+    self->_.d_param.gain = gain;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_get_gain(void *_self, double *gain)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        //case DETECTOR_STATE_READING:
+        //case DETECTOR_STATE_EXPOSING:
+        //    Pthread_mutex_unlock(&self->_.d_state.mtx);
+        //    return AAOS_EBUSY;
+        //    break;
+        default:
+            break;
+    }
+    *gain = self->_.d_param.gain;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_set_pixel_format(void *_self, uint32_t pixel_format)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.pixel_format_available) {
+        return AAOS_ENOTSUP;
+    }
+    
+    if (self->_.d_cap.pixel_format_array != NULL) {
+        for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
+            if (self->_.d_cap.pixel_format_array[i] == pixel_format) {
+                break;
+            }
+        }
+        if (i == self->_.d_cap.n_pixel_format) {
+            return AAOS_EINVAL;
+        }
+    } else {
+        return AAOS_ENOENT;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            self->_.d_param.pixel_format = pixel_format;
+            break;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_get_pixel_format(void *_self, uint32_t *pixel_format)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+     
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    *pixel_format = self->_.d_param.pixel_format;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_set_readout_rate(void *_self, double readout_rate)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.readout_rate_available) {
+        return AAOS_ENOTSUP;
+    }
+    
+    if (self->_.d_cap.readout_rate_array != NULL) {
+        for (i = 0; i < self->_.d_cap.n_readout; i++) {
+            if (fabs(self->_.d_cap.readout_rate_array[i] - readout_rate) < 0.001) {
+                readout_rate = self->_.d_cap.readout_rate_array[i];
+                break;
+            }
+        }
+        if (i == self->_.d_cap.n_readout) {
+            return AAOS_EINVAL;
+        }
+    } else {
+        if (readout_rate > self->_.d_cap.readout_rate_max || readout_rate < self->_.d_cap.readout_rate_min) {
+            return AAOS_EINVAL;
+        }
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            break;
+    }
+    self->_.d_param.readout_rate = readout_rate;
+    switch (self->_.d_param.pixel_format) {
+        case DETECTOR_PIXEL_FORMAT_MONO_8:
+            self->_.d_cap.frame_rate_max = (readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 8);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_12:
+            self->_.d_cap.frame_rate_max = (readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 12);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_14:
+            self->_.d_cap.frame_rate_max = (readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 14);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_32:
+            self->_.d_cap.frame_rate_max = (readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 32);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_64:
+            self->_.d_cap.frame_rate_max = (readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 64);
+            break;
+        default:
+            self->_.d_cap.frame_rate_max = (readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 16);
+            break;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_get_readout_rate(void *_self, double *readout_rate)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        //case DETECTOR_STATE_READING:
+        //case DETECTOR_STATE_EXPOSING:
+        //    Pthread_mutex_unlock(&self->_.d_state.mtx);
+        //    return AAOS_EBUSY;
+        //    break;
+        default:
+            break;
+    }
+    *readout_rate = self->_.d_param.readout_rate;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t width, uint32_t height)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.offset_available) {
+        return AAOS_ENOTSUP;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    if (x_offset > self->_.d_cap.x_offset_max || x_offset < self->_.d_cap.x_offset_min || (x_offset + width) > self->_.d_cap.width || y_offset > self->_.d_cap.y_offset_max || y_offset < self->_.d_cap.y_offset_min || (y_offset + height) > self->_.d_cap.height) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EINVAL;
+    }
+    
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        case DETECTOR_STATE_READING:
+        case DETECTOR_STATE_EXPOSING:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+            break;
+        default:
+            break;
+    }
+    self->_.d_param.x_offset = x_offset;
+    self->_.d_param.image_width = width;
+    self->_.d_param.y_offset = y_offset;
+    self->_.d_param.image_height = height;
+    switch (self->_.d_param.pixel_format) {
+        case DETECTOR_PIXEL_FORMAT_MONO_8:
+            self->_.d_cap.frame_rate_max = (self->_.d_param.readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 8);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_12:
+            self->_.d_cap.frame_rate_max = (self->_.d_param.readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 12);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_14:
+            self->_.d_cap.frame_rate_max = (self->_.d_param.readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 14);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_32:
+            self->_.d_cap.frame_rate_max = (self->_.d_param.readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 32);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_64:
+            self->_.d_cap.frame_rate_max = (self->_.d_param.readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 64);
+            break;
+        default:
+            self->_.d_cap.frame_rate_max = (self->_.d_param.readout_rate * 1000000.) / (self->_.d_param.image_width * self->_.d_param.image_height * 16);
+            break;
+    }
+    
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32_t *width, uint32_t *height)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    switch (state) {
+        case DETECTOR_STATE_OFFLINE:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EPWROFF;
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EUNINIT;
+            break;
+        //case DETECTOR_STATE_READING:
+        //case DETECTOR_STATE_EXPOSING:
+        //    Pthread_mutex_unlock(&self->_.d_state.mtx);
+        //    return AAOS_EBUSY;
+        //    break;
+        default:
+            break;
+    }
+    *x_offset = self->_.d_param.x_offset;
+    *width = self->_.d_param.image_width;
+    *y_offset = self->_.d_param.y_offset;
+    *height = self->_.d_param.image_height;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_disable_cooling(void *_self)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.cooling_available) {
+        return AAOS_ENOTSUP;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    self->_.d_param.is_cooling_enable = false;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_enable_cooling(void *_self)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.cooling_available) {
+        return AAOS_ENOTSUP;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    self->_.d_param.is_cooling_enable = true;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_set_temperature(void *_self, double temperature)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    size_t i;
+    unsigned int state;
+    uint16_t options;
+    
+    if (!self->_.d_cap.cooling_available) {
+        return AAOS_ENOTSUP;
+    }
+    
+    if (temperature > self->_.d_cap.cooling_temperature_max || temperature < self->_.d_cap.cooling_temperature_min) {
+        return AAOS_EINVAL;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    
+    self->_.d_param.temperature = temperature;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_get_temperature(void *_self, double *temperature)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    *temperature = self->_.d_param.temperature;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static double
+VirtualDetector_readout_time_nl(struct VirtualDetector *self)
+{
+    double readout_time;
+    
+    switch (self->_.d_param.pixel_format) {
+        case DETECTOR_PIXEL_FORMAT_MONO_8:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 8) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 10) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 12) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 14) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 14) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 24) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_18:
+        case DETECTOR_PIXEL_FORMAT_MONO_24:
+        case DETECTOR_PIXEL_FORMAT_MONO_32:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 32) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_64:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 64) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+        default:
+            readout_time = (self->_.d_param.image_width * self->_.d_param.image_height * 16) / (self->_.d_param.readout_rate * 1000000.);
+            break;
+    }
+    
+    return readout_time;
+}
+
 static void
 VirtualDetector_generate_frame(struct VirtualDetector *detector, void **data)
 {
-    size_t width = detector->_.d_param.image_width, height = detector->_.d_param.image_width;
+    size_t width = detector->_.d_param.image_width, height = detector->_.d_param.image_width, n_chip = detector->_.d_cap.n_chip;
     
     /*
     double gain = detector->_.d_param.gain, read_noise = detector->read_noise, bias = detector->bias_level;
      */
     switch (detector->_.d_param.pixel_format) {
         case DETECTOR_PIXEL_FORMAT_MONO_8:
-            *data = Malloc(width * height);
+            *data = Malloc(width * height * n_chip);
             break;
+        case DETECTOR_PIXEL_FORMAT_MONO_10:
+        case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
         case DETECTOR_PIXEL_FORMAT_MONO_12:
+        case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
         case DETECTOR_PIXEL_FORMAT_MONO_14:
+        case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
         case DETECTOR_PIXEL_FORMAT_MONO_16:
-            *data = Malloc(width * height * 2);
+            *data = Malloc(width * height * n_chip * 2);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_18:
+        case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
         case DETECTOR_PIXEL_FORMAT_MONO_24:
+        case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
         case DETECTOR_PIXEL_FORMAT_MONO_32:
-            *data = Malloc(width * height * 4);
+            *data = Malloc(width * height * n_chip * 4);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_64:
-            *data = Malloc(width * height * 8);
+            *data = Malloc(width * height * n_chip * 8);
             break;
         default:
             break;
     }
-    
 }
 
+/*
 static void *
 VirtualDetector_do_expose(void *arg)
 {
+    //struct  VirtualDetector *detector = (struct  VirtualDetector *) arg;
     va_list *app = (va_list *) arg;
-    
     struct VirtualDetector *detector = va_arg(*app, struct VirtualDetector *);
     
     size_t i, n = detector->_.d_exp.request_frames;
@@ -2394,25 +3953,19 @@ VirtualDetector_do_expose(void *arg)
         }
         Pthread_mutex_unlock(&detector->mtx);
         
-        /*
-         * Simulating exposing.
-         */
+        
         Pthread_mutex_lock(&detector->_.d_state.mtx);
         detector->_.d_state.state = DETECTOR_STATE_EXPOSING;
         Pthread_mutex_unlock(&detector->_.d_state.mtx);
         Nanosleep(detector->_.d_param.exposure_time);
         
-        /*
-         * Simulating reading out.
-         */
+       
         Pthread_mutex_lock(&detector->_.d_state.mtx);
         detector->_.d_state.state = DETECTOR_STATE_READING;
         Pthread_mutex_unlock(&detector->_.d_state.mtx);
         Nanosleep(readout_time);
         
-        /*
-         * After read out, start processing data.
-         */
+        
         if (detector->_.d_exp.notify_last_frame_filling && i == n - 1) {
             Pthread_mutex_lock(&detector->_.d_exp.mtx);
             detector->_.d_exp.last_frame_filling_flag = 1;
@@ -2472,6 +4025,293 @@ VirtualDetector_do_expose(void *arg)
     }
     return NULL;
 }
+*/
+
+static void
+VirtualDetector_do_expose_cleanup_fitsfile(void *arg)
+{
+    fitsfile *fptr = (fitsfile *) arg;
+    int status = 0;
+    
+    if (fptr != NULL) {
+        fits_close_file(fptr, &status);
+    }
+
+}
+
+static void
+VirtualDetector_do_expose_cleanup_data(void *arg)
+{
+    free(arg);
+}
+
+static void
+VirtualDetector_do_expose_cleanup_cond_signal(void *arg)
+{
+    Pthread_cond_signal((pthread_cond_t *) arg);
+    //free(arg);
+}
+
+static void
+VirtualDetector_write_image(struct VirtualDetector *detector, fitsfile *fptr, void *data)
+{
+    size_t width = detector->_.d_param.image_width, height = detector->_.d_param.image_width, n_chip = detector->_.d_cap.n_chip, x_n_chip = detector->_.d_cap.x_n_chip, y_n_chip = detector->_.d_cap.y_n_chip;
+    int status = 0, bitpix, datatype, naxis = 2;
+    long naxes[2];
+    struct timespec tp;
+    struct tm tm_buf;
+    char buf[TIMESTAMPSIZE];
+    
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    
+    naxes[0] = width * x_n_chip;
+    naxes[1] = height * y_n_chip;
+    
+    if (fptr != NULL) {
+        switch (detector->_.d_param.pixel_format) {
+            case DETECTOR_PIXEL_FORMAT_MONO_8:
+                bitpix = BYTE_IMG;
+                datatype = TBYTE;
+                break;
+            case DETECTOR_PIXEL_FORMAT_MONO_10:
+            case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+            case DETECTOR_PIXEL_FORMAT_MONO_12:
+            case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+            case DETECTOR_PIXEL_FORMAT_MONO_14:
+            case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
+            case DETECTOR_PIXEL_FORMAT_MONO_16:
+                bitpix = USHORT_IMG;
+                datatype = TUSHORT;
+                break;
+            case DETECTOR_PIXEL_FORMAT_MONO_18:
+            case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
+            case DETECTOR_PIXEL_FORMAT_MONO_24:
+            case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
+            case DETECTOR_PIXEL_FORMAT_MONO_32:
+                bitpix = ULONG_IMG;
+                datatype = TUINT;
+                break;
+            case DETECTOR_PIXEL_FORMAT_MONO_64:
+                bitpix = ULONGLONG_IMG;
+                datatype = TULONGLONG;
+                break;
+            default:
+                bitpix = USHORT_IMG;
+                datatype = TUSHORT;
+                break;
+        }
+        
+        fits_create_img(fptr, bitpix, naxis, naxes, &status);
+        if (status != 0) {
+            fprintf(stderr, "fits_create_img error: %d\n", status);
+        }
+        gmtime_r(&tp.tv_sec, &tm_buf);
+        strftime(buf, TIMESTAMPSIZE, "%Y-%m-%d", &tm_buf);
+        fits_update_key_str(fptr, "DATE-OBS", buf, "end data of this frame", &status);
+        strftime(buf, TIMESTAMPSIZE, "%H:%m:%d", &tm_buf);
+        snprintf(buf + strlen(buf), TIMESTAMPSIZE - strlen(buf), ".%03d", (int) floor(tp.tv_nsec / 1000000));
+        fits_update_key_str(fptr, "TIME-OBS", buf, "end data of this frame", &status);
+        fits_write_img(fptr, datatype, 1, naxes[0] * naxes[1], data, &status);
+        if (status != 0) {
+            fprintf(stderr, "fits_write_img error: %d\n", status);
+        }
+    }
+}
+
+static void *
+VirtualDetector_do_expose_thr(void *arg)
+{
+    struct VirtualDetectorExposureArg *myarg = (struct VirtualDetectorExposureArg *) arg;
+    struct VirtualDetector *detector = myarg->detector;
+    double readout_time = VirtualDetector_readout_time_nl(detector);
+    uint16_t options = detector->_.d_state.options;
+    char filename[FILENAMESIZE];
+    uint32_t i;
+    int status = 0;
+    fitsfile *fptr;
+    void *data = NULL;
+    void *string = myarg->string;
+    void *rpc = myarg->rpc;
+    int format = myarg->format;
+
+    free(arg);
+
+    detector->_.d_exp.success_frames = 0;
+    Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+    pthread_cleanup_push(VirtualDetector_do_expose_cleanup_cond_signal, &detector->_.d_exp.cond);
+    if (detector->_.d_state.options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
+        /*
+         * All the requeted frames will be saved into seperated fits files.
+         */
+        for (i = 0; i < detector->_.d_exp.request_frames; i++) {
+            /*
+             *
+             */
+            fptr = NULL;
+            Pthread_mutex_lock(&detector->_.d_state.mtx);
+            detector->_.d_state.state &= DETECTOR_STATE_MALFUNCTION;
+            detector->_.d_state.state |= DETECTOR_STATE_EXPOSING;
+            Pthread_mutex_unlock(&detector->_.d_state.mtx);
+	
+            if (detector->_.d_proc.name_convention != NULL) {
+                detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, i + 1, detector->_.d_exp.request_frames);
+            } else {
+                __Detector_default_name_convention((struct __Detector *)detector, filename, FILENAMESIZE, i + 1, detector->_.d_exp.request_frames);
+            }
+                      
+            /*
+             * Simulate exposure 
+             */
+            
+            Pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+            Nanosleep(detector->_.d_param.exposure_time);
+            Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+            
+            Pthread_mutex_lock(&detector->_.d_exp.mtx);
+            detector->_.d_exp.count = i;
+            if (detector->_.d_exp.notify_last_frame_filling && i == detector->_.d_exp.request_frames - 1) {
+                detector->_.d_exp.last_frame_filling_flag = true;
+                Pthread_cond_signal(&detector->_.d_exp.cond);
+            }
+            Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+            /*
+             * Simulate read out
+             */
+            
+            Pthread_mutex_lock(&detector->_.d_state.mtx);
+            detector->_.d_state.state &= DETECTOR_STATE_MALFUNCTION;
+            detector->_.d_state.state |= DETECTOR_STATE_READING;
+            Pthread_mutex_unlock(&detector->_.d_state.mtx);
+            if (detector->_.d_proc.tpl_fptr != NULL) {
+                fits_create_file(&fptr, filename, &status);
+                fits_copy_file(detector->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
+                if (status != 0) {
+                
+                }
+            } else {
+                fits_create_template(&fptr, filename, detector->_.d_proc.tpl_filename, &status);
+                if (status != 0) {
+                }
+            }
+
+            if (detector->_.d_proc.pre_acquisition != NULL) {
+                
+            } else {
+                __Detector_default_pre_acquisition((struct __Detector *)  detector, filename, fptr);
+            }
+            detector->_.d_proc.img_fptr = fptr;
+            
+            Pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+            Nanosleep(1./detector->_.d_param.frame_rate - detector->_.d_param.exposure_time);
+            Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+            
+            VirtualDetector_generate_frame(detector, &data);
+            detector->_.d_exp.success_frames++;
+
+            VirtualDetector_write_image(detector, fptr, data);
+            free(data);
+            data = NULL;
+	
+            if (detector->_.d_proc.post_acquisition != NULL) {
+		
+            } else {
+                __Detector_default_post_acquisition((struct __Detector *) detector, filename, fptr, string, format, rpc);
+            }
+	
+            fits_close_file(fptr, &status);
+            detector->_.d_proc.img_fptr = NULL;
+            fptr = NULL;
+
+            /*
+             * Exposure has been stopped.
+             */
+            Pthread_mutex_lock(&detector->_.d_exp.mtx);
+            if (detector->_.d_exp.stop_flag) {
+                Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+                break;
+            }
+            Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+        }
+    } else {
+        fptr = NULL;
+        if (detector->_.d_proc.name_convention != NULL) {
+            detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, 0, 1);
+        } else {
+            __Detector_default_name_convention((struct __Detector *) detector, filename, FILENAMESIZE, 0, 1);
+        }
+	
+        if (detector->_.d_proc.tpl_fptr != NULL) {
+            fits_create_file(&fptr, filename, &status);
+            fits_copy_file(detector->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
+            if (status != 0) {
+
+            }
+        } else {
+            fits_create_template(&fptr, filename, detector->_.d_proc.tpl_filename, &status);
+            if (status != 0) {
+	
+            }
+        }
+        detector->_.d_proc.img_fptr = fptr;
+        if (detector->_.d_proc.pre_acquisition != NULL) {
+            
+        } else {
+            __Detector_default_pre_acquisition((struct __Detector *) detector, filename, fptr);
+        }
+        pthread_cleanup_push(VirtualDetector_do_expose_cleanup_fitsfile, fptr);
+        for (i = 0; i < detector->_.d_exp.request_frames; i++) {
+            Pthread_mutex_lock(&detector->_.d_state.mtx);
+            detector->_.d_state.state &= DETECTOR_STATE_MALFUNCTION;
+            detector->_.d_state.state |= DETECTOR_STATE_EXPOSING;
+            Pthread_mutex_unlock(&detector->_.d_state.mtx);
+            Pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+            Nanosleep(detector->_.d_param.exposure_time);
+            Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+            
+            Pthread_mutex_lock(&detector->_.d_exp.mtx);
+            detector->_.d_exp.count = i;
+
+            if (detector->_.d_exp.notify_last_frame_filling && i == detector->_.d_exp.request_frames - 1) {
+                detector->_.d_exp.last_frame_filling_flag = true;
+                Pthread_cond_signal(&detector->_.d_exp.cond);
+            }
+            Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+            
+            Pthread_mutex_lock(&detector->_.d_state.mtx);
+            detector->_.d_state.state &= DETECTOR_STATE_MALFUNCTION;
+            detector->_.d_state.state |= DETECTOR_STATE_READING;
+            Pthread_mutex_unlock(&detector->_.d_state.mtx);
+            Pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+            Nanosleep(1./detector->_.d_param.frame_rate - detector->_.d_param.exposure_time);
+            Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+            VirtualDetector_generate_frame(detector, &data);
+            detector->_.d_exp.success_frames++;
+            VirtualDetector_write_image(detector, fptr, data);
+            free(data);
+            data = NULL;
+            Pthread_mutex_lock(&detector->_.d_exp.mtx);
+            if (detector->_.d_exp.stop_flag) {
+                Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+                /*
+                 * TODO, close FITS file, and do post process.
+                 */
+                break;
+            }
+            Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+        }
+        pthread_cleanup_pop(0);
+        if (detector->_.d_proc.post_acquisition != NULL) {
+			
+        } else {
+            __Detector_default_post_acquisition((struct __Detector *) detector, filename, fptr, string, format, rpc);
+        }
+        fits_close_file(fptr, &status);
+        detector->_.d_proc.img_fptr = NULL;
+    }
+    pthread_cleanup_pop(0);
+
+    return NULL;
+}
 
 static int
 VirtualDetector_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *app)
@@ -2480,152 +4320,136 @@ VirtualDetector_expose(void *_self, double exposure_time, uint32_t n_frame, va_l
     
     pthread_t tid;
     uint32_t i;
+    unsigned int state;
+    uint16_t options;
+    char *filename, *string;
     void *retval;
+    void *rpc;
+    struct VirtualDetectorExposureArg *arg;
+    int ret = AAOS_OK;
+    
+    rpc = va_arg(*app, void **);
+    string = va_arg(*app, char *);
+
+    arg = (struct VirtualDetectorExposureArg *) Malloc(sizeof(struct VirtualDetectorExposureArg));
+
+    arg->detector = self;
+    arg->rpc = rpc;
+    arg->string = string;
+
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.last_frame_filling_flag = false;
+    self->_.d_exp.stop_flag = false;
+    self->_.d_exp.rpc = NULL;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    while (self->_.d_state.state == DETECTOR_STATE_READING || self->_.d_state.state == DETECTOR_STATE_EXPOSING) {
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if (exposure_time > self->_.d_cap.exposure_time_max || exposure_time < self->_.d_cap.exposure_time_min) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EINVAL;
+    }
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    self->_.d_param.exposure_time = exposure_time;
+    if ((self->_.d_state.state == DETECTOR_STATE_READING || self->_.d_state.state == DETECTOR_STATE_READING) && (options&DETECTOR_OPTION_NOWAIT)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EBUSY;
+    }
+    while ((self->_.d_state.state&(~DETECTOR_STATE_MALFUNCTION)) == DETECTOR_STATE_READING || (self->_.d_state.state&(~DETECTOR_STATE_MALFUNCTION)) == DETECTOR_STATE_EXPOSING) {
         Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
     }
-    self->_.d_state.state = DETECTOR_STATE_EXPOSING;
+    self->_.d_state.state |= DETECTOR_STATE_EXPOSING;
     self->_.d_param.exposure_time = exposure_time;
     if (exposure_time > 1. / self->_.d_param.frame_rate) {
-        self->_.d_param.frame_rate = 1. / exposure_time;
+        self->_.d_param.frame_rate = 1. / (exposure_time + VirtualDetector_readout_time_nl(self));
     }
     self->_.d_exp.request_frames = n_frame;
-    Pthread_create(&tid, NULL, VirtualDetector_do_expose, (void *) self);
+    Pthread_create(&tid, NULL, VirtualDetector_do_expose_thr, (void *) arg);
     self->_.d_state.tid = tid;
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.rpc = rpc;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-    char *filename;
-    
-    if (self->_.d_proc.pre_acquisition != NULL) {
-#ifdef va_copy
-        va_list ap;
-        va_copy(ap, *app);
-        self->_.d_proc.pre_acquisition(self, filename, &ap);
-        va_end(ap);
-#else
-        va_list *myapp = app;
-        self->_.d_proc.pre_acquisition(self, filename, myapp);
-#endif
-    }
-    if (self->_.d_exp.notify_each_frame_done) {
-        for (i = 0; i != n_frame - 1; i ++) {
-            Pthread_mutex_lock(&self->mtx);
-            if (self->stop_flag) {
-                while ((filename = threadsafe_queue_try_pop(self->_.d_proc.queue)) != NULL) {
-                    if (self->_.d_proc.post_acquisition != NULL) {
-#ifdef va_copy
-                        va_list ap;
-                        va_copy(ap, *app);
-                        self->_.d_proc.post_acquisition(self, filename, &ap);
-                        va_end(ap);
-#else
-                        va_list *myapp = app;
-                        self->_.d_proc.post_acquisition(self, filename, myapp);
-#endif
-                    } else {
-                        fprintf(stdout, "%s\n", filename);
-                    }
-                    free(filename);
-                }
-                self->stop_flag = 0;
-                Pthread_mutex_unlock(&self->mtx);
-                return AAOS_EINTR;
-            }
-            Pthread_mutex_unlock(&self->mtx);
-            filename = threadsafe_queue_wait_and_pop(self->_.d_proc.queue);
-            if (self->_.d_proc.post_acquisition != NULL) {
-#ifdef va_copy
-                va_list ap;
-                va_copy(ap, *app);
-                self->_.d_proc.post_acquisition(self, filename, &ap);
-                va_end(ap);
-#else
-                va_list *myapp = app;
-                self->_.d_proc.post_acquisition(self, filename, myapp);
-#endif
-            } else {
-                fprintf(stdout, "%s\n", filename);
-            }
-            free(filename);
+    if (!self->_.d_exp.notify_last_frame_filling) {
+        /*
+         * Waiting for 
+         */
+        Pthread_join(tid, &retval);
+        Pthread_mutex_lock(&self->_.d_state.mtx);
+        self->_.d_state.state &= DETECTOR_STATE_MALFUNCTION;
+        self->_.d_state.state |= DETECTOR_STATE_IDLE;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        Pthread_cond_broadcast(&self->_.d_state.cond);
+	
+        if (retval == PTHREAD_CANCELED) {
+            return AAOS_ECANCELED;
         }
-    }
-    if (self->_.d_exp.notify_last_frame_filling) {
         Pthread_mutex_lock(&self->_.d_exp.mtx);
-        while (self->_.d_exp.last_frame_filling_flag) {
+        if (self->_.d_exp.stop_flag == true) {
+            self->_.d_exp.stop_flag = false;
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            return AAOS_ECANCELED;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    } else {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        while (!self->_.d_exp.last_frame_filling_flag) {
             Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
         }
-        self->_.d_exp.last_frame_filling_flag = 0;
+        if (self->_.d_exp.stop_flag == true) {
+            self->_.d_exp.stop_flag = false;
+            ret = AAOS_ECANCELED;
+        }
         Pthread_mutex_unlock(&self->_.d_exp.mtx);
-        return AAOS_OK;
     }
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.rpc = NULL;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
     
-    filename = threadsafe_queue_wait_and_pop(self->_.d_proc.queue);
-    if (self->_.d_proc.post_acquisition != NULL) {
-#ifdef va_copy
-        va_list ap;
-        va_copy(ap, *app);
-        self->_.d_proc.post_acquisition(self, filename, &ap);
-        va_end(ap);
-#else
-        va_list *myapp = app;
-        self->_.d_proc.post_acquisition(self, filename, myapp);
-#endif
-    } else {
-        fprintf(stdout, "%s\n", filename);
-    }
-    free(filename);
-    
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    if (self->_.d_state.state == DETECTOR_STATE_READING) {
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
-    }
-    Pthread_mutex_lock(&self->mtx);
-    self->stop_flag = 0;
-    Pthread_mutex_unlock(&self->mtx);
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
-    Pthread_cond_broadcast(&self->_.d_state.cond);
-    
-    Pthread_join(tid, &retval);
-    
-    if (retval == PTHREAD_CANCELED) {
-        return AAOS_EINTR;
-    } else {
-        return AAOS_OK;
-    }
+    return ret;
 }
 
 static int
-VirtualDetector_wait_for_completion(void *_self, ...)
+VirtualDetector_wait_for_completion(void *_self)
 {
     struct VirtualDetector *self = cast(VirtualDetector(), _self);
     
-    if (self->_.d_exp.notify_last_frame_filling) {
-        Pthread_mutex_lock(&self->_.d_exp.mtx);
-        while (self->_.d_exp.last_frame_filling_flag) {
-            Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
-        }
-        self->_.d_exp.last_frame_filling_flag = 0;
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        char *filename;
-        filename = threadsafe_queue_wait_and_pop(self->_.d_proc.queue);
-        va_list ap;
-        va_start(ap, _self);
-        self->_.d_proc.post_acquisition(self, filename, &ap);
-        va_end(ap);
-        free(filename);
-    }
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    if (self->_.d_state.state == DETECTOR_STATE_READING) {
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
-    }
-    Pthread_mutex_lock(&self->mtx);
-    self->stop_flag = 0;
-    Pthread_mutex_unlock(&self->mtx);
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
-    Pthread_cond_broadcast(&self->_.d_state.cond);
+    unsigned int state;
+    uint16_t options;
+    void *retval;
     
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        return AAOS_EDEVMAL;
+    }
+    state &= ~DETECTOR_STATE_MALFUNCTION;
+    
+    if (state == DETECTOR_STATE_READING && self->_.d_exp.notify_last_frame_filling) {
+        Pthread_join(self->_.d_state.tid, &retval);
+        if (retval == PTHREAD_CANCELED) {
+            return AAOS_ECANCELED;
+        }
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        if (self->_.d_exp.stop_flag == true) {
+            self->_.d_exp.stop_flag = false;
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            return AAOS_ECANCELED;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        Pthread_mutex_lock(&self->_.d_state.mtx);
+        self->_.d_state.state &= DETECTOR_STATE_MALFUNCTION;
+        self->_.d_state.state |= DETECTOR_STATE_IDLE;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+    }
     return AAOS_OK;
 }
 
@@ -2634,14 +4458,24 @@ VirtualDetector_stop(void *_self)
 {
     struct VirtualDetector *self = cast(VirtualDetector(), _self);
     
+    unsigned int state;
+    uint16_t options;
+    
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    if (self->_.d_state.state == DETECTOR_STATE_READING || self->_.d_state.state == DETECTOR_STATE_EXPOSING) {
-        Pthread_mutex_lock(&self->mtx);
-        self->stop_flag = 1;
-        Pthread_mutex_unlock(&self->mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    if ((self->_.d_state.state&(~DETECTOR_STATE_MALFUNCTION)) == DETECTOR_STATE_READING || (self->_.d_state.state&(~DETECTOR_STATE_MALFUNCTION)) == DETECTOR_STATE_EXPOSING) {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.stop_flag = true;
+        self->_.d_exp.last_frame_filling_flag = true;
+        Pthread_cond_signal(&self->_.d_exp.cond);
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
-
     return AAOS_OK;
 }
 
@@ -2653,6 +4487,10 @@ VirtualDetector_abort(void *_self)
     Pthread_mutex_lock(&self->_.d_state.mtx);
     if (self->_.d_state.state == DETECTOR_STATE_READING || self->_.d_state.state == DETECTOR_STATE_EXPOSING) {
         Pthread_cancel(self->_.d_state.tid);
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.last_frame_filling_flag = true;
+        Pthread_cond_signal(&self->_.d_exp.cond);
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
@@ -2665,11 +4503,210 @@ VirtualDetector_inspect(void *_self)
     struct VirtualDetector *self = cast(VirtualDetector(), _self);
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    if (self->_.d_state.state == DETECTOR_STATE_MALFUNCTION) {
+    if (self->_.d_state.state&DETECTOR_STATE_MALFUNCTION) {
         self->_.d_state.state = DETECTOR_STATE_IDLE;
         Pthread_cond_broadcast(&self->_.d_state.cond);
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
+
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_status(void *_self, void *res, size_t res_size, size_t *res_len)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    FILE *fp;
+    unsigned int state;
+    bool is_cooling_enable;
+    double exposure_time, frame_rate, gain, readout_rate, temperature;
+    uint32_t x_offset, width, y_offset, height;
+    int ret;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    is_cooling_enable = self->_.d_param.is_cooling_enable;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    fp = fmemopen(res, res_size, "w+");
+    if (state&DETECTOR_STATE_MALFUNCTION) {
+        fprintf(fp, "status:\t\tMalfunction\n");
+    } else {
+        fprintf(fp, "status:\t\tOK\n");
+    }
+    if (state&DETECTOR_STATE_EXPOSING) {
+        fprintf(fp, "state:\t\tEXPOSING\n");
+    } else if (state&DETECTOR_STATE_READING) {
+        fprintf(fp, "state:\t\tREADING\n");
+    } else {
+        fprintf(fp, "state:\t\tIDLE\n");
+    }
+
+    if ((ret = VirtualDetector_get_region(self, &x_offset, &width, &y_offset, &height)) == AAOS_OK) {
+        fprintf(fp, "region:\t\t%u %u %u %u\n", x_offset, width, y_offset, height);
+    }
+if ((ret = VirtualDetector_get_frame_rate(self, &frame_rate)) == AAOS_OK) {
+        fprintf(fp, "framerate:\t%8.3f\n", frame_rate);
+    }
+if ((ret = VirtualDetector_get_exposure_time(self, &exposure_time)) == AAOS_OK) {
+        fprintf(fp, "exptime:\t%8.3f\n", exposure_time);
+    }
+    if ((ret = VirtualDetector_get_gain(self, &gain)) == AAOS_OK) {
+        fprintf(fp, "gain:\t\t%8.3f (e- per ADU)\n", gain);
+    }
+if ((ret = VirtualDetector_get_gain(self, &readout_rate)) == AAOS_OK) {
+        fprintf(fp, "readrate:\t%8.3f (Mbps)\n", readout_rate);
+    }
+    if (is_cooling_enable && (ret = VirtualDetector_get_temperature(self, &temperature)) == AAOS_OK) {
+	
+	fprintf(fp, "settemp:\t%8.3f (Celsius degree)\n", temperature);
+	fprintf(fp, "chiptemp:\t%8.3f (Celsius degree)\n", temperature);
+    }
+    fclose(fp);
+
+if (res_len != NULL) {
+	*res_len = strlen(res) + 1;
+}
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_info(void *_self, void *res, size_t res_size, size_t *res_len)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    FILE *fp;
+    size_t i;
+    
+    size_t x_offset_min, x_offset_max, image_width_min, image_width_max, y_offset_min, y_offset_max, image_height_min, image_height_max;
+    double frame_rate_min, frame_rate_max;
+    
+
+    fp = fmemopen(res, res_size, "w+");
+
+    fprintf(fp, "name:\t\t%s\n", self->_.name);
+    if (self->_.description != NULL) {
+        fprintf(fp, "description:\t%s\n\n", self->_.description);
+    }
+    fprintf(fp, "format:\t\t%u x %u\n", self->_.d_cap.width, self->_.d_cap.height);
+    fprintf(fp, "mosaic:\t\t%zd x %zd\n\n", self->_.d_cap.x_n_chip, self->_.d_cap.y_n_chip);
+
+    if (self->_.d_cap.binning_available) {
+        fprintf(fp, "binning:\tavailable\n");
+        if (self->_.d_cap.x_binning_array != NULL) {
+            fprintf(fp, "x_binning:\t[");
+            for (i = 0; i < self->_.d_cap.n_x_binning - 1; i++) {
+                fprintf(fp, "%ud, ", self->_.d_cap.x_binning_array[i]);
+            }
+            fprintf(fp, "%ud]\n", self->_.d_cap.x_binning_array[self->_.d_cap.n_x_binning - 1]);
+        } else {
+            fprintf(fp, "x_binning:\t%ud -- %ud\n", self->_.d_cap.x_binning_min, self->_.d_cap.x_binning_max);
+        }
+        if (self->_.d_cap.y_binning_array != NULL) {
+            fprintf(fp, "y_binning:\t[");
+            for (i = 0; i < self->_.d_cap.n_y_binning - 1; i++) {
+                fprintf(fp, "%ud, ", self->_.d_cap.y_binning_array[i]);
+            }
+            fprintf(fp, "%ud]\n\n", self->_.d_cap.y_binning_array[self->_.d_cap.n_y_binning - 1]);
+        } else {
+            fprintf(fp, "y_binning:\t%ud -- %ud\n\n", self->_.d_cap.y_binning_min, self->_.d_cap.y_binning_max);
+        }
+    } else {
+        fprintf(fp, "binning:\tunavailable\n\n");
+    }
+    
+    if (self->_.d_cap.offset_available) {
+        fprintf(fp, "RIO:\t\tavailable\n");
+        Pthread_mutex_lock(&self->_.d_state.mtx);
+        x_offset_min = self->_.d_cap.x_offset_min;
+        x_offset_max = self->_.d_cap.x_offset_max;
+        image_width_min = self->_.d_cap.image_width_min;
+        image_width_max = self->_.d_cap.image_width_max;
+        y_offset_min = self->_.d_cap.y_offset_min;
+        y_offset_max = self->_.d_cap.y_offset_max;
+        image_height_min = self->_.d_cap.image_height_min;
+        image_height_max = self->_.d_cap.image_height_max;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        fprintf(fp, "x_offset:\t%zd -- %zd\n", x_offset_min, x_offset_max);
+        fprintf(fp, "width:\t\t%zd -- %zd\n", image_width_min, image_width_max);
+        fprintf(fp, "y_offset:\t%zd -- %zd\n", y_offset_min, y_offset_max);
+        fprintf(fp, "height:\t%zd -- %zd\n\n", image_height_min, image_height_max);	
+    } else {
+        fprintf(fp, "RIO:\t\tunavailable\n\n");
+    }
+    
+    if (self->_.d_cap.pixel_format_available && self->_.d_cap.pixel_format_array != NULL) {
+        fprintf(fp, "pixelformat:\tavailable\n");
+        fprintf(fp, "pixelformat:\t[");
+        for (i = 0; i < self->_.d_cap.n_pixel_format - 1; i++) {
+            fprintf(fp, "%s, ", pixel_format_string[self->_.d_cap.pixel_format_array[i] -1]);
+        }
+        fprintf(fp, "%s]\n\n", pixel_format_string[self->_.d_cap.pixel_format_array[self->_.d_cap.n_pixel_format - 1] -1]);
+    } else {
+        fprintf(fp, "pixelformat:\tunavailable\n\n");
+    }
+
+    if (self->_.d_cap.frame_rate_available) {
+        fprintf(fp, "framerate:\t\tavailable\n");
+        Pthread_mutex_lock(&self->_.d_state.mtx);
+        frame_rate_min = self->_.d_cap.frame_rate_min;
+        frame_rate_max = self->_.d_cap.frame_rate_max;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        fprintf(fp, "framerate:\t%9.3lf -- %9.3lf (fps)\n\n", frame_rate_min, frame_rate_max);
+    } else {
+        fprintf(fp, "framerate:\tunavailable\n\n");
+    }
+
+    if (self->_.d_cap.exposure_time_available) {
+        fprintf(fp, "exptime:\tavailable\n");
+        fprintf(fp, "exptime:\t%9.3lf -- %9.3lf seconds\n\n", self->_.d_cap.exposure_time_min, self->_.d_cap.exposure_time_max);	
+    } else {
+        fprintf(fp, "exptime:\t\tunavailable\n\n");
+    }
+
+    if (self->_.d_cap.gain_available) {
+        fprintf(fp, "gain:\t\tavailable\n");
+        if (self->_.d_cap.gain_array !=  NULL) {
+            fprintf(fp, "gain:\t\t[");
+            for (i = 0; i < self->_.d_cap.n_gain - 1; i++) {
+                fprintf(fp, "%8.3f, ", self->_.d_cap.gain_array[i]);
+            }
+            fprintf(fp, "%8.3f] (e- per ADU)\n\n", self->_.d_cap.gain_array[self->_.d_cap.n_gain - 1]);
+        } else {
+            fprintf(fp, "gain:\t%8.3lf -- %8.3lf (e- per ADU)\n\n", self->_.d_cap.gain_min, self->_.d_cap.gain_max);
+        }
+    } else {
+        fprintf(fp, "gain:\t\tunavailable\n\n");
+    }
+    
+
+    if (self->_.d_cap.readout_rate_available && self->_.d_cap.readout_rate_array != NULL) {
+        fprintf(fp, "readrate:\tavailable\n");
+        if (self->_.d_cap.readout_rate_array !=  NULL) {
+            fprintf(fp, "readrate:\t\t[");
+            for (i = 0; i < self->_.d_cap.n_readout - 1; i++) {
+                fprintf(fp, "%8.3f, ", self->_.d_cap.readout_rate_array[i]);
+            }
+            fprintf(fp, "%8.3f] (Mbps)\n\n", self->_.d_cap.readout_rate_array[self->_.d_cap.n_readout - 1]);
+        } else {
+            fprintf(fp, "readrate:\t%8.3lf -- %8.3lf (Mbps)\n\n", self->_.d_cap.readout_rate_min, self->_.d_cap.readout_rate_max);
+        }
+    } else {
+        fprintf(fp, "readrate:\tunavailable\n\n");
+    }
+
+    if (self->_.d_cap.cooling_available) {
+        fprintf(fp, "cooling:\tavailable\n");
+    } else {
+        fprintf(fp, "cooling:\tunavailable\n");
+    }
+    fclose(fp);
+
+    if (res_len != NULL) {
+        *res_len = strlen(res) + 1;
+    }
 
     return AAOS_OK;
 }
@@ -2686,36 +4723,34 @@ static void
 virtual_detector_virtual_table_initialize(void)
 {
     _virtual_detector_virtual_table = new(__DetectorVirtualTable(),
-                                 
-                                          //__detector_init, "init", Virtual_init,
-                                 
-                                          //__detector_info, "info", GenICam_info,
-                                 
-                                      
-                                          //__detector_set_binning, "set_binning", GenICam_set_binning,
-                                 
-                                          //__detector_get_binning, "get_binning", GenICam_get_binning,
-                                
-                                     
-                                          //__detector_get_exposure_time, "get_exposure_time", GenICam_get_exposure_time,
-                                 
-                                          //__detector_set_frame_rate, "set_frame_rate", GenICam_set_frame_rate,
-                                 
-                                          //__detector_get_frame_rate, "get_frame_rate", GenICam_get_frame_rate,
-                                 
-                                          //__detector_set_gain, "set_gain", GenICam_set_gain,
-                                 
-                                          //__detector_get_gain, "get_gain", GenICam_get_gain,
-                                 
-                                          //__detector_set_region, "set_region", GenICam_set_region,
-                                 
-                                          //__detector_get_region, "get_region", GenICam_get_region,
-                                 
-                                          //__detector_raw, "raw", GenICam_raw,
-                                 
-                                          //__detector_inspect, "inspect", GenICam_inspect,
-                                          //__detector_wait_for_completion, "wait_for_completion", GenICam_wait_for_last_completion,
-                                 (void *)0);
+                                          __detector_init, "init", VirtualDetector_init,
+                                          __detector_power_on, "power_on", VirtualDetector_power_on,
+                                          __detector_power_off, "power_off", VirtualDetector_power_off,
+                                          __detector_set_binning, "set_binning", VirtualDetector_set_binning,
+                                          __detector_get_binning, "get_binning", VirtualDetector_get_binning,
+                                          __detector_set_exposure_time, "set_exposure_time", VirtualDetector_set_exposure_time,
+                                          __detector_get_exposure_time, "get_exposure_time", VirtualDetector_get_exposure_time,
+                                          __detector_set_frame_rate, "set_frame_rate", VirtualDetector_set_frame_rate,
+                                          __detector_get_frame_rate, "get_frame_rate", VirtualDetector_get_frame_rate,
+                                          __detector_set_gain, "set_gain", VirtualDetector_set_gain,
+                                          __detector_get_gain, "get_gain", VirtualDetector_get_gain,
+                                          __detector_set_pixel_format, "set_pixel_format", VirtualDetector_set_pixel_format,
+                                          __detector_get_pixel_format, "get_pixel_format", VirtualDetector_get_pixel_format,
+                                          __detector_set_readout_rate, "set_readout_rate", VirtualDetector_set_readout_rate,
+                                          __detector_get_readout_rate, "get_readout_rate", VirtualDetector_get_readout_rate,
+                                          __detector_set_region, "set_region", VirtualDetector_set_region,
+                                          __detector_get_region, "get_region", VirtualDetector_get_region,
+                                          __detector_disable_cooling, "disable_cooling", VirtualDetector_disable_cooling,
+                                          __detector_enable_cooling, "enable_cooling", VirtualDetector_enable_cooling,
+                                          __detector_set_temperature, "set_temperature", VirtualDetector_set_temperature,
+                                          __detector_get_temperature, "get_temperature", VirtualDetector_get_temperature,
+                                          __detector_expose, "expose", VirtualDetector_expose,
+                                          __detector_wait_for_completion, "wait_for_completion", VirtualDetector_wait_for_completion,
+                                          __detector_abort, "abort", VirtualDetector_abort,
+                                          __detector_stop, "stop", VirtualDetector_stop,
+                                          __detector_status, "status",VirtualDetector_status,
+									  __detector_info, "info",VirtualDetector_info,
+                                          (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(virtual_detector_virtual_table_destroy);
 #endif
@@ -5748,17 +7783,17 @@ USTCCamera_ctor(void *_self, va_list *app)
 {
     struct USTCCamera *self = super_ctor(USTCCamera(), _self, app);
     
-	const char *s;
-	
+const char *s;
+
     self->_.d_state.state = (DETECTOR_STATE_OFFLINE|DETECTOR_STATE_UNINITIALIZED);
     s = va_arg(*app, const char *);
-	self->so_path = (char *) Malloc(strlen(s) + 1);
-	snprintf(self->so_path, strlen(s) + 1, "%s", s);
+self->so_path = (char *) Malloc(strlen(s) + 1);
+snprintf(self->so_path, strlen(s) + 1, "%s", s);
     self->log_level = va_arg(*app, unsigned int);
     self->which = va_arg(*app, unsigned int);
     Pthread_mutex_init(&self->mtx, NULL);
     Pthread_cond_init(&self->cond, NULL);
-	self->dlh = dlopen(self->so_path, RTLD_LAZY | RTLD_LOCAL);
+self->dlh = dlopen(self->so_path, RTLD_LAZY | RTLD_LOCAL);
     
     self->_._vtab= ustc_camera_virtual_table();
     
@@ -5772,9 +7807,9 @@ USTCCamera_dtor(void *_self)
     
     Pthread_mutex_destroy(&self->mtx);
     Pthread_cond_destroy(&self->cond);
-	free(self->so_path);
-	dlclose(self->dlh);
-	
+free(self->so_path);
+dlclose(self->dlh);
+
     return super_dtor(USTCCamera(), _self);
 }
 
@@ -5875,7 +7910,7 @@ USTCCamera(void)
 static int
 ustc_error_mapping(int ustc_error)
 {
-	switch (ustc_error) {
+switch (ustc_error) {
         case USTC_CCD_SUCCESS:
             return AAOS_OK;
             break;
@@ -5921,29 +7956,29 @@ ustc_error_mapping(int ustc_error)
 static int
 USTCCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
 {
-	struct USTCCamera *self = cast(USTCCamera(), _self);
-	
-	FILE *fp = fmemopen((void *) write_buffer, write_buffer_size, "r+");
-	char func_name[NAMESIZE];
-	int ret = AAOS_OK;
+struct USTCCamera *self = cast(USTCCamera(), _self);
 
-	fscanf(fp, "%s", func_name);
-	
-	if (strcmp(func_name, "Initialize") == 0 ) {
+FILE *fp = fmemopen((void *) write_buffer, write_buffer_size, "r+");
+char func_name[NAMESIZE];
+int ret = AAOS_OK;
+
+fscanf(fp, "%s", func_name);
+
+if (strcmp(func_name, "Initialize") == 0 ) {
         unsigned int (*Initialize) (unsigned int , unsigned int);
-		unsigned int which, log_level;
-		Initialize = dlsym(self->dlh, "Initialize");
+	unsigned int which, log_level;
+	Initialize = dlsym(self->dlh, "Initialize");
         if ((ret = fscanf(fp, "%u %u", &log_level, &which)) < 2 ){
-			ret = AAOS_EBADCMD;
+		ret = AAOS_EBADCMD;
             goto error;
         } else {
-			ret = Initialize(log_level, which);
-			ret = ustc_error_mapping(ret);
+		ret = Initialize(log_level, which);
+		ret = ustc_error_mapping(ret);
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-	} else if (strcmp(func_name, "ShutDown") == 0 ) {
+} else if (strcmp(func_name, "ShutDown") == 0 ) {
         unsigned int (*ShutDown) (void);
         ShutDown = dlsym(self->dlh, "ShutDown");
         ret = ShutDown();
@@ -6044,33 +8079,33 @@ USTCCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
         }
     } else if (strcmp(func_name, "SetExposureInterval") == 0 ) {
         unsigned int (*SetExposureInterval) (double);
-		double interval;
-		SetExposureInterval = dlsym(self->dlh, "SetExposureInterval");
-		if ((ret = fscanf(fp, "%lf", &interval)) < 1 ){
-			ret = AAOS_EBADCMD;
+	double interval;
+	SetExposureInterval = dlsym(self->dlh, "SetExposureInterval");
+	if ((ret = fscanf(fp, "%lf", &interval)) < 1 ){
+		ret = AAOS_EBADCMD;
             goto error;
         } else {
-			ret = SetExposureInterval(interval);
-			ret = ustc_error_mapping(ret);
+		ret = SetExposureInterval(interval);
+		ret = ustc_error_mapping(ret);
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-	} else if (strcmp(func_name, "SetExposureTime") == 0 ) {
+} else if (strcmp(func_name, "SetExposureTime") == 0 ) {
         unsigned int (*SetExposureTime) (double);
-		double exposure_time;
-		SetExposureTime = dlsym(self->dlh, "SetExposureTime");
-		if ((ret = fscanf(fp, "%lf", &exposure_time)) < 1 ){
-			ret = AAOS_EBADCMD;
+	double exposure_time;
+	SetExposureTime = dlsym(self->dlh, "SetExposureTime");
+	if ((ret = fscanf(fp, "%lf", &exposure_time)) < 1 ){
+		ret = AAOS_EBADCMD;
             goto error;
         } else {
-			ret = SetExposureTime(exposure_time);
-			ret = ustc_error_mapping(ret);
+		ret = SetExposureTime(exposure_time);
+		ret = ustc_error_mapping(ret);
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-	} else if (strcmp(func_name, "SetEraseCount") == 0 ) {
+} else if (strcmp(func_name, "SetEraseCount") == 0 ) {
         unsigned int (*SetEraseCount) (uint8_t);
         uint8_t count;
         SetEraseCount = dlsym(self->dlh, "SetEraseCount");
@@ -6102,7 +8137,7 @@ USTCCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
                 *read_size = 0;
             }
         }
-	} else if (strcmp(func_name, "SetShutter") == 0 ) {
+} else if (strcmp(func_name, "SetShutter") == 0 ) {
         unsigned int (*SetShutter) (uint8_t);
         uint8_t mode;
         if ((ret = fscanf(fp, "%c", &mode)) < 1 ){
@@ -6140,13 +8175,13 @@ USTCCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
         }
     } else if (strcmp(func_name, "StopExposure") == 0 ) {
         unsigned int (*StopExposure) (void);
-		StopExposure = dlsym(self->dlh, "StopExposure");
-		ret = StopExposure();
-		ret = ustc_error_mapping(ret);
+	StopExposure = dlsym(self->dlh, "StopExposure");
+	ret = StopExposure();
+	ret = ustc_error_mapping(ret);
         if (read_size != NULL) {
             *read_size = 0;
         }
-	} else if (strcmp(func_name, "StartExposure") == 0 ) {
+} else if (strcmp(func_name, "StartExposure") == 0 ) {
         unsigned int (*StartExposure) (void);
         StartExposure = dlsym(self->dlh, "StartExposure");
         ret = StartExposure();
@@ -6997,12 +9032,12 @@ USTCCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
         }
     }
     else {
-		ret = AAOS_EBADCMD;
-	}
+	ret = AAOS_EBADCMD;
+}
     
 error:
-	fclose(fp);
-	return ret;
+fclose(fp);
+return ret;
 }
 
 static int
@@ -7044,7 +9079,7 @@ USTCCamera_set_frame_rate(void *_self, double frame_rate)
     
     unsigned int (*SetExposureInterval)(double) = dlsym(self->dlh, "SetExposureInterval");
     int ret;
-	
+
     Pthread_mutex_lock(&self->_.d_state.mtx);
     Pthread_mutex_lock(&self->mtx);
     ret = SetExposureInterval(1./frame_rate);
@@ -7054,7 +9089,7 @@ USTCCamera_set_frame_rate(void *_self, double frame_rate)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-	return ustc_error_mapping(ret);
+return ustc_error_mapping(ret);
 }
 
 static int
@@ -7070,7 +9105,7 @@ USTCCamera_get_frame_rate(void *_self, double *frame_rate)
     *frame_rate = 1. / *frame_rate;
     Pthread_mutex_unlock(&self->mtx);
     
-	return ustc_error_mapping(ret);
+return ustc_error_mapping(ret);
 }
 
 static int
@@ -7120,7 +9155,7 @@ USTCCamera_enable_cooling(void *_self)
     ret = CoolerOn();
     Pthread_mutex_unlock(&self->mtx);
     
-	return ustc_error_mapping(ret);
+return ustc_error_mapping(ret);
 }
 
 static int
@@ -7200,7 +9235,7 @@ USTCCamera_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-	return ret;
+return ret;
 }
 
 static int
@@ -7239,21 +9274,40 @@ USTCCamera_set_gain(void *_self, double gain)
     int ret;
     unsigned int (*SetPreAmpGain)(uint8_t) = dlsym(self->dlh, "SetPreAmpGain");
     
-    if (fabs(gain - 5.0) < 0.0000001) {
-        ret = SetPreAmpGain(1);
-        Pthread_mutex_lock(&self->_.d_state.mtx);
-        self->_.d_param.gain = 5.0;
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-    } else if (fabs(gain - 10.0) < 0.0000001) {
-        ret = SetPreAmpGain(0);
-        Pthread_mutex_lock(&self->_.d_state.mtx);
-        self->_.d_param.gain = 10.0;
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
+    if (self->_.d_cap.gain_available) {
+        if (self->_.d_cap.gain_array) {
+            size_t i, n = self->_.d_cap.n_gain;
+            for (i = 0; i < n; i++) {
+                double gain_ = self->_.d_cap.gain_array[i];
+                if (fabs(gain - gain_) < 0.0000001 && i == 0) {
+                    Pthread_mutex_lock(&self->_.d_state.mtx);
+                    Pthread_mutex_lock(&self->mtx);
+                    ret = SetPreAmpGain(1);
+                    Pthread_mutex_unlock(&self->mtx);
+                    self->_.d_param.gain = 5.0;
+                    Pthread_mutex_unlock(&self->_.d_state.mtx);
+                    goto error;
+                } else if (fabs(gain - gain_) < 0.0000001 && i == 1) {
+                    
+                    Pthread_mutex_lock(&self->_.d_state.mtx);
+                    Pthread_mutex_lock(&self->mtx);
+                    ret = SetPreAmpGain(0);
+                    Pthread_mutex_unlock(&self->mtx);
+                    self->_.d_param.gain = 10.0;
+                    Pthread_mutex_unlock(&self->_.d_state.mtx);
+                    goto error;
+                }
+            }
+            return AAOS_EINVAL;
+        } else {
+            return AAOS_EINVAL;
+        }
     } else {
-        return AAOS_EINVAL;
+        return AAOS_ENOTSUP;
     }
-
-	return ustc_error_mapping(ret);
+    
+error:
+return ustc_error_mapping(ret);
 }
 
 static int 
@@ -7265,19 +9319,19 @@ USTCCamera_get_gain(void *_self, double *gain)
     *gain = self->_.d_param.gain;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
 
-	return AAOS_OK;
+return AAOS_OK;
 }
 
 static int 
 USTCCamera_set_readout_speed(void *_self, double readout_speed)
 {
-	return AAOS_ENOTSUP;
+return AAOS_ENOTSUP;
 }
 
 static int 
 USTCCamera_get_readout_speed(void *_self, double *readout_speed)
 {
-	return AAOS_ENOTSUP;
+return AAOS_ENOTSUP;
 }
 
 static int 
@@ -7545,7 +9599,7 @@ USTCCamera_write_image(struct USTCCamera *self, void *buf, struct timespec *tp, 
     get_power(&power);
     fits_update_key_dbl(fptr, "POWER", power, 2, NULL, &status);
     GetCoolerStatus(&coolstat);
-    fits_update_key_ulng(fptr, "COOLSTAT", coolstat, NULL, &status);
+    fits_update_key_lng(fptr, "COOLSTAT", coolstat, NULL, &status);
     GetCurrentByChannel(0, &cur2);
     cur2 = -1.00;
     fits_update_key_flt(fptr, "PB24V_I", cur2, 2, NULL, &status);
@@ -7559,9 +9613,9 @@ USTCCamera_write_image(struct USTCCamera *self, void *buf, struct timespec *tp, 
     GetCurrentByChannel(3, &cur2);
     fits_update_key_flt(fptr, "PB6V_I", cur2, 2, NULL, &status);
     GetFanSpeed(&speed);
-    fits_update_key_ulng(fptr, "FANSPEED", speed, NULL, &status);
+    fits_update_key_lng(fptr, "FANSPEED", speed, NULL, &status);
     GetHeatPWM(&heatpwm);
-    fits_update_key_ulng(fptr, "HEATPWM", heatpwm, NULL, &status);
+    fits_update_key_lng(fptr, "HEATPWM", heatpwm, NULL, &status);
     GetTemperature("D1", &temp);
     fits_update_key_flt(fptr, "D1TEMP", temp, 2, NULL, &status);
     temp = 9999.00;
@@ -7660,7 +9714,7 @@ USTCCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *
     int ret = AAOS_OK;
     void *rpc = va_arg(*app, char *);
     char *json_string = va_arg(*app, char *);
-	unsigned int (*SetExposureInterval)(double) = dlsym(self->dlh, "SetExposureInterval");
+unsigned int (*SetExposureInterval)(double) = dlsym(self->dlh, "SetExposureInterval");
     unsigned int (*SetExposureTime)(double)= dlsym(self->dlh, "SetExposureTime");
     unsigned int (*SetContinuousCapture)(uint16_t) = dlsym(self->dlh, "SetContinuousCapture");
     unsigned int (*StartExposure)(void) = dlsym(self->dlh, "StartExposure");
@@ -8316,9 +10370,9 @@ static void __destructor__(void) __attribute__ ((destructor(_DETECTOR_PRIORITY_)
 static void
 __destructor__(void)
 {
-	USTCCamera_destroy();
-	USTCCameraClass_destroy();
-	ustc_camera_virtual_table_destroy();
+USTCCamera_destroy();
+USTCCameraClass_destroy();
+ustc_camera_virtual_table_destroy();
     
 #ifdef __USE_ARAVIS__
     GenICam_destroy();
@@ -8338,11 +10392,11 @@ __constructor__(void)
     __DetectorVirtualTable_initialize();
     __DetectorClass_initialize();
     __Detector_initialize();
-	
-	ustc_camera_virtual_table_initialize();
-	USTCCameraClass_initialize();
-	USTCCamera_initialize();
-	
+
+ustc_camera_virtual_table_initialize();
+USTCCameraClass_initialize();
+USTCCamera_initialize();
+
 #ifdef __USE_ARAVIS__
     genicam_virtual_table_initialize();
     GenICamClass_initialize();

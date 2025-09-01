@@ -29,7 +29,8 @@ static struct option longopts[] = {
     {"config", required_argument, NULL, 'c'},
     {"help", no_argument, NULL, 'h'},
     {"version", no_argument, NULL, 'v'},
-    {NULL, 0, NULL, 0}};
+    {NULL, 0, NULL, 0}
+};
 
 static void
 read_daemon(void)

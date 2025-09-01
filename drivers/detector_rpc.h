@@ -18,53 +18,65 @@
 #include <stdint.h>
 
 #define DETECTOR_COMMAND_RAW                    1
+
 #define DETECTOR_COMMAND_EXPOSE                 2
-#define DETECTOR_COMMAND_STATUS                 3
-#define DETECTOR_COMMAND_POWER_ON               4
-#define DETECTOR_COMMAND_POWER_OFF              5
-#define DETECTOR_COMMAND_LOAD                   6
-#define DETECTOR_COMMAND_RELOAD                 7
-#define DETECTOR_COMMAND_UNLOAD                 8
-#define DETECTOR_COMMAND_WAIT_FOR_COMPLETION    9
+#define DETECTOR_COMMAND_ABORT                  3
+#define DETECTOR_COMMAND_STOP                   4
+#define DETECTOR_COMMAND_WAIT_FOR_COMPLETION    5
 
-#define DETECTOR_COMMAND_SET_OPTION             10
-#define DETECTOR_COMMAND_GET_OPTION             11
-#define DETECTOR_COMMAND_CLEAR_OPTION           12
-#define DETECTOR_COMMAND_SET_BINNING            13
-#define DETECTOR_COMMAND_GET_BINNING            14
-#define DETECTOR_COMMAND_SET_EXPOSURE_TIME      15
-#define DETECTOR_COMMAND_GET_EXPOSURE_TIME      16
-#define DETECTOR_COMMAND_SET_FRAME_RATE         17
-#define DETECTOR_COMMAND_GET_FRAME_RATE         18
-#define DETECTOR_COMMAND_SET_GAIN               19
-#define DETECTOR_COMMAND_GET_GAIN               20
-#define DETECTOR_COMMAND_SET_READOUT_RATE       21
-#define DETECTOR_COMMAND_GET_READOUT_RATE       22
-#define DETECTOR_COMMAND_SET_REGION             23
-#define DETECTOR_COMMAND_GET_REGION             24
-#define DETECTOR_COMMAND_SET_TEMPERATURE        25
-#define DETECTOR_COMMAND_GET_TEMPERATURE        26
+#define DETECTOR_COMMAND_INIT                   6
+#define DETECTOR_COMMAND_INSPECT                7
+#define DETECTOR_COMMAND_LOAD                   8
+#define DETECTOR_COMMAND_POWER_OFF              9
+#define DETECTOR_COMMAND_POWER_ON               10
+#define DETECTOR_COMMAND_REGISTER               11
+#define DETECTOR_COMMAND_RELOAD                 12
+#define DETECTOR_COMMAND_UNLOAD                 13
 
-#define DETECTOR_COMMAND_SET_DIRECTORY          27
-#define DETECTOR_COMMAND_GET_DIRECTORY          28
-#define DETECTOR_COMMAND_SET_PREFIX             29
-#define DETECTOR_COMMAND_GET_PREFIX             30
-#define DETECTOR_COMMAND_SET_TEMPLATE           31
-#define DETECTOR_COMMAND_GET_TEMPLATE           32
+#define DETECTOR_COMMAND_INFO                   14
+#define DETECTOR_COMMAND_STATUS                 15
 
-#define DETECTOR_COMMAND_INFO                   33
-#define DETECTOR_COMMAND_STOP                   34
-#define DETECTOR_COMMAND_ABORT                  35
+#define DETECTOR_COMMAND_SET_OPTION             16
+#define DETECTOR_COMMAND_GET_OPTION             17
+#define DETECTOR_COMMAND_CLEAR_OPTION           18
+#define DETECTOR_COMMAND_SET_BINNING            19
+#define DETECTOR_COMMAND_GET_BINNING            20
+#define DETECTOR_COMMAND_SET_EXPOSURE_TIME      21
+#define DETECTOR_COMMAND_GET_EXPOSURE_TIME      22
+#define DETECTOR_COMMAND_SET_FRAME_RATE         23
+#define DETECTOR_COMMAND_GET_FRAME_RATE         24
+#define DETECTOR_COMMAND_SET_GAIN               25
+#define DETECTOR_COMMAND_GET_GAIN               26
+#define DETECTOR_COMMAND_SET_PIXEL_FORMAT       27
+#define DETECTOR_COMMAND_GET_PIXEL_FORMAT       28
+#define DETECTOR_COMMAND_SET_READOUT_RATE       29
+#define DETECTOR_COMMAND_GET_READOUT_RATE       30
+#define DETECTOR_COMMAND_SET_REGION             31
+#define DETECTOR_COMMAND_GET_REGION             32
+#define DETECTOR_COMMAND_SET_TEMPERATURE        33
+#define DETECTOR_COMMAND_GET_TEMPERATURE        34
 
-#define DETECTOR_COMMAND_DELETE_IMAGE           36
-#define DETECTOR_COMMAND_DELETE_ALL_IMAGE       37
-#define DETECTOR_COMMAND_LIST_IMAGE             38
-#define DETECTOR_COMMAND_GET_IMAGE              39
+#define DETECTOR_COMMAND_SET_DIRECTORY          35
+#define DETECTOR_COMMAND_GET_DIRECTORY          36
+#define DETECTOR_COMMAND_SET_PREFIX             37
+#define DETECTOR_COMMAND_GET_PREFIX             38
+#define DETECTOR_COMMAND_SET_TEMPLATE           39
+#define DETECTOR_COMMAND_GET_TEMPLATE           40
 
-#define DETECTOR_COMMAND_COOLING_ENABLE         40
-#define DETECTOR_COMMAND_COOLING_DISABLE        41
 
-#define DETECTOR_COMMAND_GET_INDEX_BY_NAME      42
+#define DETECTOR_COMMAND_DELETE_IMAGE           41
+#define DETECTOR_COMMAND_DELETE_ALL_IMAGE       42
+#define DETECTOR_COMMAND_LIST_IMAGE             43
+#define DETECTOR_COMMAND_GET_IMAGE              44
+
+#define DETECTOR_COMMAND_ENABLE_COOLING         45
+#define DETECTOR_COMMAND_DISABLE_COOLING        46
+
+#define DETECTOR_COMMAND_GET_INDEX_BY_NAME      47
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Expose method of detector object.
@@ -183,7 +195,7 @@ int detector_power_off(void *_self);
  * @retval AAOS_ENOTSUP
  * Enable cooling method is not supported by the underline detector.
  */
-int detector_cooling_enable(void *_self);
+int detector_enable_cooling(void *_self);
 
 /**
  * Disable cooling method of detector object.
@@ -195,7 +207,7 @@ int detector_cooling_enable(void *_self);
  * @retval AAOS_ENOTSUP
  * Disable coolingmethod is not supported by the underline detector.
  */
-int detector_cooling_disable(void *_self);
+int detector_disable_cooling(void *_self);
 
 /**
  * Set binning method of detector object.
@@ -609,6 +621,14 @@ int detector_raw(void *_self, const void *cmd, size_t cmd_size, void *res, size_
  */
 int detector_get_index_by_name(void *_self, const char *name);
 
+int detector_set_pixel_format(void *_self, uint32_t pixel_format);
+int detector_get_pixel_format(void *_self, uint32_t *pixel_format);
+
+int detetcor_register(void *_self, double timeout);
+int detector_inspect(void *_self);
+
+int detector_init(void *_self);
+
 const void *Detector(void);
 const void *DetectorClass(void);
 
@@ -617,6 +637,10 @@ extern const void *DetectorClientClass(void);
 
 extern const void *DetectorServer(void);
 extern const void *DetectorServerClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 void **detectors;
 size_t n_detector;

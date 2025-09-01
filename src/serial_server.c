@@ -20,7 +20,7 @@ extern void *serial_list;
 
 static void *d;
 static void *server;
-static const char *config_path = "/usr/local/aaos/etc/seriald.cfg";
+static const char *config_path = "seriald.cfg";
 static bool daemon_flag = true;
 static bool feed_dog_flag = true;
 static config_t cfg;
@@ -40,7 +40,7 @@ read_daemon(void)
     setting = config_lookup(&cfg, "daemon");
     
     if (setting != NULL) {
-        const char *name = NULL, *username = "aag", *rootdir = "/", *lockfile = NULL;
+        const char *name = NULL, *username = "aaos", *rootdir = "/opt/aaos", *lockfile = NULL;
         int daemonized = 1;
         
         config_setting_lookup_string(setting, "name", &name);
@@ -66,12 +66,24 @@ read_configuration(void)
     
     setting = config_lookup(&cfg, "server");
     if (setting == NULL) {
-        fprintf(stderr, "`server` section does not exist in configuration file.\n");
-        exit(EXIT_FAILURE);
+        //fprintf(stderr, "`server` section does not exist in configuration file.\n");
+        //exit(EXIT_FAILURE);
     } else {
-        const char *port;
+        const char *port = NULL, *path = NULL;
+        int option = 0;
+        
         config_setting_lookup_string(setting, "port", &port);
-        server = new(SerialServer(), port);
+        if (port == NULL) {
+            server = new(SerialServer(), SERIAL_RPC_PORT);
+        } else {
+            server = new(SerialServer(), port);
+        }
+        if (path != NULL) {
+            config_setting_lookup_string(setting, "path", &path);
+            tcp_server_set_path(server, path);
+        }
+        config_setting_lookup_int(setting, "option", &option);
+        tcp_server_set_option(server, option);
     }
     
     setting = config_lookup(&cfg, "serials");
@@ -108,11 +120,12 @@ read_configuration(void)
             } else if (strcmp(type, "RDSS") == 0) {
                 serials[i] = new(RDSSSerial(), name, path, "description", description, NULL);
             } else if (strcmp(type, "KLTP") == 0) {
-                const char *directory = NULL, *prefix = NULL, *fmt = NULL;
+                const char *directory = NULL, *prefix = NULL, *fmt = NULL, *model = NULL;
                 config_setting_lookup_string(serial_setting, "directory", &directory);
                 config_setting_lookup_string(serial_setting, "prefix", &prefix);
                 config_setting_lookup_string(serial_setting, "format", &fmt);
-                serials[i] = new(KLTPSerial(), name, path, "description", description, NULL, "directory", directory, "prefix", prefix, "format", fmt,  NULL);
+                config_setting_lookup_string(serial_setting, "model", &model);
+                serials[i] = new(KLTPSerial(), name, path, "description", description, (void *) 0, "directory", directory, "prefix", prefix, "format", fmt, "model", model, (void *) 0);
             } else {
             }
             config_setting_lookup_string(serial_setting, "inspect", &inspect);
@@ -199,6 +212,7 @@ int
 main(int argc, char *argv[])
 {
     int ch, ret;
+    //char config[PATHSIZE];
     
     while ((ch = getopt_long(argc, argv, "c:Dhv", longopts, NULL)) != -1) {
         switch (ch) {
@@ -223,13 +237,27 @@ main(int argc, char *argv[])
     argc -= optind;
     argv += optind;
     
-    config_init(&cfg);
-
     if ((ret = Access(config_path, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        exit(EXIT_FAILURE);
+        if ((ret = Access("seriald.cfg", F_OK)) == 0) {
+            config_path = "seriald.cfg";
+        } else if ((ret = Access("etc/seriald.cfg", F_OK)) == 0) {
+            config_path = "etc/seriald.cfg";
+        } else if ((ret = Access("/opt/aaos/etc/seriald.cfg", F_OK)) == 0) {
+            config_path = "/opt/aaos/etc/seriald.cfg";
+        } else if ((ret = Access("/usr/local/aaos/etc/seriald.cfg", F_OK)) == 0) {
+            config_path = "/usr/local/aaos/etc/seriald.cfg";
+        } else if ((ret = Access("/etc/aaos/seriald.cfg", F_OK)) == 0) {
+            config_path = "/etc/aaos/seriald.cfg";
+        } else if ((ret = Access("/etc/seriald.cfg", F_OK)) == 0) {
+            config_path = "/etc/seriald.cfg";
+        } else {
+            fprintf(stderr, "configuration file does not exist.\n");
+            exit(EXIT_FAILURE);
+        }
     }
     
+    config_init(&cfg);
+
     if(config_read_file(&cfg, config_path) == CONFIG_FALSE) {
         fprintf(stderr, "fail to read configuration file.\n");
         exit(EXIT_FAILURE);

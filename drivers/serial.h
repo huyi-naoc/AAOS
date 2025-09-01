@@ -19,6 +19,10 @@
 #define SERIAL_STATE_UNLOADED 3
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int __serial_init(void *_self);
 unsigned int __serial_set_option(void *_self, unsigned int option);
 int __serial_read(void *_self, void *read_buffer, size_t buffer_size, size_t *read_size);
@@ -78,4 +82,9 @@ extern const void *SMSSerialClass(void);
 
 extern const void *KLTPSerial(void);
 extern const void *KLTPSerialClass(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* serial_h */

@@ -26,7 +26,7 @@ static struct option longopts[] = {
 
 
 static const char *help_string = "\
-Usage:  telescope [options]  [COMMAND1, COMMAND2, ...\n\
+Usage:  serial [options]  [COMMAND1, COMMAND2, ...\n\
         -b, --binary      set how seriald inteprets the input COMMANDs as hex\n\
                           strings rather than ASCII character strings\n\
         -c, --check       check whether the serial device works\n\
@@ -36,30 +36,6 @@ Usage:  telescope [options]  [COMMAND1, COMMAND2, ...\n\
         -n, --name        <name>, specify serial's name\n\
         -p, --path        <path>, specify serial's devpath\n\
         -s, --serial      <address:[port]> address (and port) of seriald\n\
-        -u, --unit        <unit>, specify parameter unit for setting command\n\
-                          supported formats are nature, second, minute,\n\
-                          and degree, default is nature\n\n\
-Commands:\n\
-    power_on\n\
-    power_off\n\
-    init\n\
-    park\n\
-    park_off\n\
-    go_home\n\
-    stop\n\
-    move        DRECTION DURATION\n\
-                DRECTION can be north, south, east, and west\n\
-                DURATION is in seconds\n\
-    try_move    DRECTION DURATION\n\
-    timed_move  DRECTION DURATION TIMEOUT\n\
-    slew        RA DEC\n\
-    try_slew    RA DEC\n\
-    timed_slew  RA DEC TIMEOUT\n\
-    set         NAME\n\
-                NAME can be move_speed, slew_speed, and track_rate\n\
-    get         NAME VALUE1 ... \n\
-                move_speed parameter has one value\n\
-                slew_speed and track_rate have two values\n\
 ";
 
 
@@ -148,9 +124,17 @@ main(int argc, char *argv[])
     int waiting = 0;
     int reg = 0;
     double delay = 0;
-    
-    snprintf(address, ADDRSIZE, "localhost");
-    snprintf(port, PORTSIZE, SERIAL_RPC_PORT);
+	
+	if (Access("/opt/aaos/run/seriald.sock", F_OK) == 0) {
+		snprintf(address, ADDRSIZE, "/opt/aaos/run/seriald.sock");
+	} else if (Access("/usr/local/aaos/run/seriald.sock", F_OK) == 0) {
+		snprintf(address, ADDRSIZE, "/usr/local/aaos/run/seriald.sock");
+	} else if (Access("/run/seriald.sock", F_OK) == 0) {
+		snprintf(address, ADDRSIZE, "/run/seriald.sock");
+	} else {
+		snprintf(address, ADDRSIZE, "localhost");
+		snprintf(port, PORTSIZE, SERIAL_RPC_PORT);
+	}
     
     while ((ch = getopt_long(argc, argv, "bcC:d:hi:n:p:rs:w", longopts, NULL)) != -1) {
         switch (ch) {
@@ -177,43 +161,47 @@ main(int argc, char *argv[])
                 devpath = optarg;
                 break;
             case 's':
-                s = strrchr(optarg, ':');
-                if (s == NULL) { //input like "example.com"
-                    memset(address, '\0', ADDRSIZE);
-                    if (strlen(optarg) >= ADDRSIZE) {
-                        fprintf(stderr, "Address is too long.\n");
-                        fprintf(stderr, "Exit...\n");
-                        exit(EXIT_FAILURE);
-                    }
+			    if (Access(optarg, F_OK) == 0) {
                     snprintf(address, ADDRSIZE, "%s", optarg);
-                } else {
-                    if (s == optarg) { // input like :8000
-                        s++;
-                        if (strlen(s) >= PORTSIZE) {
-                            fprintf(stderr, "Port is too long.\n");
-                            fprintf(stderr, "Exit...\n");
-                            exit(EXIT_FAILURE);
-                        }
-                        snprintf(address, PORTSIZE, "%s", s);
-                    } else { //input like localhost:8000
+			    } else {
+					s = strrchr(optarg, ':');
+                    if (s == NULL) { //input like "example.com"
                         memset(address, '\0', ADDRSIZE);
-                        memset(port, '\0', PORTSIZE);
-                        if (s - optarg < ADDRSIZE) {
-                            memcpy(address, optarg, s - optarg);
-                        } else {
+                        if (strlen(optarg) >= ADDRSIZE) {
                             fprintf(stderr, "Address is too long.\n");
                             fprintf(stderr, "Exit...\n");
                             exit(EXIT_FAILURE);
                         }
-                        if (strlen(s + 1) < PORTSIZE) {
-                            snprintf(port, PORTSIZE, "%s", s + 1);
-                        } else {
-                            fprintf(stderr, "Port is too long.\n");
-                            fprintf(stderr, "Exit...\n");
-                            exit(EXIT_FAILURE);
-                        }
-                    }
-                }
+                        snprintf(address, ADDRSIZE, "%s", optarg);
+                    } else {
+                        if (s == optarg) { // input like :8000
+                            s++;
+                            if (strlen(s) >= PORTSIZE) {
+                                fprintf(stderr, "Port is too long.\n");
+                                fprintf(stderr, "Exit...\n");
+                                exit(EXIT_FAILURE);
+                            }
+                            snprintf(address, PORTSIZE, "%s", s);
+                        } else { //input like localhost:8000
+                            memset(address, '\0', ADDRSIZE);
+							memset(port, '\0', PORTSIZE);
+							if (s - optarg < ADDRSIZE) {
+								memcpy(address, optarg, s - optarg);
+							} else {
+								fprintf(stderr, "Address is too long.\n");
+								fprintf(stderr, "Exit...\n");
+								exit(EXIT_FAILURE);
+							}
+							if (strlen(s + 1) < PORTSIZE) {
+								snprintf(port, PORTSIZE, "%s", s + 1);
+							} else {
+								fprintf(stderr, "Port is too long.\n");
+								fprintf(stderr, "Exit...\n");
+								exit(EXIT_FAILURE);
+							}
+						}
+					}
+			    }
                 break;
             case 'r':
                 reg = 1;

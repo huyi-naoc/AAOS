@@ -26,6 +26,21 @@ ASCOM_cleanup(void *arg)
     curl_easy_cleanup(curl_handle);
 }
 
+static void
+curl_handle_cleanup(void *arg)
+{
+    CURL *curl_handle = (CURL *) arg;
+    
+    curl_easy_cleanup(curl_handle);
+}
+
+static void
+curl_slist_cleanup(void *arg)
+{
+    struct curl_slist *list = (struct curl_slist *) arg;
+    
+    curl_slist_free_all(list);
+}
 
 static size_t
 ReadMemoryCallback(void *data, size_t size, size_t nmemb, void *userp)
@@ -45,6 +60,14 @@ ReadMemoryCallback(void *data, size_t size, size_t nmemb, void *userp)
     memcpy(data, s, realsize);
     
     return realsize;
+}
+
+static size_t
+ReadMenoryCallback(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+    memcpy(ptr, userp, size * nmemb);
+    
+    return size * nmemb;
 }
 
 static size_t
@@ -93,33 +116,39 @@ ASCOM_get(void *_self, const char *command, void *response_data, size_t *size)
     CURL *curl_handle = NULL;
     CURLcode res;
     struct MemoryStruct user_data;
+    struct curl_slist *list = NULL;
    
     int ret = AAOS_OK;
     
     if (self->port) {
-        snprintf(URL, BUFSIZE, "%s:%s/api/%s/%s/%ud/%s", self->address, self->port, self->version, self->device_type, self->device_number, command);
+        snprintf(URL, BUFSIZE, "%s:%s/api/%s/%s/%ud", self->address, self->port, self->version, self->device_type, self->device_number);
     } else {
-        snprintf(URL, BUFSIZE, "%s/api/%s/%s/%ud/%s", self->address, self->version, self->device_type, self->device_number, command);
+        snprintf(URL, BUFSIZE, "%s/api/%s/%s/%ud", self->address, self->version, self->device_type, self->device_number);
     }
     
     curl_handle = curl_easy_init();
-    pthread_cleanup_push(ASCOM_cleanup, curl_handle);
     if (curl_handle == NULL) {
         ret = AAOS_ERROR;
         goto error;
     }
+    pthread_cleanup_push(curl_handle_cleanup, curl_handle);
+    pthread_cleanup_push(curl_slist_cleanup, curl_handle);
     
     curl_easy_setopt(curl_handle, CURLOPT_URL, URL);
+    list = curl_slist_append(list, "Content-Type: application/x-www-form-urlencoded");
+    curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, list);
+    curl_easy_setopt(curl_handle, CURLOPT_READDATA, command);
+    curl_easy_setopt(curl_handle, CURLOPT_READFUNCTION, ReadMemoryCallback);
     
     user_data.memory = response_data;
     if (size != NULL) {
         user_data.size = size;
     } else {
-        user_data.size = 0;
+        user_data.size = NULL;
     }
     
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *) &user_data);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     
     res = curl_easy_perform(curl_handle);
     
@@ -130,11 +159,13 @@ ASCOM_get(void *_self, const char *command, void *response_data, size_t *size)
         goto error;
     }
     
+    
+    pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     
 error:
+    curl_slist_free_all(list);
     curl_easy_cleanup(curl_handle);
-    
     return ret;
 }
 
@@ -172,11 +203,12 @@ ASCOM_put(void *_self, const char *command, const char *request_data, char *resp
     
     
     curl_handle = curl_easy_init();
-    pthread_cleanup_push(ASCOM_cleanup, curl_handle);
     if (curl_handle == NULL) {
         ret = AAOS_ERROR;
         goto error;
     }
+    
+    pthread_cleanup_push(ASCOM_cleanup, curl_handle);
     
     curl_easy_setopt(curl_handle, CURLOPT_URL, URL);
     curl_easy_setopt(curl_handle, CURLOPT_READFUNCTION, ReadMemoryCallback);

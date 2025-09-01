@@ -296,6 +296,17 @@ Close(int fd)
 }
 
 int
+Closedir(DIR *dirp)
+{
+    int s;
+    s = closedir(dirp);
+    if (s < 0) {
+        err_warn("closedir", errno);
+    }
+    return s;
+}
+
+int
 Dup(int fd)
 {
     int s;
@@ -415,6 +426,17 @@ Ftruncate(int fd, off_t length)
     s = ftruncate(fd, length);
     if (s < 0) {
         err_warn("ftruncate", errno);
+    }
+    return s;
+}
+
+int
+Getsockname(int sockfd, SA *addr, socklen_t *addrlen)
+{
+    int s;
+    s = getsockname(sockfd, addr, addrlen);
+    if (s < 0) {
+        err_warn("getsockname", errno);
     }
     return s;
 }
@@ -763,7 +785,30 @@ Pthread_join(pthread_t thread, void **value_ptr)
 }
 
 int
-Pthread_mutex_destroy(pthread_mutex_t *mutex) {
+Pthread_key_create(pthread_key_t *key, void (*destructor)(void *))
+{
+    int s;
+    s = pthread_key_create(key, destructor);
+    if (s != 0) {
+        err_warn("pthread_key_create", s);
+    }
+    return s;
+}
+
+int
+Pthread_key_delete(pthread_key_t key)
+{
+    int s;
+    s = pthread_key_delete(key);
+    if (s != 0) {
+        err_warn("pthread_key_delete", s);
+    }
+    return s;
+}
+
+int
+Pthread_mutex_destroy(pthread_mutex_t *mutex)
+{
     int s;
     s = pthread_mutex_destroy(mutex);
     if (s != 0) {
@@ -1086,6 +1131,35 @@ Readn2(int fd, void *vptr, size_t n)
         }
         nleft -= nread;
         ptr += nread;
+    }
+    return (n - nleft);
+}
+
+ssize_t
+Readn3(int fd, void *vptr, size_t n, const void *delimeter, size_t w)
+{
+    size_t nleft;
+    ssize_t nread;
+    char *ptr;
+    
+    ptr = vptr;
+    nleft = n;
+    
+    while (nleft > 0) {
+        if ((nread = read(fd, ptr, nleft)) < 0) {
+            if (errno == EINTR) {
+                nread = 0;
+            } else {
+                return -1;
+            }
+        } else if (nread == 0) {
+            break;
+        }
+        nleft -= nread;
+        ptr += nread;
+        if (memcmp(ptr - w, delimeter, w) == 0) {
+            break;
+        }
     }
     return (n - nleft);
 }
@@ -1413,4 +1487,42 @@ Un_stream_connect(const char *path)
         sockfd = -1;
     }
     return sockfd;
+}
+
+int
+Un_stream_listen(const char *path)
+{
+    int lfd, s;
+    struct sockaddr_un addr;
+    
+    if (strlen(path) > sizeof(addr) - SUN_LEN(&addr)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    
+    if ((lfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        err_warn("un_stream_listen", errno);
+        return lfd;
+    }
+    
+    memset(&addr, '\0', sizeof(addr));
+    addr.sun_family  = AF_UNIX;
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
+    
+    unlink(path);
+    s = bind(lfd, (const struct sockaddr *) &addr, sizeof(addr));
+    if (s < 0) {
+        err_warn("un_stream_listen", errno);
+        close(lfd);
+        return -1;
+    }
+    
+    s = listen(lfd, BACKLOG);
+    if (s < 0) {
+        err_warn("un_stream_listen", errno);
+        close(lfd);
+        return -1;
+    }
+    
+    return lfd;
 }

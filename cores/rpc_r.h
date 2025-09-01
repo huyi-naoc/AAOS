@@ -12,7 +12,7 @@
 #include "net_r.h"
 #include "virtual_r.h"
 
-#define _RPC_PRIORITY_ _VIRTUAL_PRIORITY_ + 1
+//#define _RPC_PRIORITY_ _VIRTUAL_PRIORITY_ + 1
 
 struct RPC {
     struct TCPSocket _;
@@ -65,13 +65,15 @@ struct RPCServer {
 
 struct RPCServerClass {
     struct TCPServerClass _;
-    struct Method accept;
+    struct Method accept;   /* TCP over Internet Protocol */
+    struct Method accept2;  /* TCP over Unix Domain Socket */
     struct Method start;
 };
 
 struct RPCServerVirtualTable {
     struct VirtualTable _;
     struct Method accept;
+    struct Method accept2;
     struct Method start;
 };
 

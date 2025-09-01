@@ -12,6 +12,10 @@
 #include "log_def.h"
 #include "wrapper.h"
 
+#ifndef NUMBER_OF_LOG_LEVELS
+#define NUMBER_OF_LOG_LEVELS 8
+#endif
+
 static const char *__LOG_LEVELS[] = {"emerg", "aler", "crit", "err", "warn", "notice", "info", "debug"};
 
 const char *
@@ -58,13 +62,13 @@ __Log_write(void *_self, unsigned int level, const char *message)
     struct __Log *self = cast(__Log(), _self);
     struct timespec tp;
     struct tm t;
-    char log_buf[LOG_RECORD_MAX_LENGTH + 64], time_buf[64];
+    char log_buf[LOG_RECORD_MAX_LENGTH + TIMESTAMPSIZE], time_buf[TIMESTAMPSIZE];
     ssize_t n;
     
     clock_gettime(CLOCK_REALTIME, &tp);
     gmtime_r(&tp.tv_sec, &t);
-    strftime(time_buf, 64, "%Y-%m-%dT%H:%M:%S", &t);
-    snprintf(log_buf, LOG_RECORD_MAX_LENGTH + 64, "[%s.%d]: %s\n", time_buf, (int) (tp.tv_nsec/1000), message);
+    strftime(time_buf, TIMESTAMPSIZE, "%Y-%m-%dT%H:%M:%S", &t);
+    snprintf(log_buf, LOG_RECORD_MAX_LENGTH + TIMESTAMPSIZE, "[%s.%d]: %s\n", time_buf, (int) (tp.tv_nsec/1000), message);
     
     if (level&LOG_LEVEL_DEBUG) {
         n = Write(self->fds[7], log_buf, strlen(log_buf));
@@ -116,7 +120,7 @@ __Log_ctor(void *_self, va_list *app)
         snprintf(self->work_directory, strlen(s) + 1, "%s", s);
     }
     
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < NUMBER_OF_LOG_LEVELS; i++) {
         snprintf(path, PATHSIZE, "%s/%s.%s.log", self->work_directory, self->facility, __LOG_LEVELS[i]);
         self->fds[i] = Open(path, O_RDWR | O_CREAT | O_APPEND, FMODE);
     }

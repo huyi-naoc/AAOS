@@ -69,6 +69,7 @@ struct ThreadsafeCircularQueueClass {
     const struct Class _;
     struct Method push;
     struct Method pop;
+    struct Method timed_pop;
     struct Method empty;
 };
 

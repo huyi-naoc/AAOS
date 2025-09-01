@@ -36,6 +36,10 @@
 #define DAYOFFSET -0.5
 #define ONEDAY 86400
 
+#ifdef __cpluspus
+extern "C" {
+#endif
+
 double hms2deg(const char *);
 char *deg2hms(double, char *, size_t, const char *);
 double dms2deg(const char *);
@@ -57,4 +61,7 @@ void aberration(double, double, double, double *, double *);
 #endif
 void radec2altaz(double, double, double, double, double, double, double, double, double *, double *, double *);
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* astro_h */

@@ -12,12 +12,11 @@
 #include "object.h"
 #include "virtual.h"
 
-#define DEVICE_OK           0
-#define DEVICE_MALFUNCTION  1
+#define DEVICE_OK           0x0000
+#define DEVICE_MALFUNCTION  0x8000
 
 int device_inspect(void *_self);
 int device_wait(void *_self, double timeout);
-
 
 extern const void *Device(void);
 extern const void *DeviceClass(void);

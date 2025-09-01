@@ -294,7 +294,7 @@ RPC_read(void *_self)
         return -1 * ret;
     }
     protobuf_get(self, PACKET_ERRORCODE, &errorcode);
-   
+
     return errorcode;
 }
 
@@ -889,7 +889,23 @@ RPCClient_connect(void *_self, void **client)
     struct RPCClient *self = cast(RPCClient(), _self);
     
     int cfd;
-    cfd = Tcp_connect(self->_.address, self->_.port, NULL, NULL);
+    if (self->_.address == NULL) {
+        cfd = Tcp_connect("localhost", self->_.port, NULL, NULL);
+    } else {
+        size_t length = strlen(self->_.address);
+        char *idx;
+        if (length > 6) {
+            idx = self->_.address + length - 5;
+            if (strcmp(idx, ".sock") == 0) {
+                cfd = Un_stream_connect(self->_.address);
+            } else {
+                cfd = Tcp_connect(self->_.address, self->_.port, NULL, NULL);
+            }
+        } else {
+            cfd = Tcp_connect(self->_.address, self->_.port, NULL, NULL);
+        }
+    }
+    
     if (cfd < 0) {
         *client = NULL;
         switch (errno) {
@@ -1077,6 +1093,14 @@ RPCServerVirtualTable_ctor(void *_self, va_list *app)
             self->accept.method = method;
             continue;
         }
+        if (selector == (Method) rpc_server_accept2) {
+            if (tag) {
+                self->accept2.tag = tag;
+                self->accept2.selector = selector;
+            }
+            self->accept2.method = method;
+            continue;
+        }
         if (selector == (Method) rpc_server_start) {
             if (tag) {
                 self->start.tag = tag;
@@ -1162,6 +1186,40 @@ RPCServer_accept(void *_self, void **client)
     }
 }
 
+int
+rpc_server_accept2(void *_self, void **client)
+{
+    struct RPCServerClass *class = (struct RPCServerClass *) classOf(_self);
+    
+    int result;
+    if (isOf(class, RPCServerClass()) && class->accept2.method) {
+       return ((int (*)(void *, void **)) class->accept2.method)(_self, client);
+    } else {
+        forward(_self, &result, (Method) rpc_server_accept2, "accept2", _self, client);
+        return result;
+    }
+}
+
+static int
+RPCServer_accept2(void *_self, void **client)
+{
+    struct RPCServer *self = cast(RPCServer(), _self);
+    
+    int lfd, cfd, lfds[2];
+    
+    tcp_server_get_lfds(self, lfds);
+    lfd = lfds[1];
+    
+    cfd = Accept(lfd, NULL, NULL);
+    if (cfd < 0) {
+        *client = NULL;
+        return AAOS_ERROR;
+    } else {
+        *client = new(RPC(), cfd);
+        return AAOS_OK;
+    }
+}
+
 void
 rpc_server_start(void *_self)
 {
@@ -1188,6 +1246,7 @@ RPCServer_process_thr(void *arg)
     }
     
     delete(arg);
+    arg = NULL;
     return NULL;
 }
 
@@ -1296,25 +1355,25 @@ error:
     return NULL;
 }
 
-void
-RPCServer_start(void *_self)
+
+static void *
+RPCServer_start_tcp_thr(void *arg)
 {
-    struct RPCServer *self = cast(RPCServer(), _self);
+    struct RPCServer *self = (struct RPCServer *) arg;
     
     void *client;
+    uint16_t option = self->_.option&(~(TCPSERVER_OPTION_TCP|TCPSERVER_OPTION_UDS));
     pthread_t tid, *tids;
+    size_t i;
     sigset_t set;
     int ret;
-    size_t i;
-
+    
     sigemptyset(&set);
     sigaddset(&set, SIGPIPE);
     Pthread_sigmask(SIG_BLOCK, &set, NULL);
     
-    self->_.lfd = Tcp_listen(NULL, self->_.port, NULL, NULL);
-
-    switch (self->_.option) {
-        case TCPSERVER_OPTION_DEFAULT:
+    switch (option) {
+        case TCPSERVER_OPTION_BLOCK_PERTHREAD:
             for (;;) {
                 if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
                     Pthread_create(&tid, NULL, RPCServer_process_thr, client);
@@ -1335,26 +1394,75 @@ RPCServer_start(void *_self)
         default:
             break;
     }
+    
+    return NULL;
+}
 
-    /*
-     *
-    if (self->option&RPC_PRE_THREADED) {
-        pthread_t tids[8];
-        int i;
-        for (i = 0; i < 8; i++) {
-            Pthread_create(&tids[i], NULL, RPCServer_process_thr2, self);
-        }
-        for (i = 0; i < 8; i++) {
-            Pthread_join(tids[i], NULL);
-        }
-    } else {
-        for (; ;) {
-            if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
-                Pthread_create(&tid, NULL, RPCServer_process_thr, client);
+static void *
+RPCServer_start_uds_thr(void *arg)
+{
+    struct RPCServer *self = (struct RPCServer *) arg;
+    
+    void *client;
+    uint16_t option = self->_.option&(~(TCPSERVER_OPTION_TCP|TCPSERVER_OPTION_UDS));
+    pthread_t tid, *tids;
+    size_t i;
+    sigset_t set;
+    int ret;
+    
+    sigemptyset(&set);
+    sigaddset(&set, SIGPIPE);
+    Pthread_sigmask(SIG_BLOCK, &set, NULL);
+    
+    switch (option) {
+        case TCPSERVER_OPTION_BLOCK_PERTHREAD:
+            for (;;) {
+                if ((ret = rpc_server_accept2(self, &client)) == AAOS_OK) {
+                    Pthread_create(&tid, NULL, RPCServer_process_thr, client);
+                }
             }
-        }
+            break;
+        case TCPSERVER_OPTION_NONBLOCK_PRETHEADED:
+            Fcntl(self->_.lfd, F_SETFL, O_NONBLOCK);
+            tids = (pthread_t *) Malloc(sizeof(pthread_t) * self->_.n_threads);
+            for (i = 0; i < self->_.n_threads; i ++) {
+                Pthread_create(&tids[i], NULL, RPCServer_process_thr2, self);
+            }
+            for (i = 0; i < self->_.n_threads; i++) {
+                Pthread_join(tids[i], NULL);
+            }
+            free(tids);
+            break;
+        default:
+            break;
     }
-    */
+    
+    return NULL;
+}
+
+
+static void
+RPCServer_start(void *_self)
+{
+    struct RPCServer *self = cast(RPCServer(), _self);
+    
+    pthread_t tids[2];
+    
+    if (self->_.option&TCPSERVER_OPTION_TCP) {
+        self->_.lfd = Tcp_listen(self->_.address, self->_.port, NULL, NULL);
+        Pthread_create(&tids[0], NULL, RPCServer_start_tcp_thr, self);
+    }
+    
+    if (self->_.option&TCPSERVER_OPTION_UDS && self->_.path != NULL) {
+        self->_.lfd2 = Un_stream_listen(self->_.path);
+        Pthread_create(&tids[1], NULL, RPCServer_start_uds_thr, self);
+    }
+    if (self->_.option&TCPSERVER_OPTION_TCP) {
+        Pthread_join(tids[0], NULL);
+    }
+    if (self->_.option&TCPSERVER_OPTION_UDS && self->_.path != NULL && Access(self->_.path, F_OK) == 0) {
+        Pthread_join(tids[1], NULL);
+    }
 }
 
 static void
@@ -1363,7 +1471,7 @@ RPCServer_forward(const void *_self, void *result, Method selector, const char *
     const struct RPCServer *self = cast(RPCServer(), _self);
     Method method = virtualTo(self->_vtab, name);
     va_list ap;
-    
+
 #ifdef va_copy
     va_copy(ap, *app);
 #else
@@ -1373,6 +1481,9 @@ RPCServer_forward(const void *_self, void *result, Method selector, const char *
     void *obj = va_arg(*app, void *);
     
     if (selector == (Method) rpc_server_accept) {
+        void **client = va_arg(*app, void **);
+        *((int *) result) = ((int (*)(void *, void **)) method)(obj, client);
+    } else if (selector == (Method) rpc_server_accept2) {
         void **client = va_arg(*app, void **);
         *((int *) result) = ((int (*)(void *, void **)) method)(obj, client);
     } else if (selector == (Method) rpc_server_start) {
@@ -1425,6 +1536,14 @@ RPCServerClass_ctor(void *_self, va_list *app)
                 self->accept.selector = selector;
             }
             self->accept.method = method;
+            continue;
+        }
+        if (selector == (Method) rpc_server_accept2) {
+            if (tag) {
+                self->accept2.tag = tag;
+                self->accept2.selector = selector;
+            }
+            self->accept2.method = method;
             continue;
         }
         if (selector == (Method) rpc_server_start) {
@@ -1489,6 +1608,7 @@ RPCServer_initialize(void)
                      dtor, "dtor", RPCServer_dtor,
                      forward, "forward", RPCServer_forward,
                      rpc_server_accept, "accept", RPCServer_accept,
+                     rpc_server_accept2, "accept2", RPCServer_accept2,
                      rpc_server_start, "start", RPCServer_start,
                      (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_

@@ -15,6 +15,10 @@
 #include "telescope_def.h"
 #include "object.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int __telescope_release(void *_self);
 
 int __telescope_status(void *_self, char *status_buffer, size_t status_buffer_size);
@@ -64,5 +68,12 @@ extern const void *ASCOMMountClass(void);
 
 extern const void *SYSU80(void);
 extern const void *SYSU80Class(void);
+
+extern const void *AICMount(void);
+extern const void *AICMountClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __telescope_h */

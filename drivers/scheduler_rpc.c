@@ -2853,6 +2853,29 @@ SchedulerServer_accept(void *_self, void **client)
     }
 }
 
+static int
+SchedulerServer_accept2(void *_self, void **client)
+{
+    struct RPCServer *self = cast(RPCServer(), _self);
+    
+    int lfd, cfd, lfds[2];
+    
+    tcp_server_get_lfds(self, lfds);
+    lfd = lfds[1];
+    
+    cfd = Accept(lfd, NULL, NULL);
+    if (cfd < 0) {
+        *client = NULL;
+        return AAOS_ERROR;
+    } else {
+        if ((*client = new(Scheduler(), cfd)) == NULL) {
+            Close(cfd);
+            return AAOS_ERROR;
+        }
+        return AAOS_OK;
+    }
+}
+
 static void *
 SchedulerServer_process_thr(void *arg)
 {
@@ -2876,7 +2899,94 @@ SchedulerServer_process_thr(void *arg)
     return NULL;
 }
 
-static int
+
+static void*
+SchedulerServer_start_tcp_thr(void *arg)
+{
+    struct RPCServer *self = (struct RPCServer *) arg;
+    void *client;
+    pthread_t tid;
+    sigset_t set;
+    uint16_t option;
+    int ret;
+    
+    sigemptyset(&set);
+    sigaddset(&set, SIGPIPE);
+    Pthread_sigmask(SIG_BLOCK, &set, NULL);
+    
+    self->_.lfd = Tcp_listen(self->_.address, self->_.port, NULL, NULL);
+    option = self->_.option&(~(TCPSERVER_OPTION_TCP|TCPSERVER_OPTION_UDS));
+    
+    switch (option) {
+        case TCPSERVER_OPTION_DEFAULT:
+            for (;;) {
+                if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
+                    Pthread_create(&tid, NULL, SchedulerServer_process_thr, client);
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    
+    return NULL;
+}
+
+static void*
+SchedulerServer_start_uds_thr(void *arg)
+{
+    struct RPCServer *self = (struct RPCServer *) arg;
+    void *client;
+    pthread_t tid;
+    sigset_t set;
+    uint16_t option;
+    int ret;
+    
+    sigemptyset(&set);
+    sigaddset(&set, SIGPIPE);
+    Pthread_sigmask(SIG_BLOCK, &set, NULL);
+    
+    self->_.lfd2 = Un_stream_listen(self->_.path);
+    option = self->_.option&(~(TCPSERVER_OPTION_TCP|TCPSERVER_OPTION_UDS));
+    
+    switch (option) {
+        case TCPSERVER_OPTION_DEFAULT:
+            for (;;) {
+                if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
+                    Pthread_create(&tid, NULL, SchedulerServer_process_thr, client);
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    
+    return NULL;
+}
+
+static void
+SchedulerServer_start(void *_self)
+{
+    struct RPCServer *self = cast(RPCServer(), _self);
+    
+    pthread_t tids[2];
+    
+    if (self->_.option&TCPSERVER_OPTION_TCP) {
+        Pthread_create(&tids[0], NULL, SchedulerServer_start_tcp_thr, self);
+    }
+    if (self->_.option&TCPSERVER_OPTION_UDS) {
+        Pthread_create(&tids[1], NULL, SchedulerServer_start_uds_thr, self);
+    }
+    if (self->_.option&TCPSERVER_OPTION_TCP) {
+        Pthread_join(tids[0], NULL);
+    }
+    if (self->_.option&TCPSERVER_OPTION_UDS) {
+        Pthread_join(tids[1], NULL);
+    }
+}
+
+/*
+static void
 SchedulerServer_start(void *_self)
 {
     struct RPCServer *self = cast(RPCServer(), _self);
@@ -2905,8 +3015,8 @@ SchedulerServer_start(void *_self)
             break;
     }
 
-    return AAOS_OK;
 }
+*/
 
 static void *
 SchedulerServer_ctor(void *_self, va_list *app)

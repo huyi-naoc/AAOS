@@ -18,7 +18,7 @@ extern size_t n_telescope;
 
 static void *d;
 static void *server;
-static const char *conf_path = "/usr/local/aaos/etc/telescoped.cfg";
+static const char *config_path = "/opt/aaos/etc/telescoped.cfg";
 static bool daemon_flag = true;
 static config_t cfg;
 
@@ -159,7 +159,6 @@ read_configuration(void)
                     }
                 }
                 telescopes[i] = new(SYSU80(), name, "description", description, "longitude", lon, "latitude", lat,  "elevation", ele, (void *) 0, windows_address, windows_port, "instruments", instruments, "n_instrument", n_instrument, "default_instrument", default_instrument, "home_ra", home_ra, "home_dec", home_dec, (void *) 0);
-                
             } else {
                 
             }
@@ -173,8 +172,10 @@ init(void)
     read_configuration();
     size_t i;
     for (i = 0; i < n_telescope; i++) {
-        __telescope_power_on(telescopes[i]);
-        __telescope_init(telescopes[i]);
+        if (telescopes[i] != NULL) {
+            __telescope_power_on(telescopes[i]);
+            __telescope_init(telescopes[i]);
+        }
     }
     
     rpc_server_start(server);
@@ -184,6 +185,7 @@ static void
 destroy(void)
 {
     size_t i;
+    
     if (telescopes != NULL) {
         for (i = 0; i < n_telescope; i++) {
             if (telescopes[i] != NULL) {
@@ -191,6 +193,7 @@ destroy(void)
             }
         }
     }
+    
     free(telescopes);
 
     if (server != NULL) {
@@ -210,7 +213,7 @@ main(int argc, char *argv[])
     while ((ch = getopt_long(argc, argv, "c:Dv", longopts, NULL)) != -1) {
         switch (ch) {
             case 'c':
-                conf_path = optarg;
+                config_path = optarg;
                 break;
             case 'D':
                 daemon_flag = false;
@@ -224,14 +227,28 @@ main(int argc, char *argv[])
     argc -= optind;
     argv += optind;
     
-    config_init(&cfg);
-
-    if ((ret = Access(conf_path, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        exit(EXIT_FAILURE);
+    if ((ret = Access(config_path, F_OK)) < 0) {
+        if ((ret = Access("telescoped.cfg", F_OK)) == 0) {
+            config_path = "telescoped.cfg";
+        } else if ((ret = Access("etc/telescoped.cfg", F_OK)) == 0) {
+            config_path = "etc/telescoped.cfg";
+        } else if ((ret = Access("/opt/aaos/etc/telescoped.cfg", F_OK)) == 0) {
+            config_path = "/opt/aaos/etc/telescoped.cfg";
+        } else if ((ret = Access("/usr/local/aaos/etc/telescoped.cfg", F_OK)) == 0) {
+            config_path = "/usr/local/aaos/etc/telescoped.cfg";
+        } else if ((ret = Access("/etc/aaos/telescoped.cfg", F_OK)) == 0) {
+            config_path = "/etc/aaos/telescoped.cfg";
+        } else if ((ret = Access("/etc/telescoped.cfg", F_OK)) == 0) {
+            config_path = "/etc/telescoped.cfg";
+        } else {
+            fprintf(stderr, "configuration file does not exist.\n");
+            exit(EXIT_FAILURE);
+        }
     }
     
-    if(config_read_file(&cfg, conf_path) == CONFIG_FALSE) {
+    config_init(&cfg);
+    
+    if(config_read_file(&cfg, config_path) == CONFIG_FALSE) {
         fprintf(stderr, "fail to read configuration file.\n");
         exit(EXIT_FAILURE);
     }

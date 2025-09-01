@@ -197,7 +197,7 @@ TCPSocket_read_until(const void *_self, void *read_buffer, size_t request_size, 
             nread += n;
             nleft -= n;
             s += n;
-            if (memcpy(s - size, delim, size) == 0) {
+            if (memcmp(s - size, delim, size) == 0) {
                 break;
             }
         }
@@ -642,7 +642,6 @@ TCPClient_forward(const void *_self, void *result, Method selector, const char *
     }
 }
 
-
 static void *
 TCPClient_ctor(void *_self, va_list *app)
 {
@@ -667,7 +666,7 @@ TCPClient_dtor(void *_self)
     free(self->address);
     free(self->port);
     
-    return super_dtor(TCPSocket(), _self);
+    return super_dtor(TCPClient(), _self);
     
 }
 
@@ -786,6 +785,14 @@ TCPServerVirtualTable_ctor(void *_self, va_list *app)
             self->accept.method = method;
             continue;
         }
+        if (selector == (Method) tcp_server_accept2) {
+            if (tag) {
+                self->accept2.tag = tag;
+                self->accept2.selector = selector;
+            }
+            self->accept.method = method;
+            continue;
+        }
     }
     
     return _self;
@@ -863,6 +870,36 @@ TCPServer_accept(const void *_self, void **client)
 }
 
 int
+tcp_server_accept2(void *_self, void **client)
+{
+    const struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
+    
+    if (isOf(class, TCPServerClass()) && class->accept2.method) {
+        return ((int (*)(const void *, void **)) class->accept2.method)( _self, client);
+    } else {
+        int result;
+        forward(_self, &result, (Method) tcp_server_accept2, "accept2", _self, client);
+        return result;
+    }
+}
+
+static int
+TCPServer_accept2(const void *_self, void **client)
+{
+    struct TCPServer *self = cast(TCPServer(), _self);
+    int fd;
+    
+    fd = Accept(self->lfd2, NULL, NULL);
+    if (fd < 0) {
+        *client = NULL;
+        return AAOS_ERROR;
+    } else {
+        *client = new(TCPSocket(), fd);
+        return AAOS_OK;
+    }
+}
+
+int
 tcp_server_get_lfd(const void *_self)
 {
     const struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
@@ -883,6 +920,27 @@ TCPServer_get_lfd(const void *_self)
     const struct TCPServer *self = cast(TCPServer(), _self);
     
     return self->lfd;
+}
+
+void
+tcp_server_get_lfds(const void *_self, int *lfds)
+{
+    const struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
+    
+    if (isOf(class, TCPServerClass()) && class->get_lfds.method) {
+        ((void (*)(const void *, int *)) class->get_lfds.method)( _self, lfds);
+    } else {
+        forward(_self, (void *) 0, (Method) tcp_server_get_lfds, "get_lfds", _self, lfds);
+    }
+}
+
+static void
+TCPServer_get_lfds(const void *_self, int *lfds)
+{
+    const struct TCPServer *self = cast(TCPServer(), _self);
+    
+    lfds[0] = self->lfd;
+    lfds[1] = self->lfd2;
 }
 
 int
@@ -913,6 +971,50 @@ TCPServer_get_option(const void *_self, unsigned int *option)
     }
 }
 
+void
+tcp_server_set_address(void *_self, const char *address)
+{
+    const struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
+    
+    if (isOf(class, TCPServerClass()) && class->set_address.method) {
+        ((void (*)(void *, const char *)) class->set_address.method)( _self, address);
+    } else {
+        forward(_self, (void *) 0, (Method) tcp_server_set_address, "set_address", _self, address);
+    }
+}
+
+static void
+TCPServer_set_address(void *_self, const char *address)
+{
+    struct TCPServer *self = cast(TCPServer(), _self);
+    
+    self->address = (char *) Malloc(strlen(address) + 1);
+    snprintf(self->address, strlen(address) + 1, "%s", address);
+}
+
+void
+tcp_server_set_path(void *_self, const char *path)
+{
+    const struct TCPServerClass *class = (const struct TCPServerClass*) classOf(_self);
+    
+    if (isOf(class, TCPServerClass()) && class->set_path.method) {
+        ((void (*)(void *, const char *)) class->set_path.method)( _self, path);
+    } else {
+        forward(_self, (void *) 0, (Method) tcp_server_set_path, "set_path", _self, path);
+    }
+}
+
+static void
+TCPServer_set_path(void *_self, const char *path)
+{
+    struct TCPServer *self = cast(TCPServer(), _self);
+    
+    self->path = (char *) Malloc(strlen(path) + 1);
+    snprintf(self->path, strlen(path) + 1, "%s", path);
+    self->option |= TCPSERVER_OPTION_UDS;
+    self->lfd2 = Un_stream_listen(path);
+}
+
 int
 tcp_server_set_option(void *_self, unsigned int option)
 {
@@ -933,7 +1035,7 @@ TCPServer_set_option(const void *_self, unsigned int option)
 {
     struct TCPServer *self = cast(TCPServer(), _self);
 
-    self->option = option;
+    self->option |= option;
 
     return AAOS_OK;
 }
@@ -977,7 +1079,7 @@ TCPServer_start(const void *_self)
     void *client;
     pthread_t tid;
     
-    self->lfd = Tcp_listen(NULL, self->port, NULL, NULL);
+    self->lfd = Tcp_listen(self->address, self->port, NULL, NULL);
     
     int ret;
     
@@ -998,11 +1100,14 @@ TCPServer_forward(const void *_self, void *result, Method selector, const char *
     if (selector == (Method) tcp_server_accept) {
         void **client = va_arg(*app, void **);
         *((void **) result) = ((void * (*)(void *, void **)) method)(obj, client);
+    } if (selector == (Method) tcp_server_accept2) {
+        void **client = va_arg(*app, void **);
+        *((void **) result) = ((void * (*)(void *, void **)) method)(obj, client);
     } else {
         assert(0);
     }
 }
-
+    
 static void *
 TCPServer_ctor(void *_self, va_list *app)
 {
@@ -1013,6 +1118,9 @@ TCPServer_ctor(void *_self, va_list *app)
     self->port = (char *) Malloc(strlen(s) + 1);
     snprintf(self->port, strlen(s) + 1, "%s", s);
     self->lfd = -1;
+    self->lfd2 = -1;
+    
+    self->option = TCPSERVER_OPTION_DEFAULT;
     
     return (void *) self;
 }
@@ -1025,7 +1133,12 @@ TCPServer_dtor(void *_self)
     if (self->lfd >= 0) {
         Close(self->lfd);
     }
+    if (self->lfd2 >= 0) {
+        Close(self->lfd2);
+    }
     
+    free(self->address);
+    free(self->path);
     free(self->port);
     
     return super_dtor(TCPServer(), _self);
@@ -1057,6 +1170,14 @@ TCPServerClass_ctor(void *_self, va_list *app)
             self->accept.method = method;
             continue;
         }
+        if (selector == (Method) tcp_server_accept2) {
+            if (tag) {
+                self->accept2.tag = tag;
+                self->accept2.selector = selector;
+            }
+            self->accept2.method = method;
+            continue;
+        }
         if (selector == (Method) tcp_server_start) {
             if (tag) {
                 self->start.tag = tag;
@@ -1073,6 +1194,14 @@ TCPServerClass_ctor(void *_self, va_list *app)
             self->get_lfd.method = method;
             continue;
         }
+        if (selector == (Method) tcp_server_get_lfds) {
+            if (tag) {
+                self->get_lfds.tag = tag;
+                self->get_lfds.selector = selector;
+            }
+            self->get_lfds.method = method;
+            continue;
+        }
         if (selector == (Method) tcp_server_get_option) {
             if (tag) {
                 self->get_option.tag = tag;
@@ -1087,6 +1216,22 @@ TCPServerClass_ctor(void *_self, va_list *app)
                 self->set_option.selector = selector;
             }
             self->set_option.method = method;
+            continue;
+        }
+        if (selector == (Method) tcp_server_set_path) {
+            if (tag) {
+                self->set_path.tag = tag;
+                self->set_path.selector = selector;
+            }
+            self->set_path.method = method;
+            continue;
+        }
+        if (selector == (Method) tcp_server_set_address) {
+            if (tag) {
+                self->set_address.tag = tag;
+                self->set_address.selector = selector;
+            }
+            self->set_address.method = method;
             continue;
         }
     }
@@ -1143,9 +1288,13 @@ TCPServer_initialize(void)
                      dtor, "dtor", TCPServer_dtor,
                      forward, "forward", TCPServer_forward,
                      tcp_server_accept, "accept", TCPServer_accept,
+                     tcp_server_accept2, "accept2", TCPServer_accept2,
                      tcp_server_get_lfd, "get_lfd", TCPServer_get_lfd,
+                     tcp_server_get_lfds, "get_lfds", TCPServer_get_lfds,
                      tcp_server_get_option, "get_option", TCPServer_get_option,
                      tcp_server_set_option, "set_option", TCPServer_set_option,
+                     tcp_server_set_address, "set_address", TCPServer_set_address,
+                     tcp_server_set_path, "set_path", TCPServer_set_path,
                      tcp_server_start, "start", TCPServer_start,
                      (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
@@ -1163,14 +1312,628 @@ TCPServer(void)
     return _TCPServer;
 }
 
+/*
+ * Unix domain stream client virtual table
+ */
+
+static void *
+UDSClientVirtualTable_ctor(void *_self, va_list *app)
+{
+    struct UDSClientVirtualTable *self = super_ctor(UDSClientVirtualTable(), _self, app);
+    Method selector;
+    
+    while ((selector = va_arg(*app, Method))) {
+        const char *tag = va_arg(*app, const char *);
+        Method method = va_arg(*app, Method);
+        if (selector == (Method) uds_client_connect) {
+            if (tag) {
+                self->connect.tag = tag;
+                self->connect.selector = selector;
+            }
+            self->connect.method = method;
+            continue;
+        }
+    }
+    
+    return _self;
+}
+
+static void *
+UDSClientVirtualTable_dtor(void *_self)
+{
+    return super_dtor(Object(), _self);
+}
+
+static const void *_UDSClientVirtualTable;
+
+static void
+UDSClientVirtualTable_destroy(void)
+{
+    free((void *) _UDSClientVirtualTable);
+}
+
+static void
+UDSClientVirtualTable_initialize(void)
+{
+    _UDSClientVirtualTable = new(VirtualTableClass(), "UDSClientVirtualTable", VirtualTable(), sizeof(struct UDSClientVirtualTable),
+                                 ctor, "ctor", UDSClientVirtualTable_ctor,
+                                 dtor, "dtor", UDSClientVirtualTable_dtor,
+                                 (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(UDSClientVirtualTable_destroy);
+#endif
+}
+
+const void *
+UDSClientVirtualTable(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, UDSClientVirtualTable_initialize);
+#endif
+    return _UDSClientVirtualTable;
+}
+
+int
+uds_client_connect(const void *_self, void **client)
+{
+    const struct UDSClientClass *class = (const struct UDSClientClass*) classOf(_self);
+    
+    
+    if (isOf(class, UDSClientClass()) && class->connect.method) {
+        return ((int (*)(const void *, void **)) class->connect.method)( _self, client);
+    } else {
+        int result;
+        forward(_self, &result, (Method) uds_client_connect, "connect", _self, client);
+        return result;
+    }
+}
+
+static int
+UDSClient_connect(const void *_self, void **client)
+{
+    struct UDSClient *self = cast(UDSClient(), _self);
+    int fd;
+    
+    fd = Un_stream_connect(self->path);
+    if (fd < 0) {
+        return AAOS_ERROR;
+    } else {
+        *client = new(TCPSocket(), fd);
+    }
+    return AAOS_OK;
+    
+}
+
+static void
+UDSClient_forward(const void *_self, void *result, Method selector, const char *name, va_list *app)
+{
+    struct UDSClient *self = cast(UDSClient(), _self);
+    Method method = virtualTo(self->_vtab, name);
+    void *obj = va_arg(*app, void *);
+    
+    if (selector == (Method) uds_client_connect) {
+        void **client = va_arg(*app, void **);
+        *((int *) result) = ((int (*)(void *, void **)) method)(obj, client);
+    } else {
+        assert(0);
+    }
+}
+
+static void *
+UDSClient_ctor(void *_self, va_list *app)
+{
+    struct UDSClient *self = super_ctor(UDSClient(), _self, app);
+    const char *s;
+    
+    s = va_arg(*app, const char *);
+    self->path = (char *) Malloc(strlen(s) + 1);
+    snprintf(self->path, strlen(s) + 1, "%s", s);
+    
+    return (void *) self;
+}
+
+static void *
+UDSClient_dtor(void *_self)
+{
+    struct UDSClient *self = cast(UDSClient(), _self);
+    
+    free(self->path);
+    
+    return super_dtor(UDSClient(), _self);
+    
+}
+
+static void *
+UDSClientClass_ctor(void *_self, va_list *app)
+{
+    struct UDSClientClass *self = super_ctor(UDSClientClass(), _self, app);
+    Method selector;
+    
+#ifdef va_copy
+    va_list ap;
+    va_copy(ap, *app);
+#else
+    va_list ap = *app;
+#endif
+    
+    while ((selector = va_arg(ap, Method))) {
+        const char *tag = va_arg(ap, const char *);
+        Method method = va_arg(ap, Method);
+        
+        if (selector == (Method) uds_client_connect) {
+            if (tag) {
+                self->connect.tag = tag;
+                self->connect.selector = selector;
+            }
+            self->connect.method = method;
+            continue;
+        }
+    }
+    
+#ifdef va_copy
+    va_end(ap);
+#endif
+    
+    return self;
+}
+
+static const void *_UDSClientClass;
+
+static void
+UDSClientClass_destroy(void)
+{
+    free((void *)_UDSClientClass);
+}
+
+static void
+UDSClientClass_initialize(void)
+{
+    _UDSClientClass = new(Class(), "UDSClientClass", Class(), sizeof(struct UDSClientClass),
+                          ctor, "ctor", UDSClientClass_ctor,
+                          (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(UDSClientClass_destroy);
+#endif
+}
+
+const void *
+UDSClientClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, UDSClientClass_initialize);
+#endif
+    return _UDSClientClass;
+}
+
+static const void *_UDSClient;
+
+static void
+UDSClient_destroy(void)
+{
+    free((void *)_UDSClient);
+}
+
+static void
+UDSClient_initialize(void)
+{
+    _UDSClient = new(UDSClientClass(), "UDSClient", Object(), sizeof(struct UDSClient),
+                     ctor, "ctor", UDSClient_ctor,
+                     dtor, "dtor", UDSClient_dtor,
+                     uds_client_connect, "connect", UDSClient_connect,
+                     forward, "forward", UDSClient_forward,
+                     (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(UDSClient_destroy);
+#endif
+}
+
+const void *
+UDSClient(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, UDSClient_initialize);
+#endif
+    return _UDSClient;
+}
+
+/*
+ * Unix domain stream server virtual table
+ */
+static void *
+UDSServerVirtualTable_ctor(void *_self, va_list *app)
+{
+    struct UDSServerVirtualTable *self = super_ctor(UDSServerVirtualTable(), _self, app);
+    Method selector;
+    
+    while ((selector = va_arg(*app, Method))) {
+        const char *tag = va_arg(*app, const char *);
+        Method method = va_arg(*app, Method);
+        if (selector == (Method) tcp_server_accept) {
+            if (tag) {
+                self->accept.tag = tag;
+                self->accept.selector = selector;
+            }
+            self->accept.method = method;
+            continue;
+        }
+    }
+    
+    return _self;
+}
+
+static void *
+UDSServerVirtualTable_dtor(void *_self)
+{
+    return super_dtor(Object(), _self);
+}
+
+static const void *_UDSServerVirtualTable;
+
+static void
+UDSServerVirtualTable_destroy(void)
+{
+    free((void *) _UDSServerVirtualTable);
+}
+
+static void
+UDSServerVirtualTable_initialize(void)
+{
+    _UDSServerVirtualTable = new(VirtualTableClass(), "UDSServerVirtualTable", VirtualTable(), sizeof(struct UDSServerVirtualTable),
+                                 ctor, "ctor", UDSServerVirtualTable_ctor,
+                                 dtor, "dtor", UDSServerVirtualTable_dtor,
+                                 (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(UDSServerVirtualTable_destroy);
+#endif
+}
+
+const void *
+UDSServerVirtualTable(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, UDSServerVirtualTable_initialize);
+#endif
+    
+    return _UDSServerVirtualTable;
+}
+
+int
+uds_server_accept(void *_self, void **client)
+{
+    const struct UDSServerClass *class = (const struct UDSServerClass*) classOf(_self);
+    
+    if (isOf(class, UDSServerClass()) && class->accept.method) {
+        return ((int (*)(const void *, void **)) class->accept.method)( _self, client);
+    } else {
+        int result;
+        forward(_self, &result, (Method) uds_server_accept, "accept", _self, client);
+        return result;
+    }
+}
+
+static int
+UDSServer_accept(const void *_self, void **client)
+{
+    struct UDSServer *self = cast(UDSServer(), _self);
+    int fd;
+    
+    fd = Accept(self->lfd, NULL, NULL);
+    if (fd < 0) {
+        *client = NULL;
+        return AAOS_ERROR;
+    } else {
+        *client = new(TCPSocket(), fd);
+        return AAOS_OK;
+    }
+}
+
+int
+uds_server_get_lfd(const void *_self)
+{
+    const struct UDSServerClass *class = (const struct UDSServerClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, UDSServerClass()) && class->get_lfd.method) {
+        result = ((int (*)(const void *)) class->get_lfd.method)( _self);
+    } else {
+        forward(_self, &result, (Method) uds_server_get_lfd, "get_lfd", _self);
+    }
+    
+    return result;
+}
+
+static int
+UDSServer_get_lfd(const void *_self)
+{
+    const struct UDSServer *self = cast(UDSServer(), _self);
+    
+    return self->lfd;
+}
+
+int
+uds_server_get_option(const void *_self, unsigned int *option)
+{
+    const struct UDSServerClass *class = (const struct UDSServerClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, UDSServerClass()) && class->get_option.method) {
+        result = ((int (*)(const void *, unsigned int *)) class->get_lfd.method)( _self, option);
+    } else {
+        forward(_self, &result, (Method) uds_server_get_option, "get_option", _self, option);
+    }
+    
+    return result;
+}
+
+static int
+UDSServer_get_option(const void *_self, unsigned int *option)
+{
+    const struct UDSServer *self = cast(UDSServer(), _self);
+
+    if (option != NULL) {
+        *option = self->option;
+        return AAOS_OK;
+    } else {
+        return AAOS_EINVAL;
+    }
+}
+
+int
+uds_server_set_option(void *_self, unsigned int option)
+{
+    struct UDSServerClass *class = (struct UDSServerClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, UDSServerClass()) && class->set_option.method) {
+        result = ((int (*)(void *, unsigned int)) class->get_lfd.method)( _self, option);
+    } else {
+        forward(_self, &result, (Method) uds_server_set_option, "set_option", _self, option);
+    }
+    
+    return result;
+}
+
+static int
+UDSServer_set_option(const void *_self, unsigned int option)
+{
+    struct UDSServer *self = cast(UDSServer(), _self);
+
+    self->option = option;
+
+    return AAOS_OK;
+}
+
+void
+uds_server_start(void *_self)
+{
+    struct UDSServerClass *class = (struct UDSServerClass*) classOf(_self);
+    
+    
+    if (isOf(class, UDSServerClass()) && class->start.method) {
+        ((void  (*)(void *)) class->start.method)( _self);
+    } else {
+        return forward(_self, 0, (Method) uds_server_start, "start", _self);
+    }
+}
+
+static void
+UDSServer_start(const void *_self)
+{
+    struct UDSServer *self = cast(UDSServer(), _self);
+    void *client;
+    pthread_t tid;
+    
+    self->lfd = Un_stream_listen(self->path);
+   
+    int ret;
+    
+    for (;;) {
+        if ((ret = uds_server_accept((void *) _self, &client)) == AAOS_OK) {
+            Pthread_create(&tid, NULL, TCPServer_doit, client);
+        }
+    }
+}
+
+static void
+UDSServer_forward(const void *_self, void *result, Method selector, const char *name, va_list *app)
+{
+    struct UDSServer *self = cast(UDSServer(), _self);
+    Method method = virtualTo(self->_vtab, name);
+    
+    void *obj = va_arg(*app, void *);
+    if (selector == (Method) uds_server_accept) {
+        void **client = va_arg(*app, void **);
+        *((void **) result) = ((void * (*)(void *, void **)) method)(obj, client);
+    } else {
+        assert(0);
+    }
+}
+
+static void *
+UDSServer_ctor(void *_self, va_list *app)
+{
+    struct UDSServer *self = super_ctor(UDSServer(), _self, app);
+    const char *s;
+    
+    s = va_arg(*app, const char *);
+    self->path = (char *) Malloc(strlen(s) + 1);
+    snprintf(self->path, strlen(s) + 1, "%s", s);
+    self->lfd = -1;
+    
+    return (void *) self;
+}
+
+static void *
+UDSServer_dtor(void *_self)
+{
+    struct UDSServer *self = cast(UDSServer(), _self);
+    
+    if (self->lfd >= 0) {
+        Close(self->lfd);
+    }
+    
+    free(self->path);
+    
+    return super_dtor(UDSServer(), _self);
+    
+}
+
+static void *
+UDSServerClass_ctor(void *_self, va_list *app)
+{
+    struct UDSServerClass *self = super_ctor(UDSServerClass(), _self, app);
+    Method selector;
+    
+#ifdef va_copy
+    va_list ap;
+    va_copy(ap, *app);
+#else
+    va_list ap = *app;
+#endif
+    
+    while ((selector = va_arg(ap, Method))) {
+        const char *tag = va_arg(ap, const char *);
+        Method method = va_arg(ap, Method);
+        
+        if (selector == (Method) uds_server_accept) {
+            if (tag) {
+                self->accept.tag = tag;
+                self->accept.selector = selector;
+            }
+            self->accept.method = method;
+            continue;
+        }
+        if (selector == (Method) uds_server_start) {
+            if (tag) {
+                self->start.tag = tag;
+                self->start.selector = selector;
+            }
+            self->start.method = method;
+            continue;
+        }
+        if (selector == (Method) uds_server_get_lfd) {
+            if (tag) {
+                self->get_lfd.tag = tag;
+                self->get_lfd.selector = selector;
+            }
+            self->get_lfd.method = method;
+            continue;
+        }
+        if (selector == (Method) uds_server_get_option) {
+            if (tag) {
+                self->get_option.tag = tag;
+                self->get_option.selector = selector;
+            }
+            self->get_option.method = method;
+            continue;
+        }
+        if (selector == (Method) uds_server_set_option) {
+            if (tag) {
+                self->set_option.tag = tag;
+                self->set_option.selector = selector;
+            }
+            self->set_option.method = method;
+            continue;
+        }
+    }
+    
+#ifdef va_copy
+    va_end(ap);
+#endif
+    
+    return self;
+}
+
+static const void *_UDSServerClass;
+
+static void
+UDSServerClass_destroy(void)
+{
+    free((void *)_UDSServerClass);
+}
+
+static void
+UDSServerClass_initialize(void)
+{
+    _UDSServerClass = new(Class(), "UDSServerClass", Class(), sizeof(struct UDSServerClass),
+                          ctor, "ctor", UDSServerClass_ctor,
+                          (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(UDSServerClass_destroy);
+#endif
+}
+
+const void *
+UDSServerClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, UDSServerClass_initialize);
+#endif
+    return _UDSServerClass;
+}
+
+static const void *_UDSServer;
+
+static void
+UDSServer_destroy(void)
+{
+    free((void *)_UDSServer);
+}
+
+static void
+UDSServer_initialize(void)
+{
+    _UDSServer = new(UDSServerClass(), "UDSServer", Object(), sizeof(struct UDSServer),
+                     ctor, "ctor", UDSServer_ctor,
+                     dtor, "dtor", UDSServer_dtor,
+                     forward, "forward", UDSServer_forward,
+                     uds_server_accept, "accept", UDSServer_accept,
+                     uds_server_get_lfd, "get_lfd", UDSServer_get_lfd,
+                     uds_server_get_option, "get_option", UDSServer_get_option,
+                     uds_server_set_option, "set_option", UDSServer_set_option,
+                     uds_server_start, "start", UDSServer_start,
+                     (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(UDSServer_destroy);
+#endif
+}
+
+const void *
+UDSServer(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, UDSServer_initialize);
+#endif
+    return _UDSServer;
+}
+
 #ifdef _USE_COMPILER_ATTRIBUTION_
 static void __destructor__(void) __attribute__ ((destructor(_NET_PRIORITY_)));
 
 static void
 __destructor__(void)
 {
+    UDSServer_destroy();
+    UDSServerClass_destroy();
+    UDSServerVirtualTable_destroy();
+    UDSClient_destroy();
+    UDSClientClass_destroy();
+    UDSClientVirtualTable_destroy();
+    TCPServer_destroy();
+    TCPServerClass_destroy();
+    TCPServerVirtualTable_destroy();
+    TCPClient_destroy();
+    TCPClientClass_destroy();
+    TCPClientVirtualTable_destroy();
+    TCPSocket_destroy();
+    TCPSocketClass_destroy();
     TCPSocketVirtualTable_destroy();
-    
 }
 
 static void __constructor__(void) __attribute__ ((constructor(_NET_PRIORITY_)));
@@ -1184,7 +1947,14 @@ __constructor__(void)
     TCPClientVirtualTable_initialize();
     TCPClientClass_initialize();
     TCPClient_initialize();
+    TCPServerVirtualTable_initialize();
     TCPServerClass_initialize();
     TCPServer_initialize();
+    UDSClientVirtualTable_initialize();
+    UDSClientClass_initialize();
+    UDSClient_initialize();
+    UDSServerVirtualTable_initialize();
+    UDSServerClass_initialize();
+    UDSServer_initialize();
 }
 #endif

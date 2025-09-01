@@ -45,12 +45,20 @@
 #define PACKETHEADERSIZE 32
 #define PACKETPARAMETERSIZE 16
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void protobuf_set(void *_self, unsigned int field, ...);
 void protobuf_get(const void *_self, unsigned int field, ...);
 int protobuf_reallocate(void *_self, size_t size);
 size_t protobuf_payload(const void *_self);
 void *protobuf_header(const void *_self);
 
-const void *ProtoBuf(void);
-const void *ProtoBufClass(void);
+extern const void *ProtoBuf(void);
+extern const void *ProtoBufClass(void);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* protocol_h */

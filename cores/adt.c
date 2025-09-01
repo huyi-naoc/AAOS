@@ -368,11 +368,54 @@ threadsafe_circular_queue_pop(void *_self, void *data)
     if (isOf(class, ThreadsafeCircularQueueClass()) && class->pop.method) {
         return ((void (*)(void *, void *)) class->pop.method)(_self, data);
     } else {
-       
-        forward(_self, 0, (Method) threadsafe_circular_queue_push, "pop", _self, data);
-    
+        forward(_self, 0, (Method) threadsafe_circular_queue_pop, "pop", _self, data);
     }
 }
+
+static int
+ThreadsafeCircularQueue_timed_pop(void *_self, void *data, double timeout)
+{
+    struct ThreadsafeCircularQueue *self = cast(ThreadsafeCircularQueue(), _self);
+    
+    struct timespec tp;
+    int ret;
+    
+    tp.tv_sec = floor(timeout);
+    tp.tv_nsec = (timeout- floor(timeout)) * 1000000000.;
+    
+    
+    Pthread_mutex_lock(&self->mtx);
+    while (self->get == self->put)  {
+        ret = Pthread_cond_timedwait(&self->cond, &self->mtx, &tp);
+        if (ret == ETIMEDOUT) {
+            Pthread_mutex_unlock(&self->mtx);
+            return -1;
+        }
+    }
+    memcpy(data, (const char *)self->data + self->get * self->length, self->length);
+    if (++(self->get) == self->size) {
+        self->get =  0;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    return 0;
+}
+
+int
+threadsafe_circular_queue_timed_pop(void *_self, void *data, double timeout)
+{
+    const struct ThreadsafeCircularQueueClass *class = (const struct ThreadsafeCircularQueueClass *) classOf(_self);
+    
+    
+    if (isOf(class, ThreadsafeCircularQueueClass()) && class->timed_pop.method) {
+        return ((int (*)(void *, void *, double)) class->timed_pop.method)(_self, data, timeout);
+    } else {
+        int result;
+        forward(_self, &result, (Method) threadsafe_circular_queue_timed_pop, "timed_pop", _self, data, timeout);
+        return result;
+    }
+}
+
 
 static void *
 ThreadsafeCircularQueue_ctor(void *_self, va_list *app)
@@ -428,7 +471,16 @@ ThreadsafeCircularQueueClass_ctor(void *_self, va_list *app)
                 self->pop.selector = selector;
             }
             self->pop.method = method;
-	    continue;
+            continue;
+        }
+        if (selector == (Method) threadsafe_circular_queue_timed_pop) {
+            if (tag) {
+                
+                self->timed_pop.tag = tag;
+                self->timed_pop.selector = selector;
+            }
+            self->timed_pop.method = method;
+            continue;
         }
         if (selector == (Method) threadsafe_circular_queue_push) {
             if (tag) {
@@ -437,7 +489,7 @@ ThreadsafeCircularQueueClass_ctor(void *_self, va_list *app)
                 self->push.selector = selector;
             }
             self->push.method = method;
-	    continue;
+            continue;
         }
     }
     
@@ -494,6 +546,7 @@ ThreadsafeCircularQueue_initialize(void)
                                    dtor, "dtor", ThreadsafeCircularQueue_dtor,
                                    threadsafe_circular_queue_push, "push", ThreadsafeCircularQueue_push,
                                    threadsafe_circular_queue_pop, "pop", ThreadsafeCircularQueue_pop,
+                                   threadsafe_circular_queue_timed_pop, "pop", ThreadsafeCircularQueue_timed_pop,
                                    (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(ThreadsafeCircularQueue_destroy);

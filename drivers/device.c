@@ -112,7 +112,7 @@ Device_wait(void *_self, double timeout)
     if (self->state != DEVICE_MALFUNCTION) {
         Pthread_mutex_unlock(&self->mtx);
     } else {
-        if (timeout < 0) {
+        if (timeout < 0.) {
             while (self->state == DEVICE_MALFUNCTION) {
                 Pthread_cond_wait(&self->cond, &self->mtx);
             }
@@ -121,7 +121,7 @@ Device_wait(void *_self, double timeout)
         } else {
             struct timespec tp;
             tp.tv_sec = floor(timeout);
-            tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000;
+            tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000.;
             ret = Pthread_cond_timedwait(&self->cond, &self->mtx, &tp);
         }
     }

@@ -11,6 +11,10 @@
 
 #include "object.h"
 
+#ifdef __cpluspus
+extern "C" {
+#endif
+
 bool threadsafe_queue_push(void *_self, void *data);
 void *threadsafe_queue_try_pop(void *_self);
 void *threadsafe_queue_wait_and_pop(void *_self);
@@ -25,6 +29,8 @@ typedef void (*disposition)(void *, va_list *app);
 
 void threadsafe_circular_queue_push(void *_self, void *data);
 void threadsafe_circular_queue_pop(void *_self, void *data);
+int threadsafe_circular_queue_timed_pop(void *_self, void *data, double timeout);
+
 extern const void *ThreadsafeCircularQueue(void);
 extern const void *ThreadsafeCircularQueueClass(void);
 
@@ -37,5 +43,9 @@ void threadsafe_list_operate_first_if(void *_self, predict pred, disposition fun
 
 extern const void *ThreadsafeList(void);
 extern const void *ThreadsafeListClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* adt_h */

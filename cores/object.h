@@ -21,6 +21,10 @@
 
 typedef void (*Method)(void);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const void *Object(void);
 
 const struct Class *classOf(const void *_self);
@@ -47,5 +51,9 @@ extern const void *Class(void);
 struct Object *allocate(const void *_self);
 const struct Class *super(const void *_self);
 const char *nameOf(const void *_self);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* object_h */

@@ -11,8 +11,6 @@
 
 #include "rpc_r.h"
 
-#define _DETECTOR_RPC_PRIORITY_ _RPC_PRIORITY_ + 1
-
 struct Detector {
     struct RPC _;
 };
@@ -35,6 +33,8 @@ struct DetectorClass {
     struct Method get_frame_rate;
     struct Method set_gain;
     struct Method get_gain;
+    struct Method set_pixel_format;
+    struct Method get_pixel_format;
     struct Method set_readout_rate;
     struct Method get_readout_rate;
     struct Method set_region;

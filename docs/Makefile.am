@@ -28,6 +28,7 @@ STAMPS =
 
 if WITH_PANDOC
 man1_MANS =\
+	   $(top_builddir)/man/man1/detector.1\
 	   $(top_builddir)/man/man1/serial.1\
 	   $(top_builddir)/man/man1/telescope.1
 
@@ -36,6 +37,7 @@ $(man1_MANS): man1.stamp
 man1.stamp: 
 	mkdir -p $(top_builddir)/man/man1
 	PANDOC=$(PANDOC)
+	$(PANDOC) -s -f markdown -t man detector.1.md -o $(top_builddir)/man/man1/detector.1
 	$(PANDOC) -s -f markdown -t man serial.1.md -o $(top_builddir)/man/man1/serial.1
 	$(PANDOC) -s -f markdown -t man telescope.1.md -o $(top_builddir)/man/man1/telescope.1
 	echo > man1.stamp

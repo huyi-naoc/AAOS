@@ -27,6 +27,10 @@ extern void **serials;
 extern size_t n_serial;
 extern void *serial_list;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void start_feed_dog(double seconds);
 
 int serial_raw(void *_self, const void *cmd, size_t cmd_size, void *res, size_t res_size, size_t *res_length);
@@ -44,5 +48,8 @@ extern const void *SerialClientClass(void);
 
 extern const void *SerialServer(void);
 extern const void *SerialServerClass(void);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* serial_rpc_h */

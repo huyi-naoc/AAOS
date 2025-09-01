@@ -19,7 +19,7 @@ extern size_t n_aws;
 
 static void *d;
 static void *server;
-static const char *config_path = "/usr/local/aaos/etc/awsd.cfg";
+static const char *config_path = "/opt/aaos/etc/awsd.cfg";
 static config_t cfg;
 static bool daemon_flag = true;
 
@@ -308,15 +308,28 @@ main(int argc, char *argv[])
     config_init(&cfg);
 
     if ((ret = Access(config_path, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        exit(EXIT_FAILURE);
+        if (Access("awsd.cfg", F_OK) == 0) {
+            config_path = "awsd.conf";
+        } else if (Access("etc/awsd.cfg", F_OK) == 0) {
+            config_path = "etc/awsd.cfg";
+        } else if (Access("/opt/aaos/etc/awsd.cfg", F_OK) == 0) {
+            config_path = "/opt/aaos/etc/awsd.cfg";
+        } else if (Access("/usr/local/aaos/etc/awsd.cfg", F_OK) == 0) {
+            config_path = "/usr/local/aaos/etc/awsd.cfg";
+        } else if (Access("/etc/awsd.cfg", F_OK) == 0) {
+            config_path = "/etc/awsd.cfg";
+        }
+        if ((ret = Access(config_path, F_OK)) < 0) {
+            fprintf(stderr, "configuration file does not exist.\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     if(config_read_file(&cfg, config_path) == CONFIG_FALSE) {
         fprintf(stderr, "fail to read configuration file.\n");
         exit(EXIT_FAILURE);
     }
-
+    
     read_daemon();
 
     if (argc == 0) {

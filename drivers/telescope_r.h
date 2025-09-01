@@ -190,4 +190,15 @@ struct SYSU80 {
 struct SYSU80Class {
     struct __TelescopeClass _;
 };
+
+struct AICMount {
+    struct __Telescope _;
+    char *address;
+    char *port;
+    char *port2;
+    double home_ra;
+    double home_dec;
+    double home_alt;
+    double home_az;
+};
 #endif /* telescope_r_h */

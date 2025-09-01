@@ -13,7 +13,7 @@
 #include "virtual_r.h"
 #include <pthread.h>
 
-#define _SERIAL_PRIORITY_ _VIRTUAL_PRIORITY_ + 1
+//#define _SERIAL_PRIORITY_ _VIRTUAL_PRIORITY_ + 1
 
 struct __Serial {
     struct Object _;
@@ -157,15 +157,19 @@ struct KLTPSerial {
     unsigned int data_flag;
     pthread_mutex_t data_flag_mtx;
     pthread_t tid; /* read thread */
-    pthread_mutex_t mtx;
-    pthread_cond_t cond;
+    //pthread_mutex_t mtx;
+    //pthread_cond_t cond;
     pthread_t tid2; /* process thread */
-    void *queue;
-    size_t size;
-    size_t length;
+    //void *queue;
+    void *data_queue; /* data queue */
+    void *cmd_queue; /* command queue */
+    size_t size;    /* maximum number of elements in circular queue for data collection */
+    size_t size2;
+    size_t length; /* data length of each element */
     char *prefix;
     char *directory;
     char *fmt;
+    unsigned int model;
 };
 
 struct KLTPSerialClass {

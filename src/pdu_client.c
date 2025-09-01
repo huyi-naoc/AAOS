@@ -17,6 +17,27 @@ static uint16_t chan;
 static const char *pdu_name, *switch_name;
 static double timeout;
 
+static const char *help_string = "\
+Usage:  pdu [options] COMMAND [PARAMETERS ... ]\n\
+        -c, --channel     <channel>, specify the index of the switch to be operated\n\
+        -h, --help        print help doc and exit\n\
+        -i, --index       <index>, specify PDU's index\n\
+        -n, --name        <name>, specify PDU's name\n\
+        -p, --pdu         <address:[port]> address (and port) of pdud\n\
+        -s, --switch      <switch>, specify the switch name to be operated\n\
+        -t, --timeout     <timeout>, specify timeout wait for PDU recovered\n\
+Commands:\n\
+    init\t\tinitialize PDU\n\
+    inspect\t\tinspect PDU\n\
+    off\t\tpower off a switch\n\
+    on\t\tpower on a switch\n\
+    raw\t\tsend a raw command to PDU\n\
+    register\t\twait until PDU recovered or timed out\n\
+    status\t\tprint all the switches status of PDU\n\
+    volcur\t\tprint the voltage and current of a switch\n\
+    voltage\t\tprint the voltage of a switch\n\
+";
+
 static struct option longopts[] = {
     {"channel",     required_argument,  NULL,       'c' },
     {"help",        no_argument,        NULL,       'h' },
@@ -28,6 +49,13 @@ static struct option longopts[] = {
     {"version",     no_argument,        NULL,       'v' },
     { NULL,         0,                  NULL,       0 }
 };
+
+static void
+usage(void)
+{
+    fprintf(stderr, "%s", help_string);
+    exit(EXIT_FAILURE);
+}
 
 static void
 fatal_handler(int error, const char *fmt, ...)
@@ -50,7 +78,6 @@ fatal_handler(int error, const char *fmt, ...)
             break;
         default:
             vfprintf(stderr, fmt, ap);
-            break;
             break;
     }
     
@@ -75,6 +102,9 @@ main(int argc, char *argv[])
             case 'c':
                 chan = atoi(optarg);
             break;
+            case 'h':
+                usage();
+                break;
             case 'i':
                 idx = atoi(optarg);
                 break;
@@ -127,6 +157,7 @@ main(int argc, char *argv[])
                 timeout = atof(optarg);
                 break;
             default:
+                usage();
                 break;
         }
     }

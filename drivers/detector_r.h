@@ -14,7 +14,7 @@
 #include "virtual_r.h"
 #include <pthread.h>
 
-#define _DETECTOR_PRIORITY_ _VIRTUAL_PRIORITY_ + 1
+//#define _DETECTOR_PRIORITY_ _VIRTUAL_PRIORITY_ + 1
 
 struct DetectorState {
     uint32_t state;
@@ -25,29 +25,32 @@ struct DetectorState {
 };
 
 struct DetectorCapability {
-    size_t width;               //full image width without binning, with overscan
-    size_t height;              //full image height without binning, with overscan
+    uint32_t width;               //full image width without binning, with overscan
+    uint32_t height;              //full image height without binning, with overscan
+    size_t x_n_chip;
+    size_t y_n_chip;
     size_t n_chip;              //number of chips (number of MOSAIC chips, not number of readout channels)
-    
+    bool *flip_map;
+    bool *mirror_map;
     bool binning_available;
-    size_t x_binning_min;
-    size_t x_binning_max;
-    size_t *x_binning_array;
-    size_t n_x_binning;
-    size_t y_binning_min;
-    size_t y_binning_max;
-    size_t *y_binning_array;
-    size_t n_y_binning;
+    uint32_t x_binning_min;
+    uint32_t x_binning_max;
+    uint32_t *x_binning_array;
+    uint32_t n_x_binning;
+    uint32_t y_binning_min;
+    uint32_t y_binning_max;
+    uint32_t *y_binning_array;
+    uint32_t n_y_binning;
     
     bool offset_available;
-    size_t x_offset_min;
-    size_t x_offset_max;
-    size_t y_offset_min;
-    size_t y_offset_max;
-    size_t image_width_min;
-    size_t image_width_max;
-    size_t image_height_min;
-    size_t image_height_max;
+    uint32_t x_offset_min;
+    uint32_t x_offset_max;
+    uint32_t y_offset_min;
+    uint32_t y_offset_max;
+    uint32_t image_width_min;
+    uint32_t image_width_max;
+    uint32_t image_height_min;
+    uint32_t image_height_max;
     
     bool frame_rate_available;
     double frame_rate_min; /* may change with ROI and binning */
@@ -63,6 +66,10 @@ struct DetectorCapability {
     double *gain_array;
     size_t n_gain;
     
+    bool pixel_format_available;
+    unsigned int *pixel_format_array;
+    size_t n_pixel_format;
+    
     bool readout_rate_available;
     double readout_rate_min;
     double readout_rate_max;
@@ -71,34 +78,39 @@ struct DetectorCapability {
     
     bool cooling_available;
     double cooling_temperature_min;
-    double colling_temperature_max;
+    double cooling_temperature_max;
 };
 
 struct DetectorParameter {
-    size_t x_binning;       //current horizontal binning
-    size_t y_binning;       //current vertical binning
-    size_t x_offset;        //current horizontal offset
-    size_t y_offset;        //current vertical offset
-    size_t image_width;     //current image width
-    size_t image_height;    //current image height
-    int pixel_format;       //current image format;
-    double gain;            //current ga
-    double frame_rate;      //current frame rate
-    double exposure_time;   //curret exposure time
-    double readout_rate;    //current read out speed
-    double temperature;     //setting temperature
+    uint32_t x_binning;           //current horizontal binning
+    uint32_t y_binning;           //current vertical binning
+    uint32_t x_offset;            //current horizontal offset
+    uint32_t y_offset;            //current vertical offset
+    uint32_t image_width;         //current image width
+    uint32_t image_height;        //current image height
+    uint32_t pixel_format;  //current image pixel format;
+    double gain;                //current gain
+    double frame_rate;          //current frame rate
+    double exposure_time;       //curret exposure time
+    double readout_rate;        //current read out speed
+    double temperature;         //current setting temperature
+    bool is_cooling_enable;
 };
 
 struct DetectorExposureControl {
     int exposure_mode;
-    size_t success_frames;
-    size_t request_frames;
-    size_t count;
+    uint32_t success_frames;
+    uint32_t request_frames;
+    uint32_t count;
     pthread_mutex_t mtx;
     pthread_cond_t cond;
-    int notify_last_frame_filling;
-    int last_frame_filling_flag;
-    int notify_each_frame_done; /* each frame data save as a single fits file */
+    void *rpc;
+    char *extra_data;
+    unsigned int extra_data_format;
+    bool stop_flag;
+    bool notify_last_frame_filling;
+    bool last_frame_filling_flag;
+    bool notify_each_frame_done;        /* each frame data save as a single fits file */
 };
 
 struct DetectorFrameProcess {
@@ -115,10 +127,11 @@ struct DetectorFrameProcess {
 };
 
 struct __Detector {
-    struct Device _;
+    struct Object _;
     const void *_vtab;
     char *name;
     char *description;
+    unsigned int data_format;
     struct DetectorState d_state;
     struct DetectorCapability d_cap;
     struct DetectorParameter d_param;
@@ -127,7 +140,7 @@ struct __Detector {
 };
 
 struct __DetectorClass {
-    struct DeviceClass _;
+    struct Class _;
     /*
      * Camera controlling methods, virtual or pure virtual methods.
      */
@@ -135,9 +148,11 @@ struct __DetectorClass {
     struct Method disable_cooling;
     struct Method enable_cooling;
     struct Method expose;
+    struct Method get;
     struct Method get_binning;
     struct Method get_exposure_time;
     struct Method get_gain;
+    struct Method get_pixel_format;
     struct Method get_readout_rate;
     struct Method get_region;
     struct Method get_temperature;
@@ -148,12 +163,15 @@ struct __DetectorClass {
     struct Method power_on;
     struct Method power_off;
     struct Method raw;
+    struct Method reg;
     struct Method reload;
+    struct Method set;
     struct Method set_binning;
     struct Method set_exposure_time;
     struct Method set_frame_rate;
     struct Method get_frame_rate;
     struct Method set_gain;
+    struct Method set_pixel_format;
     struct Method set_readout_rate;
     struct Method set_region;
     struct Method set_temperature;
@@ -187,9 +205,11 @@ struct __DetectorVirtualTable {
     struct Method disable_cooling;
     struct Method enable_cooling;
     struct Method expose;
+    struct Method get;
     struct Method get_binning;
     struct Method get_exposure_time;
     struct Method get_gain;
+    struct Method get_pixel_format;
     struct Method get_readout_rate;
     struct Method get_region;
     struct Method get_temperature;
@@ -200,12 +220,15 @@ struct __DetectorVirtualTable {
     struct Method power_on;
     struct Method power_off;
     struct Method raw;
+    struct Method reg;
     struct Method reload;
+    struct Method set;
     struct Method set_binning;
     struct Method set_exposure_time;
     struct Method set_frame_rate;
     struct Method get_frame_rate;
     struct Method set_gain;
+    struct Method set_pixel_format;
     struct Method set_readout_rate;
     struct Method set_region;
     struct Method set_temperature;
@@ -214,7 +237,6 @@ struct __DetectorVirtualTable {
     struct Method unload;
     struct Method wait;
     struct Method wait_for_completion;
-    
     struct Method set_directory;
     struct Method set_prefix;
 };
@@ -255,15 +277,6 @@ struct SitianCamClass {
 
 struct VirtualDetector {
     struct __Detector _;
-    int stop_flag;
-    pthread_mutex_t mtx;
-    pthread_cond_t cond;
-    double ra;
-    double dec;
-    double pixelscale;
-    double read_noise;
-    double bias_level;
-    double sat_level;
 };
 
 struct VirtualDetectorClass {

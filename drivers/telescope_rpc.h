@@ -48,6 +48,9 @@
 #define TELESCOPE_COMMAND_SWITCH_DETECTOR   29
 #define TELESCOPE_COMMAND_FOCUS             30
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int telescope_get_index_by_name(void *_self, const char *name);
 
@@ -422,4 +425,9 @@ extern const void *TelescopeClientClass(void);
 
 extern const void *TelescopeServer(void);
 extern const void *TelescopeServerClass(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* telescope_rpc_h */

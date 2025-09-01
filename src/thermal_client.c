@@ -57,7 +57,7 @@ error_handler(int e)
 }
 
 static void
-usage()
+usage(void)
 {
     fprintf(stderr, "Usage:\ttelescope [-h|--help][-v|--version]\n");
     fprintf(stderr, "\t\t[-n|--name <name>] [-i|--index <index>]\n");

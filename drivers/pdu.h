@@ -15,6 +15,10 @@
 #define SWITCH_STATUS_OFF       1
 #define SWITCH_STATUS_UNKNOWN   2
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const void *SwitchVirtualTable(void);
 
 int switch_turn_on(void *_self);
@@ -62,5 +66,9 @@ extern const void *__PDUClass(void);
 
 extern const void *AAGPDU(void);
 extern const void *AAGPDUClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* pdu_h */

@@ -16,6 +16,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const void *SensorVirtualTable(void);
 extern const void *Sensor(void);
 extern const void *SensorClass(void);
@@ -109,5 +113,9 @@ extern const void *KLAWSDeviceClass(void);
 void klaws_device_set_index(void *_self, void *serial);
 uint16_t klaws_device_get_index(void *_self);
 int klaws_device_inspect(void *_self, void *serial);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* aws_h */

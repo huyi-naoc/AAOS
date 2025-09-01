@@ -283,23 +283,23 @@ __ObservationThread_cycle(void *_self)
         /*
          * Change instrument, filter, detector.
          */
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "instrume")) != NULL) {
-            telescope_switch_instrument(self->telescope, value_json->valuestring);
-        }
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "filter")) != NULL) {
-            telescope_switch_filter(self->telescope, value_json->valuestring);
-        }
-        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "detname")) != NULL) {
-            telescope_switch_detector(self->telescope, value_json->valuestring);
-            detname = value_json->valuestring;
-        }
         if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "exptime")) != NULL) {
             exptime = value_json->valuedouble;
         }
         if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "nframes")) != NULL) {
             nframes = value_json->valueint;
         }
-        
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "instrume")) != NULL) {
+            ret = telescope_switch_instrument(self->telescope, value_json->valuestring);
+        }
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "filter")) != NULL) {
+            ret = telescope_switch_filter(self->telescope, value_json->valuestring);
+        }
+        if ((value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "detname")) != NULL) {
+            ret = telescope_switch_detector(self->telescope, value_json->valuestring);
+            detname = value_json->valuestring;
+        }
+
         ra_json = cJSON_GetObjectItemCaseSensitive(target_json, "targ_ra");
         dec_json = cJSON_GetObjectItemCaseSensitive(target_json, "targ_dec");
         if (ra_json != NULL && dec_json != NULL && cJSON_IsNumber(ra_json) && cJSON_IsNumber(dec_json)) {
@@ -311,6 +311,8 @@ __ObservationThread_cycle(void *_self)
             if ((ret = telescope_slew(self->telescope, ra, dec)) != AAOS_OK) {
                 return ret;
             }
+        } else {
+            return AAOS_ERROR;
         }
     }
     
@@ -329,8 +331,13 @@ __ObservationThread_cycle(void *_self)
         Pthread_mutex_lock(&self->mtx);
         self->state = OT_STATE_EXPOSE;
         Pthread_mutex_unlock(&self->mtx);
-        if ((ret = detector_expose(self->detector, exptime, nframes, NULL)) != AAOS_OK) {
-            return AAOS_ERROR;
+        
+        if (self->has_pipeline) {
+            
+        } else {
+            if ((ret = detector_expose(self->detector, exptime, nframes, NULL)) != AAOS_OK) {
+                return AAOS_ERROR;
+            }
         }
     }
     
@@ -402,6 +409,15 @@ __ObserbationThread_stop(void *_self)
     struct __ObservationThread *self = cast(__ObservationThread(), _self);
 
     Pthread_mutex_lock(&self->mtx);
+	if (self->state == OT_STATE_SLEW) {
+		if (self->has_telescope && self->telescope != NULL) {
+			telescope_stop(self->telescope)
+		}
+	} else if (self->state == OT_STATE_EXPOSURE) {
+		if (self->has_detector && self->detector != NULL) {
+			detector_stop(self->detector);
+		}
+	}
     self->state = OT_STATE_STOP;
     Pthread_mutex_lock(&self->mtx);
     return AAOS_OK;
@@ -474,6 +490,22 @@ __ObservationThread_get_member(void *_self, const char *name, va_list *app)
         void **value = va_arg(*app, void **);
         *value = self->scheduler2;
         return;
+    } else if (strcmp(name, "dome") == 0) {
+		void **value = va_arg(*app, void **);
+		*value = self->dome;
+		return;
+    } else if (strcmp(name, "telescope") == 0) {
+		void **value = va_arg(*app, void **);
+		*value = self->telescope;
+		return;
+    } else if (strcmp(name, "detetcor") == 0) {
+		void **value = va_arg(*app, void **);
+		*value = self->detector;
+		return;
+    } else if (strcmp(name, "pipeline") == 0) {
+		void **value = va_arg(*app, void **);
+		*value = self->pipeline;
+		return;
     }
 }
 
@@ -533,13 +565,12 @@ __ObservationThread_set_member(void *_self, const char *name, va_list *app)
         self->dome_port = (char *) Realloc(self->dome_port, strlen(port) + 1);
         snprintf(self->dome_addr, strlen(addr) + 1, "%s", addr);
         snprintf(self->dome_port, strlen(port) + 1, "%s", port);
-        
-        /*
         if (self->dome_client != NULL) {
             delete(self->dome_client);
         }
         self->dome_client = new(DomeClient(), addr, port);
-        */
+		
+        
         return;
     }
 

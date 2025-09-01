@@ -11,7 +11,7 @@
 
 #include "rpc_r.h"
 
-#define _SERIAL_RPC_PRIORITY_ _RPC_PRIORITY_ + 1
+//#define _SERIAL_RPC_PRIORITY_ _RPC_PRIORITY_ + 1
 
 struct Serial {
     struct RPC _;

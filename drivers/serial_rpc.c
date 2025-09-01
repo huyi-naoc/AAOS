@@ -1119,7 +1119,13 @@ int SerialClient_connect(void *_self, void **client)
 {
     struct SerialClient *self = cast(SerialClient(), _self);
     
-    int cfd = Tcp_connect(self->_._.address, self->_._.port, NULL, NULL);
+    int cfd;
+    
+    if (self->_._.address != NULL && Access(self->_._.address, F_OK) == 0) {
+        cfd = Un_stream_connect(self->_._.address);
+    } else {
+        cfd = Tcp_connect(self->_._.address, self->_._.port, NULL, NULL);
+    }
     
     if (cfd < 0) {
         *client = NULL;
@@ -1279,6 +1285,29 @@ SerialServer_accept(void *_self, void **client)
     }
 }
 
+static int
+SerialServer_accept2(void *_self, void **client)
+{
+    struct RPCServer *self = cast(RPCServer(), _self);
+    
+    int lfd, cfd, lfds[2];
+    
+    tcp_server_get_lfds(self, lfds);
+    lfd = lfds[1];
+    
+    cfd = Accept(lfd, NULL, NULL);
+    if (cfd < 0) {
+        *client = NULL;
+        return AAOS_ERROR;
+    } else {
+        if ((*client = new(Serial(), cfd)) == NULL) {
+            Close(cfd);
+            return AAOS_ERROR;
+        }
+        return AAOS_OK;
+    }
+}
+
 static void *
 SerialServer_ctor(void *_self, va_list *app)
 {
@@ -1303,6 +1332,7 @@ SerialServerClass_ctor(void *_self, va_list *app)
     struct SerialServerClass *self = super_ctor(SerialServerClass(), _self, app);
     
     self->_.accept.method = (Method) 0;
+    self->_.accept2.method = (Method) 0;
     
     return self;
 }
@@ -1379,9 +1409,9 @@ serial_server_virtual_table_destroy(void)
 static void
 serial_server_virtual_table_initialize(void)
 {
-
     _serial_server_virtual_table = new(RPCServerVirtualTable(),
                                        rpc_server_accept, "accept", SerialServer_accept,
+                                       rpc_server_accept2, "accept2", SerialServer_accept2,
                                        (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(serial_server_virtual_table_destroy);

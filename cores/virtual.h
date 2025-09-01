@@ -13,7 +13,15 @@
 
 Method virtualTo(const void *_self, const char *tag);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const void *VirtualTable(void);
 extern const void *VirtualTableClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* virtual_h */

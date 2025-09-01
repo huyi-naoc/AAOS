@@ -54,6 +54,9 @@ error_handler(int e)
         case AAOS_ENOTSUP:
             fprintf(stderr, "Operation is NOT supported.\n");
             break;
+        case AAOS_EDEVMAL:
+            fprintf(stderr, "Telescope malfunctioned.\n");
+            break;
         default:
             fprintf(stderr, "Unknown error happened.\n");
             break;
@@ -95,6 +98,8 @@ Commands:\n\
                 move_speed parameter has one value\n\
                 slew_speed and track_rate have two values\n\
     focus       ABSOLUTE STEP\n\
+	inspect\n\
+	register    TIMEOUT\n\
 ";
 
 
@@ -142,7 +147,7 @@ main(int argc, char *argv[])
     unsigned int format = COORDINATE_FORMAT_STRING;
     
     snprintf(address, ADDRSIZE, "localhost");
-    snprintf(port, PORTSIZE, "%s", TELESCOPE_RPC_PORT);
+    snprintf(port, PORTSIZE, "%s", TEL_RPC_PORT);
     
     while ((ch = getopt_long(argc, argv, "f:hi:n:t:Nu:", longopts, NULL)) != -1) {
         switch (ch) {
@@ -187,7 +192,7 @@ main(int argc, char *argv[])
                     }
                 } else {
                     snprintf(address, ADDRSIZE, "localhost");
-                    snprintf(port, PORTSIZE, TELESCOPE_RPC_PORT);
+                    snprintf(port, PORTSIZE, TEL_RPC_PORT);
                 }
                 break;
             case 'u':
@@ -966,7 +971,7 @@ main(int argc, char *argv[])
             continue;
         }
         fprintf(stderr, "Unknown command `%s`.\n", argv[0]);
-        argc-- ;
+        argc--;
         argv++;
     }
     

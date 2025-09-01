@@ -135,6 +135,8 @@ Daemon_start(const void *_self)
     
     umask(0);
     
+    Chdir(self->root_directory);
+    
     if (self->is_daemonized) {
         if (already_running(self)) {
             fprintf(stderr, "%s is already running.\n", self->daemon_name);
@@ -175,8 +177,6 @@ Daemon_start(const void *_self)
         default:
             _exit(0);
     }
-    
-    Chdir(self->root_directory);
     
     Getrlimit(RLIMIT_NOFILE, &rl);
     if (rl.rlim_max == RLIM_INFINITY) {

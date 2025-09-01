@@ -24,6 +24,10 @@
 void **pdus;
 size_t n_pdu;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int pdu_turn_on(void *_self);
 int pdu_turn_off(void *_self);
 int pdu_get_current(void *_self, double *current);
@@ -42,8 +46,6 @@ int pdu_get_current_by_name(void *_self, const char *name, double *current);
 int pdu_get_voltage_by_name(void *_self, const char *name, double *voltage);
 int pdu_get_voltage_current_by_name(void *_self, const char *name, double *voltage, double *current);
 
-
-
 int pdu_get_index_by_name(void *_self, const char *name);
 int pdu_get_channel_by_name(void *_self, const char *name);
 
@@ -55,5 +57,9 @@ extern const void *PDUClientClass(void);
 
 extern const void *PDUServer(void);
 extern const void *PDUServerClass(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* pdu_rpc_h */

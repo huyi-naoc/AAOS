@@ -19,6 +19,10 @@
 #define PI 3.141592653589793
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int __scheduler_init(void *_self);
 int __scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *result, size_t size, size_t *length, unsigned int *type);
 int __scheduler_get_task_by_telescope_name(void *_self, const char *name, char *result, size_t size, size_t *length, unsigned int *type);
@@ -70,4 +74,9 @@ char *__scheduler_create_request_json_string(unsigned int command, ...);
 
 extern const void *__Scheduler(void);
 extern const void *__SchedulerClass(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* scheduler_h */

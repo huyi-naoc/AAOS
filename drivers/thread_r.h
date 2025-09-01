@@ -56,6 +56,12 @@ struct __ObservationThread {
     void *pipeline_client;
     void *pipeline;
     bool has_pipeline;
+
+    char *aws_addr;
+    char *aws_port;
+    char *aws_client;
+    void *aws;
+    bool has_aws;
     
     unsigned int state;
     pthread_mutex_t mtx;
@@ -63,7 +69,6 @@ struct __ObservationThread {
 
     pthread_t tid;
 };
-
 
 struct __ObservationThreadClass {
     struct Class _;
