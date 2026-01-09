@@ -17,6 +17,8 @@
 #include "detector_rpc_r.h"
 #include "wrapper.h"
 
+#include <cjson/cJSON.h>
+
 static bool
 detector_find_by_name_if(void *detector, va_list *app)
 {
@@ -178,6 +180,7 @@ static int
 Detector_get_index_by_name(void *_self, const char *name)
 {
     struct Detector *self = cast(Detector(), _self);
+    
     size_t length;
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DETECTOR);
@@ -1583,7 +1586,7 @@ detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     return result;
 }
 
-#include <cjson/cJSON.h>
+
 
 static int
 Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*image_callback)(void *, const char *, ...), va_list *app)
@@ -1608,42 +1611,8 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
         protobuf_set(protobuf, PACKET_BUF, string, strlen(string) + 1);
     }
     
-    /*
-     * Serialize the input parameters.
-     */
-    /*
-    protobuf_get(protobuf, PACKET_LENGTH, &length);
-    char *buffer = NULL;
-    cJSON *params = cJSON_CreateObject(), *entry = NULL;
-    const char *keyname, *keyval;
-    while ((keyname = va_arg(*app, const char *))) {
-        keyval = va_arg(*app, const char *);
-        entry = cJSON_CreateString(keyval);
-        cJSON_AddItemToObject(params, keyname, entry);
-    }
-    
-    buffer = cJSON_Print(params);
-    cJSON_Delete(params);
-    if (strcmp(buffer, "{\nn}") != 0) {
-        if (length == 0) {
-            protobuf_set(protobuf, PACKET_BUF, buffer, strlen(buffer) + 1);
-        } else {
-            char *s;
-            size_t payload = protobuf_payload(protobuf);
-            if (payload < length + strlen(buffer) + 1) {
-                protobuf_reallocate(protobuf, length + strlen(buffer) + 1);
-            }
-            protobuf_get(protobuf, PACKET_BUF, &s, NULL);
-            s += length;
-            snprintf(s, strlen(buffer) + 1, "%s", buffer);
-            protobuf_set(protobuf, PACKET_LENGTH, length + strlen(buffer) + 1);
-        }
-    }
-    
-    free(buffer);
-    */
     if ((ret = rpc_write(self)) != AAOS_OK) {
-        return ret;
+        return -1 * ret;
     }
     protobuf_get(protobuf, PACKET_OPTION, &option);
     if (option & DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
@@ -1707,7 +1676,14 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     }
     
 error:
-    return rpc_read(self);
+    
+    if ((ret = rpc_read(self)) != AAOS_OK) {
+        return -1 * ret;
+    }
+    protobuf_get(protobuf, PACKET_ERRORCODE, &error_code);
+    ret = error_code;
+    
+    return error_code;
 }
 
 int
@@ -2206,6 +2182,7 @@ Detector_execute_expose(struct Detector *self)
     ret = __detector_expose(detector, exposure_time, n_frame, self, string);
     
     protobuf_set(self, PACKET_LENGTH, 0);
+    protobuf_set(self, PACKET_ERRORCODE, ret);
     
     free(string);
 
@@ -2659,7 +2636,6 @@ Detector_execute_get_exposure_time(struct Detector *self)
     int ret = AAOS_OK;
     
     protobuf_get(self, PACKET_INDEX, &index);
-    
     if (index == 0) {
         uint32_t length;
         char *s;
@@ -4328,6 +4304,8 @@ static void *
 Detector_ctor(void *_self, va_list *app)
 {
     struct Detector *self = super_ctor(Detector(), _self, app);
+
+    protobuf_reallocate(self, 65536);
     
     self->_._vtab = detector_virtual_table();
     

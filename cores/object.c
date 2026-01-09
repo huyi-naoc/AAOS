@@ -200,7 +200,6 @@ respondsTo(const void *_self, const char *tag)
             }
             p++;
         } while (--nmeth);
-        
     }
     
     return 0;

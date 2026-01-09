@@ -29,6 +29,9 @@ typedef void (*disposition)(void *, va_list *app);
 
 void threadsafe_circular_queue_push(void *_self, void *data);
 void threadsafe_circular_queue_pop(void *_self, void *data);
+/**
+   
+ */
 int threadsafe_circular_queue_timed_pop(void *_self, void *data, double timeout);
 
 extern const void *ThreadsafeCircularQueue(void);

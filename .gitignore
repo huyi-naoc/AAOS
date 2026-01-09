@@ -7,7 +7,6 @@ compile
 conf/
 confdefs.h
 config.*
-!config.h
 configure*
 !configure.ac
 conftest*
@@ -44,6 +43,7 @@ src/thermal
 src/thermald
 stamp-h1
 test/
+thirdparty/
 togithub.sh
 togitlab.sh
 .vscode/

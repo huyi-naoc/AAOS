@@ -1458,29 +1458,32 @@ read_iers_a(void)
         if ((fp = fopen("finals2000A.all", "r")) != NULL) {
             goto error;
         }
-    }
-    if (access("share/finals2000A.all", R_OK) == 0) {
+    } else if (access("share/finals2000A.all", R_OK) == 0) {
         if ((fp = fopen("share/finals2000A.all", "r")) != NULL) {
             goto error;
         }
-    }
-    if (access("/usr/local/aaos/share/finals2000A.all", R_OK) == 0) {
+    } else if (access("/opt/aaos/share/finals2000A.all", R_OK) == 0) {
+        if ((fp = fopen("/opt/aaos/share/finals2000A.all", "r")) != NULL) {
+            goto error;
+        }
+    } else if (access("/usr/local/aaos/share/finals2000A.all", R_OK) == 0) {
         if ((fp = fopen("/usr/local/aaos/share/finals2000A.all", "r")) != NULL) {
             goto error;
         }
-    }
-    if (access("/usr/local/share/aaos/finals2000A.all", R_OK) == 0) {
+    } else if (access("/usr/local/share/aaos/finals2000A.all", R_OK) == 0) {
         if ((fp = fopen("/usr/local/share/aaos/finals2000A.all", "r")) != NULL) {
             goto error;
         }
-    }
-    if (access("/usr/share/aaos/finals2000A.all", R_OK) == 0) {
+    } else if (access("/usr/share/aaos/finals2000A.all", R_OK) == 0) {
         if ((fp = fopen("/usr/share/aaos/finals2000A.all", "r")) != NULL) {
             goto error;
         }
-    }
-    if (access(getenv("AAOS_IERS_A"), R_OK) == 0) {
-        if ((fp = fopen(getenv("AAOS_IERS_A"), "r")) != NULL) {
+    } else {
+        if (access(getenv("AAOS_IERS_A"), R_OK) == 0) {
+            if ((fp = fopen(getenv("AAOS_IERS_A"), "r")) != NULL) {
+                goto error;
+            }
+        } else {
             goto error;
         }
     }

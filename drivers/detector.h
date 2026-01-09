@@ -57,10 +57,18 @@ void __detector_set_pre_acquisition(void *_self, int (*pre_acquisition)(void *, 
 void __detector_set_post_acquisition(void *_self, int (*post_acquisition)(void *, const char *, ...));
 void __detector_set_name_convention(void *_self, void (*name_convention)(void *, char *, size_t, ...));
 
+int __detector_set_capture_mode(void *_self, uint32_t capture_mode);
+int __detector_get_capture_mode(void *_self, uint32_t *capture_mode);
+int __detector_set_trigger_mode(void *_self, uint32_t trigger_mode);
+int __detector_get_trigger_mode(void *_self, uint32_t *trigger_mode);
+int __detector_set_overscan(void *_self, uint32_t x_overscan, uint32_t y_overscan);
+int __detector_get_overscan(void *_self, uint32_t *x_overscan, uint32_t *y_overscan);
+
 int __detector_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t width, uint32_t height);
 int __detector_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32_t *width, uint32_t *height);
 int __detector_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning);
 int __detector_get_binning(void *_self, uint32_t *x_binning, uint32_t *y_binning);
+
 int __detector_set_frame_rate(void *_self, double frame_rate);
 int __detector_get_frame_rate(void *_self, double *frame_rate);
 int __detector_set_exposure_time(void *_self, double exposure_time);
@@ -94,6 +102,21 @@ extern const void *VirtualDetectorClass(void);
 
 extern const void *USTCCamera(void);
 extern const void *USTCCameraClass(void);
+
+#ifdef __USE_ASI_CAMERA__
+extern const void *ASICamera(void);
+extern const void *ASICameraClass(void);
+#endif
+
+#ifdef __USE_LEADING_CAMERA__
+extern const void *LeadingCamera(void);
+extern const void *LeadingCameraClass(void);
+#endif
+
+#ifdef __USE_QHY_CAMERA__
+extern const void *QHYCamera(void);
+extern const void *QHYCameraClass(void);
+#endif
 
 #ifdef __cplusplus
 }

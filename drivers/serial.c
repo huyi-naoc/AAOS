@@ -2457,7 +2457,7 @@ ws100umb_serial_virtual_table(void)
 /*
  * Power distributing Unit deveoped by Antarctica Astronomy Group.
  */
-static const char *pattern_aag_pdu = "^((BR)|(BD)|(B[H|L][0-9A-F]{8})|(BM[0-2][0-9])|(BM3[0-1])|(BT0[0-9])|(BT1[1-5]))\n$";
+static const char *pattern_aag_pdu = "^((BR)|(BD)|(B[H|L][0-9A-F]{8})|(BM[0-2][0-9])|(BM3[0-1])|(BT0[0-9])|(BT1[0-5]))\n$";
 static regex_t preg_aag_pdu;
 
 static const void *aag_pdu_serial_virtual_table(void);
@@ -4320,26 +4320,33 @@ KLTPSerial_ctor(void *_self, va_list *app)
         }
         if (strcmp(key, "directory") == 0) {
             value = va_arg(*app, const char *);
-            self->directory = (char *) Malloc(strlen(value) + 1);
-            snprintf(self->directory, strlen(value) + 1, "%s", value);
+            if (value != NULL) {
+                self->directory = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->directory, strlen(value) + 1, "%s", value);
+            }
             continue;
         }
         if (strcmp(key, "format") == 0) {
             value = va_arg(*app, const char *);
-            self->fmt = (char *) Malloc(strlen(value) + 1);
-            snprintf(self->fmt, strlen(value) + 1, "%s", value);
+            if (value != NULL) {
+                self->fmt = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->fmt, strlen(value) + 1, "%s", value);
+            }
+            
             continue;
         }
         if (strcmp(key, "model") == 0) {
             value = va_arg(*app, const char *);
-            if (strcmp(value, "KLTP") == 0) {
-                self->model = KLTP_MODEL_KLTP;
-            } else if (strcmp(value, "STP") == 0) {
-                self->model = KLTP_MODEL_STP;
-            } else if (strcmp(value, "LHTP") == 0) {
-                self->model = KLTP_MODEL_LHTP;
-            } else {
-                self->model = KLTP_MODEL_KLTP;
+            if (value != NULL) {
+                if (strcmp(value, "KLTP") == 0) {
+                    self->model = KLTP_MODEL_KLTP;
+                } else if (strcmp(value, "STP") == 0) {
+                    self->model = KLTP_MODEL_STP;
+                } else if (strcmp(value, "LHTP") == 0) {
+                    self->model = KLTP_MODEL_LHTP;
+                } else {
+                    self->model = KLTP_MODEL_KLTP;
+                }
             }
             continue;
         }
@@ -5059,13 +5066,13 @@ KLTPSerial_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
 {
     struct __Serial *self = cast(__Serial(), _self);
     struct KLTPSerial *myself = cast(KLTPSerial(), _self);
+    int ret = AAOS_OK;
+    unsigned char *buf;
     
     if (self->fd < 0) {
         return AAOS_EDEVMAL;
     }
     
-    int ret = AAOS_OK;
-    unsigned char *buf;
     //int expected, desired;
 #ifdef DEBUG
     fprintf(stderr, "%s extucte binary command: ", __func__);
@@ -5226,6 +5233,8 @@ KLTPSerial_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
         Pthread_mutex_unlock(&myself->mtx);
     }
      */
+    
+    ret = AAOS_ETIMEDOUT;
     size_t i;
     for (i = 0; i < KLTP_CMD_QUEUE_SIZE; i++) {
         if ((ret = threadsafe_circular_queue_timed_pop(myself->cmd_queue, buf, self->read_timeout)) == 0) {
@@ -5234,17 +5243,17 @@ KLTPSerial_raw(void *_self, const void *write_buffer, size_t write_buffer_size, 
                 if (read_size != NULL) {
                     *read_size = min(read_buffer_size, myself->output_len);
                 }
-                free(buf);
-                return AAOS_OK;
+                ret = AAOS_OK;
                 break;
             } else {
                 threadsafe_circular_queue_push(myself->cmd_queue, buf);
             }
         }
     }
+    
     free(buf);
 
-    return AAOS_ETIMEDOUT;
+    return ret;
 }
 
 static int

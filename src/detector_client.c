@@ -187,7 +187,7 @@ main(int argc, char *argv[])
                 if (ret == AAOS_OK) {
                     fprintf(stderr, "expose success.\n");
                 } else {
-                    //error_handler(ret);
+                    error_handler(ret);
                 }
                 continue;
             }
@@ -196,7 +196,7 @@ main(int argc, char *argv[])
                 if (ret == AAOS_OK) {
                     fprintf(stderr, "power_off success.\n");
                 } else {
-                    //error_handler(ret);
+                    error_handler(ret);
                 }
                 continue;
             }
@@ -205,7 +205,7 @@ main(int argc, char *argv[])
                 if (ret == AAOS_OK) {
                     fprintf(stderr, "power_on success.\n");
                 } else {
-                    //error_handler(ret);
+                    error_handler(ret);
                 }
                 continue;
             }
@@ -229,28 +229,28 @@ main(int argc, char *argv[])
                     if ((ret = detector_get_binning(detector, &x_binning, &y_binning)) == AAOS_OK) {
                         fprintf(stdout, "%u %u\n", x_binning, y_binning);
                     } else {
-                        
+                        error_handler(ret);
                     }
                 } else if (strcmp(field, "exptime") == 0) {
                     double exposure_time;
                     if ((ret = detector_get_exposure_time(detector, &exposure_time)) == AAOS_OK) {
                         fprintf(stdout, "%.3f\n", exposure_time);
                     } else {
-                        
+                        error_handler(ret);
                     }
                 } else if (strcmp(field, "framerate") == 0) {
                     double frame_rate;
                     if ((ret = detector_get_frame_rate(detector, &frame_rate)) == AAOS_OK) {
                         fprintf(stdout, "%.3f\n", frame_rate);
                     } else {
-                        
+                        error_handler(ret);
                     }
                 } else if (strcmp(field, "gain") == 0) {
                     double gain;
                     if ((ret = detector_get_gain(detector, &gain)) == AAOS_OK) {
                         fprintf(stdout, "%.3f\n", gain);
                     } else {
-                        
+                        error_handler(ret);
                     }
                 } else if (strcmp(field, "readout_rate") == 0) {
                     double readout_rate;
@@ -258,7 +258,7 @@ main(int argc, char *argv[])
                     if ((ret = detector_get_readout_rate(detector, &readout_rate)) == AAOS_OK) {
                         fprintf(stdout, "%.3f\n", readout_rate);
                     } else {
-                        
+                        error_handler(ret);
                     }
                     goto label_get2;
                 }
@@ -268,7 +268,7 @@ main(int argc, char *argv[])
                     if ((ret = detector_get_region(detector, &x, &y, &width, &height)) == AAOS_OK) {
                         fprintf(stdout, "%u %u %u %u\n", x, y, width, height);
                     } else {
-                        
+                        error_handler(ret);
                     }
                     goto label_get2;
                 }
@@ -323,6 +323,8 @@ main(int argc, char *argv[])
             label_set2:
                 if (ret == AAOS_OK) {
                     fprintf(stderr, "set %s success.\n", field);
+                } else {
+                    error_handler(ret);
                 }
                 continue;
             }
@@ -402,7 +404,7 @@ main(int argc, char *argv[])
             if (ret == AAOS_OK) {
                 fprintf(stderr, "power_off success.\n");
             } else {
-                //error_handler(ret);
+                error_handler(ret);
             }
             argc--;
             argv++;
@@ -426,6 +428,7 @@ main(int argc, char *argv[])
             }
             argc -= 2;
             argv += 2;
+	    continue;
         }
         if (strcmp(argv[0], "enable") == 0) {
             if (argc < 2) {
@@ -444,6 +447,7 @@ main(int argc, char *argv[])
             }
             argc -= 2;
             argv += 2;
+	    continue;
         }
         if (strcmp(argv[0], "expose") == 0) {
             if (argc < 3) {
@@ -465,7 +469,7 @@ main(int argc, char *argv[])
             if (ret == AAOS_OK) {
                 fprintf(stderr, "expose success.\n");
             } else {
-                //error_handler(ret);
+                error_handler(ret);
             }
             argc -= 3;
             argv += 3;
@@ -563,7 +567,7 @@ main(int argc, char *argv[])
             if (ret == AAOS_OK) {
                 printf("%s\n", buf);
             } else {
-                //error_handler(ret);
+                error_handler(ret);
             }
             argc-- ;
             argv++;
@@ -597,7 +601,7 @@ main(int argc, char *argv[])
             if (ret == AAOS_OK) {
                 printf("%s\n", buf);
             } else {
-                //error_handler(ret);
+                error_handler(ret);
             }
             argc-- ;
             argv++;

@@ -216,76 +216,76 @@ Dome_init(void *_self)
 }
 
 int
-dome_open(void *_self)
+dome_open_window(void *_self)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->open.method) {
-        return ((int (*)(void *)) class->open.method)(_self);
+    if (isOf(class, DomeClass()) && class->open_window.method) {
+        return ((int (*)(void *)) class->open_window.method)(_self);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_open, "open", _self);
+        forward(_self, &result, (Method) dome_open_window, "open_window", _self);
         return result;
     }
 }
 
 static int
-Dome_open(void *_self)
+Dome_open_window(void *_self)
 {
     struct Dome *self = cast(Dome(), _self);
 	
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_OPEN);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_OPEN_WINDOW);
     
     return rpc_call(self);
 }
 
 int
-dome_close(void *_self)
+dome_close_window(void *_self)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->close.method) {
-        return ((int (*)(void *)) class->close.method)(_self);
+    if (isOf(class, DomeClass()) && class->close_window.method) {
+        return ((int (*)(void *)) class->close_window.method)(_self);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_close, "close", _self);
+        forward(_self, &result, (Method) dome_close_window, "close_window", _self);
         return result;
     }
 }
 
 static int
-Dome_close(void *_self)
+Dome_close_window(void *_self)
 {
     struct Dome *self = cast(Dome(), _self);
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_CLOSE);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_CLOSE_WINDOW);
     
     return rpc_call(self);
 }
 
 int
-dome_stop(void *_self)
+dome_stop_window(void *_self)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->stop.method) {
-        return ((int (*)(void *)) class->stop.method)(_self);
+    if (isOf(class, DomeClass()) && class->stop_window.method) {
+        return ((int (*)(void *)) class->stop_window.method)(_self);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_stop, "stop", _self);
+        forward(_self, &result, (Method) dome_stop_window, "stop_window", _self);
         return result;
     }
 }
 
 static int
-Dome_stop(void *_self)
+Dome_stop_window(void *_self)
 {
     struct Dome *self = cast(Dome(), _self);
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_STOP);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_STOP_WINDOW);
     
     return rpc_call(self);
 }
@@ -381,28 +381,28 @@ Dome_status(void *_self, void *status_buffer, size_t status_size, size_t *status
 }
 
 int
-dome_get_position(void *_self, double *position)
+dome_get_window_position(void *_self, double *position)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->get_position.method) {
-        return ((int (*)(void *, double *)) class->get_position.method)(_self, position);
+    if (isOf(class, DomeClass()) && class->get_window_position.method) {
+        return ((int (*)(void *, double *)) class->get_window_position.method)(_self, position);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_get_position, "get_position", _self, position);
+        forward(_self, &result, (Method) dome_get_window_position, "get_window_position", _self, position);
         return result;
     }
 }
 
 static int
-Dome_get_position(void *_self, double *position)
+Dome_get_window_position(void *_self, double *position)
 {
     struct Dome *self = cast(Dome(), _self);
     
 	int ret;
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_GET_POSITION);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_GET_WINDOW_POSITION);
     
     if ((ret = rpc_call(self)) == AAOS_OK) {
 		protobuf_get(self, PACKET_DF0, position);
@@ -412,28 +412,28 @@ Dome_get_position(void *_self, double *position)
 }
 
 int
-dome_get_open_speed(void *_self, double *speed)
+dome_get_window_open_speed(void *_self, double *speed)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->get_open_speed.method) {
-        return ((int (*)(void *, double *)) class->get_open_speed.method)(_self, speed);
+    if (isOf(class, DomeClass()) && class->get_window_open_speed.method) {
+        return ((int (*)(void *, double *)) class->get_window_open_speed.method)(_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_get_open_speed, "get_open_speed", _self, speed);
+        forward(_self, &result, (Method) dome_get_window_open_speed, "get_window_open_speed", _self, speed);
         return result;
     }
 }
 
 static int
-Dome_get_open_speed(void *_self, double *speed)
+Dome_get_window_open_speed(void *_self, double *speed)
 {
     struct Dome *self = cast(Dome(), _self);
     
 	int ret;
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_GET_OPEN_SPEED);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_GET_WINDOW_OPEN_SPEED);
 						
     if ((ret = rpc_call(self)) == AAOS_OK) {
 		protobuf_get(self, PACKET_DF0, speed);
@@ -443,54 +443,54 @@ Dome_get_open_speed(void *_self, double *speed)
 }
 
 int
-dome_set_open_speed(void *_self, double speed)
+dome_set_window_open_speed(void *_self, double speed)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->set_open_speed.method) {
-        return ((int (*)(void *, double)) class->set_open_speed.method)(_self, speed);
+    if (isOf(class, DomeClass()) && class->set_window_open_speed.method) {
+        return ((int (*)(void *, double)) class->set_window_open_speed.method)(_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_set_open_speed, "set_open_speed", _self, speed);
+        forward(_self, &result, (Method) dome_set_window_open_speed, "set_window_open_speed", _self, speed);
         return result;
     }
 }
 
 static int
-Dome_set_open_speed(void *_self, double speed)
+Dome_set_window_open_speed(void *_self, double speed)
 {
     struct Dome *self = cast(Dome(), _self);
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_SET_OPEN_SPEED);
-	protobuf_set(self, PACKET_DF0, speed);					
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_SET_WINDOW_OPEN_SPEED);
+	protobuf_set(self, PACKET_DF0, speed);
     
 	return rpc_call(self);
 }
 
 int
-dome_get_close_speed(void *_self, double *speed)
+dome_get_window_close_speed(void *_self, double *speed)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->get_close_speed.method) {
-        return ((int (*)(void *, double *)) class->get_close_speed.method)(_self, speed);
+    if (isOf(class, DomeClass()) && class->get_window_close_speed.method) {
+        return ((int (*)(void *, double *)) class->get_window_close_speed.method)(_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_get_open_speed, "get_close_speed", _self, speed);
+        forward(_self, &result, (Method) dome_get_window_close_speed, "get_window_close_speed", _self, speed);
         return result;
     }
 }
 
 static int
-Dome_get_close_speed(void *_self, double *speed)
+Dome_get_window_close_speed(void *_self, double *speed)
 {
     struct Dome *self = cast(Dome(), _self);
     
 	int ret;
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_GET_CLOSE_SPEED);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_GET_WINDOW_CLOSE_SPEED);
 						
     if ((ret = rpc_call(self)) == AAOS_OK) {
 		protobuf_get(self, PACKET_DF0, speed);
@@ -500,27 +500,27 @@ Dome_get_close_speed(void *_self, double *speed)
 }
 
 int
-dome_set_close_speed(void *_self, double speed)
+dome_set_window_close_speed(void *_self, double speed)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
-    if (isOf(class, DomeClass()) && class->set_close_speed.method) {
-        return ((int (*)(void *, double)) class->set_close_speed.method)(_self, speed);
+    if (isOf(class, DomeClass()) && class->set_window_close_speed.method) {
+        return ((int (*)(void *, double)) class->set_window_close_speed.method)(_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) dome_set_close_speed, "set_close_speed", _self, speed);
+        forward(_self, &result, (Method) dome_set_window_close_speed, "set_window_close_speed", _self, speed);
         return result;
     }
 }
 
 static int
-Dome_set_close_speed(void *_self, double speed)
+Dome_set_window_close_speed(void *_self, double speed)
 {
     struct Dome *self = cast(Dome(), _self);
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
-    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_SET_CLOSE_SPEED);
-	protobuf_set(self, PACKET_DF0, speed);					
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_SET_WINDOW_CLOSE_SPEED);
+	protobuf_set(self, PACKET_DF0, speed);
     
 	return rpc_call(self);
 }
@@ -620,7 +620,7 @@ Dome_execute_init(struct Dome *self)
 }
 
 static int
-Dome_execute_open(struct Dome *self)
+Dome_execute_open_window(struct Dome *self)
 {
     uint16_t index;
     void *dome;
@@ -633,11 +633,11 @@ Dome_execute_open(struct Dome *self)
         
     protobuf_set(self, PACKET_LENGTH, 0);
 
-    return __dome_open(dome);
+    return __dome_open_window(dome);
 }
 
 static int
-Dome_execute_close(struct Dome *self)
+Dome_execute_close_window(struct Dome *self)
 {
     uint16_t index;
     void *dome;
@@ -650,11 +650,11 @@ Dome_execute_close(struct Dome *self)
         
     protobuf_set(self, PACKET_LENGTH, 0);
 
-    return __dome_close(dome);
+    return __dome_close_window(dome);
 }
 
 static int
-Dome_execute_stop(struct Dome *self)
+Dome_execute_stop_window(struct Dome *self)
 {
     uint16_t index;
     void *dome;
@@ -667,7 +667,7 @@ Dome_execute_stop(struct Dome *self)
         
     protobuf_set(self, PACKET_LENGTH, 0);
 
-    return __dome_stop(dome);
+    return __dome_stop_window(dome);
 }
 
 static int
@@ -822,7 +822,7 @@ Dome_execute_raw(struct Dome *self)
 }
 
 static int
-Dome_execute_get_position(struct Dome *self)
+Dome_execute_get_window_position(struct Dome *self)
 {
     int  ret;
     void *dome;
@@ -837,7 +837,7 @@ Dome_execute_get_position(struct Dome *self)
 
     protobuf_set(self, PACKET_LENGTH, 0);
 	
-	if ((ret = __dome_get_position(dome, &position)) == AAOS_OK) {
+	if ((ret = __dome_get_window_position(dome, &position)) == AAOS_OK) {
 		protobuf_set(self, PACKET_DF0, position);
 	}
 
@@ -845,7 +845,7 @@ Dome_execute_get_position(struct Dome *self)
 }
 
 static int
-Dome_execute_get_open_speed(struct Dome *self)
+Dome_execute_get_window_open_speed(struct Dome *self)
 {
     int ret;
     void *dome;
@@ -860,7 +860,7 @@ Dome_execute_get_open_speed(struct Dome *self)
 
     protobuf_set(self, PACKET_LENGTH, 0);
 	
-    if ((ret = __dome_get_open_speed(dome, &speed)) == AAOS_OK) {
+    if ((ret = __dome_get_window_open_speed(dome, &speed)) == AAOS_OK) {
         protobuf_set(self, PACKET_DF0, speed);
     }
 
@@ -868,7 +868,7 @@ Dome_execute_get_open_speed(struct Dome *self)
 }
 
 static int
-Dome_execute_set_open_speed(struct Dome *self)
+Dome_execute_set_window_open_speed(struct Dome *self)
 {
     int ret;
     void *dome;
@@ -884,11 +884,11 @@ Dome_execute_set_open_speed(struct Dome *self)
     protobuf_get(self, PACKET_DF0, &speed);
     protobuf_set(self, PACKET_LENGTH, 0);
 	
-    return __dome_set_open_speed(dome, speed);
+    return __dome_set_window_open_speed(dome, speed);
 }
 
 static int
-Dome_execute_get_close_speed(struct Dome *self)
+Dome_execute_get_window_close_speed(struct Dome *self)
 {
     int  ret;
     void *dome;
@@ -903,7 +903,7 @@ Dome_execute_get_close_speed(struct Dome *self)
 
     protobuf_set(self, PACKET_LENGTH, 0);
 	
-    if ((ret = __dome_get_close_speed(dome, &speed)) == AAOS_OK) {
+    if ((ret = __dome_get_window_close_speed(dome, &speed)) == AAOS_OK) {
         protobuf_set(self, PACKET_DF0, speed);
     }
 
@@ -911,7 +911,7 @@ Dome_execute_get_close_speed(struct Dome *self)
 }
 
 static int
-Dome_execute_set_close_speed(struct Dome *self)
+Dome_execute_set_window_close_speed(struct Dome *self)
 {
     int ret;
     void *dome;
@@ -927,7 +927,7 @@ Dome_execute_set_close_speed(struct Dome *self)
     protobuf_get(self, PACKET_DF0, &speed);
     protobuf_set(self, PACKET_LENGTH, 0);
 	
-    return __dome_set_close_speed(dome, speed);
+    return __dome_set_window_close_speed(dome, speed);
 }
 
 static int
@@ -989,14 +989,14 @@ Dome_execute(void *_self)
         case DOME_COMMAND_INIT:
             ret = Dome_execute_init(self);
             break;
-        case DOME_COMMAND_OPEN:
-            ret = Dome_execute_open(self);
+        case DOME_COMMAND_OPEN_WINDOW:
+            ret = Dome_execute_open_window(self);
             break;
-        case DOME_COMMAND_CLOSE:
-            ret = Dome_execute_close(self);
+        case DOME_COMMAND_CLOSE_WINDOW:
+            ret = Dome_execute_close_window(self);
             break;
-        case DOME_COMMAND_STOP:
-            ret = Dome_execute_stop(self);
+        case DOME_COMMAND_STOP_WINDOW:
+            ret = Dome_execute_stop_window(self);
             break;
         case DOME_COMMAND_INSPECT:
             ret = Dome_execute_inspect(self);
@@ -1004,20 +1004,20 @@ Dome_execute(void *_self)
         case DOME_COMMAND_REGISTER:
             ret = Dome_execute_register(self);
             break;
-        case DOME_COMMAND_GET_POSITION:
-            ret = Dome_execute_get_position(self);
+        case DOME_COMMAND_GET_WINDOW_POSITION:
+            ret = Dome_execute_get_window_position(self);
             break;
-        case DOME_COMMAND_GET_OPEN_SPEED:
-            ret = Dome_execute_get_open_speed(self);
+        case DOME_COMMAND_GET_WINDOW_OPEN_SPEED:
+            ret = Dome_execute_get_window_open_speed(self);
             break;
-        case DOME_COMMAND_SET_OPEN_SPEED:
-            ret = Dome_execute_set_open_speed(self);
+        case DOME_COMMAND_SET_WINDOW_OPEN_SPEED:
+            ret = Dome_execute_set_window_open_speed(self);
             break;
-        case DOME_COMMAND_GET_CLOSE_SPEED:
-            ret = Dome_execute_get_close_speed(self);
+        case DOME_COMMAND_GET_WINDOW_CLOSE_SPEED:
+            ret = Dome_execute_get_window_close_speed(self);
             break;
-        case DOME_COMMAND_SET_CLOSE_SPEED:
-            ret = Dome_execute_set_close_speed(self);
+        case DOME_COMMAND_SET_WINDOW_CLOSE_SPEED:
+            ret = Dome_execute_set_window_close_speed(self);
             break;
         case DOME_COMMAND_RAW:
             ret = Dome_execute_raw(self);
@@ -1101,68 +1101,68 @@ DomeClass_ctor(void *_self, va_list *app)
             self->raw.method = method;
             continue;
         }
-        if (selector == (Method) dome_open) {
+        if (selector == (Method) dome_open_window) {
             if (tag) {
-                self->open.tag = tag;
-                self->open.selector = selector;
+                self->open_window.tag = tag;
+                self->open_window.selector = selector;
             }
-            self->open.method = method;
+            self->open_window.method = method;
             continue;
         }
-        if (selector == (Method) dome_close) {
+        if (selector == (Method) dome_close_window) {
             if (tag) {
-                self->close.tag = tag;
-                self->close.selector = selector;
+                self->close_window.tag = tag;
+                self->close_window.selector = selector;
             }
-            self->close.method = method;
+            self->close_window.method = method;
             continue;
         }
-        if (selector == (Method) dome_stop) {
+        if (selector == (Method) dome_stop_window) {
             if (tag) {
-                self->stop.tag = tag;
-                self->stop.selector = selector;
+                self->stop_window.tag = tag;
+                self->stop_window.selector = selector;
             }
-            self->stop.method = method;
+            self->stop_window.method = method;
             continue;
         }
-        if (selector == (Method) dome_get_position) {
+        if (selector == (Method) dome_get_window_position) {
             if (tag) {
-                self->get_position.tag = tag;
-                self->get_position.selector = selector;
+                self->get_window_position.tag = tag;
+                self->get_window_position.selector = selector;
             }
-            self->get_position.method = method;
+            self->get_window_position.method = method;
             continue;
         }
-        if (selector == (Method) dome_get_open_speed) {
+        if (selector == (Method) dome_get_window_open_speed) {
             if (tag) {
-                self->get_open_speed.tag = tag;
-                self->get_open_speed.selector = selector;
+                self->get_window_open_speed.tag = tag;
+                self->get_window_open_speed.selector = selector;
             }
-            self->get_open_speed.method = method;
+            self->get_window_open_speed.method = method;
             continue;
         }
-        if (selector == (Method) dome_set_open_speed) {
+        if (selector == (Method) dome_set_window_open_speed) {
             if (tag) {
-                self->set_open_speed.tag = tag;
-                self->set_open_speed.selector = selector;
+                self->set_window_open_speed.tag = tag;
+                self->set_window_open_speed.selector = selector;
             }
-            self->set_open_speed.method = method;
+            self->set_window_open_speed.method = method;
             continue;
         }
-        if (selector == (Method) dome_get_close_speed) {
+        if (selector == (Method) dome_get_window_close_speed) {
             if (tag) {
-                self->get_close_speed.tag = tag;
-                self->get_close_speed.selector = selector;
+                self->get_window_close_speed.tag = tag;
+                self->get_window_close_speed.selector = selector;
             }
-            self->get_close_speed.method = method;
+            self->get_window_close_speed.method = method;
             continue;
         }
-        if (selector == (Method) dome_set_close_speed) {
+        if (selector == (Method) dome_set_window_close_speed) {
             if (tag) {
-                self->set_close_speed.tag = tag;
-                self->set_close_speed.selector = selector;
+                self->set_window_close_speed.tag = tag;
+                self->set_window_close_speed.selector = selector;
             }
-            self->set_close_speed.method = method;
+            self->set_window_close_speed.method = method;
             continue;
         }
         if (selector == (Method) dome_inspect) {
@@ -1239,16 +1239,16 @@ Dome_initialize(void)
                 dome_get_index_by_name, "get_index_by_name", Dome_get_index_by_name,
                 dome_get_name_by_index, "get_name_by_index", Dome_get_name_by_index,
                 dome_init, "init", Dome_init,
-                dome_open, "open", Dome_open,
-                dome_close, "close", Dome_close,
-                dome_stop, "stop", Dome_stop,
+                dome_open_window, "open_window", Dome_open_window,
+                dome_close_window, "close", Dome_close_window,
+                dome_stop_window, "stop", Dome_stop_window,
                 dome_inspect, "inspect", Dome_inspect,
                 dome_register, "register", Dome_register,
-                dome_get_position, "get_position", Dome_get_position,
-                dome_get_open_speed, "get_open_speed", Dome_get_open_speed,
-                dome_set_open_speed, "set_open_speed", Dome_set_open_speed,
-                dome_get_close_speed, "get_close_speed", Dome_get_close_speed,
-                dome_set_close_speed, "set_close_speed", Dome_set_close_speed,
+                dome_get_window_position, "get_window_position", Dome_get_window_position,
+                dome_get_window_open_speed, "get_window_open_speed", Dome_get_window_open_speed,
+                dome_set_window_open_speed, "set_window_open_speed", Dome_set_window_open_speed,
+                dome_get_window_close_speed, "get_window_close_speed", Dome_get_window_close_speed,
+                dome_set_window_close_speed, "set_window_close_speed", Dome_set_window_close_speed,
                 dome_status, "status", Dome_status,
                 (void *) 0);
     

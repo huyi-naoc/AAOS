@@ -361,18 +361,52 @@ read_configuration(void)
                     config_setting_lookup_int(ustc_camera_setting, "which", &which);
                 }
                 detectors[i] = new(USTCCamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path, level, which);
-		__detector_set_template(detectors[i], template);
+                __detector_set_template(detectors[i], template);
             }
 #ifdef __USE_ARAVIS__
             else if (strcmp(type, "GenICam") == 0) {
                 config_setting_t *genicam_setting = NULL;
                 const char *genicam_name = NULL;
                 if ((genicam_setting = config_setting_lookup(detetcor_setting, "genicam")) != NULL) {
-                    config_setting_lookup_string(ustc_camera_setting, "name", &genicam_name);
+                    config_setting_lookup_string(genicam_setting, "name", &genicam_name);
                     detectors[i] = new(GenICam(), name, "description", description, "directory", directory, "prefix", prefix, '\0', genicam_name);
-		__detector_set_template(detectors[i], template);
+		    __detector_set_template(detectors[i], template);
                 }
             }
+#endif
+#ifdef __USE_ASI_CAMERA__
+	    else if (strcmp(type, "ASI") == 0) {
+		config_setting_t *asi_camera_setting = NULL;
+		const char *so_path;
+            
+		double temperature = 50.;
+            
+		if ((asi_camera_setting = config_setting_lookup(detetcor_setting, "asi_camera")) != NULL) {
+		    config_setting_lookup_string(asi_camera_setting, "so_path", &so_path);
+		    config_setting_lookup_float(asi_camera_setting, "settemp", &temperature);
+		    detectors[i] = new(ASICamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path);
+		    if (detectors[i] != NULL) {
+			__detector_set_template(detectors[i], template);
+			__detector_set(detectors[i], "temperature", temperature);
+		    }
+		}
+	    }
+#endif
+#ifdef __USE_LEADING_CAMERA__
+        else if (strcmp(type, "LEADING") == 0) {
+            config_setting_t *leading_camera_setting = NULL;
+            const char *so_path;
+            //double temperature = 50.;
+            if ((leading_camera_setting = config_setting_lookup(detetcor_setting, "leading_camera")) != NULL) {
+                config_setting_lookup_string(leading_camera_setting, "so_path", &so_path);
+                //config_setting_lookup_float(asi_camera_setting, "settemp", -20.);
+                detectors[i] = new(LeadingCamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path);
+                if (detectors[i] != NULL) {
+                    __detector_set_template(detectors[i], template);
+                    //__detector_set(detector[i], "temperature", temperature);
+                }
+            }
+        }
 #endif
             else {
                 
@@ -462,7 +496,7 @@ main(int argc, char *argv[])
             config_path = "/usr/local/aaos/etc/detectord.cfg";
         } else if ((ret = Access("/etc/aaos/detectord.cfg", F_OK)) == 0) {
             config_path = "/etc/aaos/detectord.cfg";
-        } else if ((ret = Access("/etc/seriald.cfg", F_OK)) == 0) {
+        } else if ((ret = Access("/etc/detectord.cfg", F_OK)) == 0) {
             config_path = "/etc/detectord.cfg";
         } else {
             fprintf(stderr, "configuration file does not exist.\n");

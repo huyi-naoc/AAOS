@@ -43,6 +43,21 @@ under Ubuntu 22.04,
                     -I/usr/include/glib-2.0\ 
                     -I/usr/lib/x86_64-linux-gnu/glib-2.0/include"
 ```
+# Supported hardware
+
+## Telescope
+
+* Astro-Physics 1600 GTO
+* Sun Yat-Sen University 80 cm infrared telescope (manufactured by Changcun Institute of Optics, Fine Mechanics and Physics, CAS)
+* Virtual telescope conform to AAOS standard 
+
+## Detector
+
+* GiGE compatible cameras (linked with ARAVIS library)
+* QHY Cameras (not tested)
+* ZWO ASI series
+* Virtual detector conform to AAOS standard
+
 # License
 
 Copyright (C) 2015-2022 Free Software Foundation, Inc.

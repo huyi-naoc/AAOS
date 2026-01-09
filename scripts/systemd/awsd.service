@@ -1,0 +1,15 @@
+[Unit]
+Description=RS232/422/485 serial device daemon of AAOS
+
+[Service]
+Type=forking
+ExecStart=/opt/aaos/sbin/awsd -c /opt/aaos/etc/awsd.cfg start
+ExecStop=/opt/aaos/sbin/awsd -c /opt/aaos/etc/awsd.cfg stop
+RemainAfterExit=no
+Requires=seriald.service
+After=seriald.service
+User=aaos
+Group=aaos
+
+[Install]
+WantedBy=multi-user.target

@@ -25,50 +25,62 @@ struct __Dome {
     char *name;
     char *description;
     struct DomeState d_state;
-	double open_speed;
-	double close_speed;
-	double position; /* in percent unit*/
+    double window_open_speed;
+    double window_close_speed;
+    double window_position;
+    double slew_speed;
+    double track_speed;
+	bool slew_available;
+    
 };
 
 struct __DomeClass {
     struct Class _;
     struct Method init;
-    struct Method open;
-    struct Method stop;
-    struct Method close;
+    struct Method open_window;
+    struct Method stop_window;
+    struct Method close_window;
     struct Method status;
     struct Method raw;
     struct Method inspect;
     struct Method reg;
-	struct Method get_position;
-	struct Method get_open_speed;
-	struct Method set_open_speed;
-	struct Method get_close_speed;
-	struct Method set_close_speed;
+	struct Method get_window_position;
+	struct Method get_window_open_speed;
+	struct Method set_window_open_speed;
+	struct Method get_window_close_speed;
+	struct Method set_window_close_speed;
+    struct Method go_home;
+	struct Method slew;
+	struct Method park;
+	struct Method park_off;
     struct Method get_name;
 };
 
 struct __DomeVirtualTable {
     struct VirtualTable _;
     struct Method init;
-    struct Method open;
-    struct Method stop;
-    struct Method close;
+    struct Method open_window;
+    struct Method stop_window;
+    struct Method close_window;
     struct Method status;
     struct Method raw;
     struct Method inspect;
     struct Method reg;
-	struct Method get_position;
-	struct Method get_open_speed;
-	struct Method set_open_speed;
-	struct Method get_close_speed;
-	struct Method set_close_speed;
+	struct Method get_window_position;
+	struct Method get_window_open_speed;
+	struct Method set_window_open_speed;
+	struct Method get_window_close_speed;
+	struct Method set_window_close_speed;
+    struct Method go_home;
+    struct Method slew;
+	struct Method park;
+	struct Method park_off;
 };
 
 struct VirtualDome {
 	struct __Dome _;
-	double last_open_time;
-	double last_close_time;
+	double last_window_open_time;
+	double last_window_close_time;
 	pthread_t tid;
 };
 

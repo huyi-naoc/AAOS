@@ -96,19 +96,19 @@ read_configuration(void)
         for (i = 0; i < n_dome; i++) {
             dome_setting = config_setting_get_elem(setting, (unsigned int) i);
             const char *name = NULL, *description = NULL, *type = NULL;
-            double open_speed = 1./60., close_speed = 1./60.;
+            double window_open_speed = 1./60., window_close_speed = 1./60.;
             
             config_setting_lookup_string(dome_setting, "name", &name);
             config_setting_lookup_string(dome_setting, "type", &type);
             config_setting_lookup_string(dome_setting, "description", &description);
-            config_setting_lookup_float(dome_setting, "open_speed", &open_speed);
-            config_setting_lookup_float(dome_setting, "close_speed", &close_speed);
+            config_setting_lookup_float(dome_setting, "window_open_speed", &window_open_speed);
+            config_setting_lookup_float(dome_setting, "close_speed", &window_close_speed);
             if (type == NULL) {
                 domes[i] = NULL;
                 continue;
             }
             if (strcmp(type, "VIRTUAL") == 0) {
-                domes[i] = new(VirtualDome(), name, "description", description, "open_speed", open_speed, "close_speed", close_speed, '\0');
+                domes[i] = new(VirtualDome(), name, "description", description, "window_open_speed", window_open_speed, "window_close_speed", window_close_speed, '\0');
             } else {
                 
             }

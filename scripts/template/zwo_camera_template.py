@@ -14,17 +14,25 @@ def create_template_fits_file(pathname):
     phdu.header['MODE'] = ('IMAGING', 'observation type - imaging or spectroscopic')
     phdu.header['TASK_ID'] = (-1, 'task ID of this observation')
 
-    phdu.header['TELESCOP'] = ('XIANDAO-SDU', 'telescope used to acquire data')
+    phdu.header['TELESCOP'] = ('SITIAN-PROTOTYPE', 'telescope used to acquire data')
     phdu.header['TEL_ID'] = (-1, 'telescope\'s ID')
     phdu.header['RA'] = (1.0000000E+01, 'right ascension of pointing (deg) (J2000)')
     phdu.header['DEC'] = (1.0000000E+01, 'declination of the pointing (deg) (J2000)')
     
-    phdu.header['INSTRUME'] = ('sCMOS', 'identifier for instrument used to acquire data')
+    phdu.header['INSTRUME'] = ('ZWO CMOS', 'identifier for instrument used to acquire data')
     phdu.header['FILTER'] = ('g', 'filter in use')
 
-    phdu.header['DETNAME'] = ('sCMOS', 'detector in use')
+    phdu.header['DETNAME'] = ('ZWO CMOS', 'detector in use')
+    phdu.header['DETSIZE'] = ('6000x4000', 'detector format')
+    phdu.header['COOLTEMP'] = (0.0, 'setting cooling temperature (Celsius degree)')
     phdu.header['NCHIP'] = (1, 'number of mosaic chips')
+    phdu.header['X_OFFSET'] = (0, 'X offset')
+    phdu.header['Y_OFFSET'] = (0, 'Y offset')
+    phdu.header['X_BIN'] = (1, 'X binning')
+    phdu.header['Y_BIN'] = (1, 'Y binning')
     phdu.header['GAIN'] = (5.00, 'requested gain (electrons/ADU)')
+    phdu.header['COOLING'] = (False, "whether cooling enabled")
+    phdu.header['SDKVER'] = ('V1.1', 'SKD version link against')
     
     phdu.header['TARGNAME'] = ('NGC2345', 'proposer\'s target name')
     phdu.header['TEL_ID'] = (-1, 'target\'s ID')
@@ -77,7 +85,7 @@ def create_template_fits_file(pathname):
     phdu.header.add_blank('', after='FILTER')
     phdu.header.add_blank('', before='DETNAME')
     
-    phdu.header.add_blank('', after='GAIN')
+    phdu.header.add_blank('', after='SDKVER')
     phdu.header.add_blank('', before='TARGNAME')
 
     phdu.header.add_blank('', after='SOURCE')

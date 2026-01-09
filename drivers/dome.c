@@ -36,29 +36,29 @@ __DomeVirtualTable_ctor(void *_self, va_list *app)
             self->init.method = method;
             continue;
         }
-        if (selector == (Method) __dome_open) {
+        if (selector == (Method) __dome_open_window) {
             if (tag) {
-                self->open.tag = tag;
-                self->open.selector = selector;
+                self->open_window.tag = tag;
+                self->open_window.selector = selector;
             }
-            self->open.method = method;
+            self->open_window.method = method;
             continue;
         }
-        if (selector == (Method) __dome_close) {
+        if (selector == (Method) __dome_close_window) {
             if (tag) {
-                self->close.tag = tag;
-                self->close.selector = selector;
+                self->close_window.tag = tag;
+                self->close_window.selector = selector;
             }
-            self->close.method = method;
+            self->close_window.method = method;
             continue;
         }
         
-        if (selector == (Method) __dome_stop) {
+        if (selector == (Method) __dome_stop_window) {
             if (tag) {
-                self->stop.tag = tag;
-                self->stop.selector = selector;
+                self->stop_window.tag = tag;
+                self->stop_window.selector = selector;
             }
-            self->stop.method = method;
+            self->stop_window.method = method;
             continue;
         }
         if (selector == (Method) __dome_status) {
@@ -93,44 +93,44 @@ __DomeVirtualTable_ctor(void *_self, va_list *app)
             self->raw.method = method;
             continue;
         }
-        if (selector == (Method) __dome_get_position) {
+        if (selector == (Method) __dome_get_window_position) {
             if (tag) {
-                self->get_position.tag = tag;
-                self->get_position.selector = selector;
+                self->get_window_position.tag = tag;
+                self->get_window_position.selector = selector;
             }
-            self->get_position.method = method;
+            self->get_window_position.method = method;
             continue;
         }
-        if (selector == (Method) __dome_get_open_speed) {
+        if (selector == (Method) __dome_get_window_open_speed) {
             if (tag) {
-                self->get_open_speed.tag = tag;
-                self->get_open_speed.selector = selector;
+                self->get_window_open_speed.tag = tag;
+                self->get_window_open_speed.selector = selector;
             }
-            self->get_open_speed.method = method;
+            self->get_window_open_speed.method = method;
             continue;
         }
-        if (selector == (Method) __dome_set_open_speed) {
+        if (selector == (Method) __dome_set_window_open_speed) {
             if (tag) {
-                self->set_open_speed.tag = tag;
-                self->set_open_speed.selector = selector;
+                self->set_window_open_speed.tag = tag;
+                self->set_window_open_speed.selector = selector;
             }
-            self->set_open_speed.method = method;
+            self->set_window_open_speed.method = method;
             continue;
         }
-        if (selector == (Method) __dome_get_close_speed) {
+        if (selector == (Method) __dome_get_window_close_speed) {
             if (tag) {
-                self->get_close_speed.tag = tag;
-                self->get_close_speed.selector = selector;
+                self->get_window_close_speed.tag = tag;
+                self->get_window_close_speed.selector = selector;
             }
-            self->get_close_speed.method = method;
+            self->get_window_close_speed.method = method;
             continue;
         }
-        if (selector == (Method) __dome_set_close_speed) {
+        if (selector == (Method) __dome_set_window_close_speed) {
             if (tag) {
-                self->set_close_speed.tag = tag;
-                self->set_close_speed.selector = selector;
+                self->set_window_close_speed.tag = tag;
+                self->set_window_close_speed.selector = selector;
             }
-            self->set_close_speed.method = method;
+            self->set_window_close_speed.method = method;
             continue;
         }
     }
@@ -257,43 +257,43 @@ __dome_init(void *_self)
 }
 
 int
-__dome_open(void *_self)
+__dome_open_window(void *_self)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->open.method) {
-        return ((int (*)(void *)) class->open.method) (_self);
+    if (isOf(class, __DomeClass()) && class->open_window.method) {
+        return ((int (*)(void *)) class->open_window.method) (_self);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_open, "open", _self);
+        forward(_self, &result, (Method) __dome_open_window, "open_window", _self);
         return result;
     }
 }
 
 int
-__dome_close(void *_self)
+__dome_close_window(void *_self)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->close.method) {
-        return ((int (*)(void *)) class->close.method) (_self);
+    if (isOf(class, __DomeClass()) && class->close_window.method) {
+        return ((int (*)(void *)) class->close_window.method) (_self);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_close, "close", _self);
+        forward(_self, &result, (Method) __dome_close_window, "close_window", _self);
         return result;
     }
 }
 
 int
-__dome_stop(void *_self)
+__dome_stop_window(void *_self)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->stop.method) {
-        return ((int (*)(void *)) class->stop.method) (_self);
+    if (isOf(class, __DomeClass()) && class->stop_window.method) {
+        return ((int (*)(void *)) class->stop_window.method) (_self);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_stop, "stop", _self);
+        forward(_self, &result, (Method) __dome_stop_window, "stop_window", _self);
         return result;
     }
 }
@@ -313,71 +313,71 @@ __dome_inspect(void *_self)
 }
 
 int
-__dome_get_position(void *_self, double *position)
+__dome_get_window_position(void *_self, double *position)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->get_position.method) {
-        return ((int (*)(void *, double *)) class->get_position.method) (_self, position);
+    if (isOf(class, __DomeClass()) && class->get_window_position.method) {
+        return ((int (*)(void *, double *)) class->get_window_position.method) (_self, position);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_get_position, "get_position", _self);
+        forward(_self, &result, (Method) __dome_get_window_position, "get_window_position", _self);
         return result;
     }
 }
 
 int
-__dome_get_open_speed(void *_self, double *speed)
+__dome_get_window_open_speed(void *_self, double *speed)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->get_open_speed.method) {
-        return ((int (*)(void *, double *)) class->get_open_speed.method) (_self, speed);
+    if (isOf(class, __DomeClass()) && class->get_window_open_speed.method) {
+        return ((int (*)(void *, double *)) class->get_window_open_speed.method) (_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_get_open_speed, "get_open_speed", _self);
+        forward(_self, &result, (Method) __dome_get_window_open_speed, "get_window_open_speed", _self);
         return result;
     }
 }
 
 int
-__dome_set_open_speed(void *_self, double speed)
+__dome_set_window_open_speed(void *_self, double speed)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->set_open_speed.method) {
-        return ((int (*)(void *, double )) class->set_open_speed.method) (_self, speed);
+    if (isOf(class, __DomeClass()) && class->set_window_open_speed.method) {
+        return ((int (*)(void *, double )) class->set_window_open_speed.method) (_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_set_open_speed, "set_open_speed", _self);
+        forward(_self, &result, (Method) __dome_set_window_open_speed, "set_window_open_speed", _self);
         return result;
     }
 }
 
 int
-__dome_get_close_speed(void *_self, double *speed)
+__dome_get_window_close_speed(void *_self, double *speed)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->get_close_speed.method) {
-        return ((int (*)(void *, double *)) class->get_close_speed.method) (_self, speed);
+    if (isOf(class, __DomeClass()) && class->get_window_close_speed.method) {
+        return ((int (*)(void *, double *)) class->get_window_close_speed.method) (_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_get_close_speed, "get_close_speed", _self);
+        forward(_self, &result, (Method) __dome_get_window_close_speed, "get_window_close_speed", _self);
         return result;
     }
 }
 
 int
-__dome_set_close_speed(void *_self, double speed)
+__dome_set_window_close_speed(void *_self, double speed)
 {
     const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
     
-    if (isOf(class, __DomeClass()) && class->set_close_speed.method) {
-        return ((int (*)(void *, double )) class->set_close_speed.method) (_self, speed);
+    if (isOf(class, __DomeClass()) && class->set_window_close_speed.method) {
+        return ((int (*)(void *, double )) class->set_window_close_speed.method) (_self, speed);
     } else {
         int result;
-        forward(_self, &result, (Method) __dome_set_close_speed, "set_close_speed", _self);
+        forward(_self, &result, (Method) __dome_set_window_close_speed, "set_window_close_speed", _self);
         return result;
     }
 }
@@ -424,7 +424,7 @@ __Dome_forward(const void *_self, void *result, Method selector, const char *nam
     
     void *obj = va_arg(*app, void *);
     
-    if (selector == (Method) __dome_init || selector == (Method) __dome_open || selector == (Method) __dome_stop || selector == (Method) __dome_close || selector == (Method) __dome_inspect) {
+    if (selector == (Method) __dome_init || selector == (Method) __dome_open_window || selector == (Method) __dome_stop_window || selector == (Method) __dome_close_window || selector == (Method) __dome_inspect) {
         *((int *) result) = ((int (*)(void *)) method)(obj);
     } else if (selector == (Method) __dome_status) {
         void *status_buffer = va_arg(*app, void *);
@@ -439,10 +439,10 @@ __Dome_forward(const void *_self, void *result, Method selector, const char *nam
         size_t read_buffer_size = va_arg(*app, size_t);
         size_t *read_size = va_arg(*app, size_t *);
         *((int *) result) = ((int (*)(void *, const void *, size_t, size_t *, void *, size_t, size_t *)) method)(obj, write_buffer, write_buffer_size, write_size, read_buffer, read_buffer_size, read_size);
-    } else if (selector == (Method) __dome_register || selector == (Method) __dome_set_open_speed || selector == (Method) __dome_set_close_speed) {
+    } else if (selector == (Method) __dome_register || selector == (Method) __dome_set_window_open_speed || selector == (Method) __dome_set_window_close_speed) {
         double value = va_arg(*app, double);
         *((int *) result) = ((int (*)(void *, double)) method)(obj, value);
-    } else if (selector == (Method) __dome_get_position || selector == (Method) __dome_get_open_speed || selector == (Method) __dome_get_close_speed) {
+    } else if (selector == (Method) __dome_get_window_position || selector == (Method) __dome_get_window_open_speed || selector == (Method) __dome_get_window_close_speed) {
         double *value = va_arg(*app, double *);
         *((int *) result) = ((int (*)(void *, double *)) method)(obj, value);
     } else {
@@ -476,12 +476,12 @@ __Dome_ctor(void *_self, va_list *app)
             }
             continue;
         }
-		if (strcmp(key, "open_speed") == 0) {
-			self->open_speed = va_arg(*app, double);
+		if (strcmp(key, "window_open_speed") == 0) {
+			self->window_open_speed = va_arg(*app, double);
 			continue;
 		}
-		if (strcmp(key, "close_speed") == 0) {
-			self->close_speed = va_arg(*app, double);
+		if (strcmp(key, "window_close_speed") == 0) {
+			self->window_close_speed = va_arg(*app, double);
 			continue;
 		}
     }
@@ -514,18 +514,18 @@ __Dome_puto(void *_self, FILE *fp)
     } else {
         fprintf(fp, "STATE:\tOK\tand\t");
     }
-    state &= ~DOME_STATE_MALFUNCTION;
+    state &= ~(DOME_STATE_MALFUNCTION|DOME_STATE_UNINITIALIZED|0x00F0);
     
-    if (state == DOME_STATE_OPENED) {
-        fprintf(fp, "OPENED\n");
-    } else if (state == DOME_STATE_CLOSED) {
-        fprintf(fp, "CLOSED\n");
-    } else if (state == DOME_STATE_OPENING) {
-        fprintf(fp, "OPENING\n");
-    } else if (state == DOME_STATE_CLOSING) {
-        fprintf(fp, "CLOSING\n");
-    } else if (state == DOME_STATE_STOPPED) {
-        fprintf(fp, "STOPPED\n");
+    if (state == DOME_STATE_WINDOW_OPENED) {
+        fprintf(fp, "WINDOW: OPENED\n");
+    } else if (state == DOME_STATE_WINDOW_CLOSED) {
+        fprintf(fp, "WINDOW: CLOSED\n");
+    } else if (state == DOME_STATE_WINDOW_OPENING) {
+        fprintf(fp, "WINDOW: OPENING\n");
+    } else if (state == DOME_STATE_WINDOW_CLOSING) {
+        fprintf(fp, "WINDOW: CLOSING\n");
+    } else if (state == DOME_STATE_WINDOW_STOPPED) {
+        fprintf(fp, "WINDOW: STOPPED\n");
     } else {
         fprintf(fp, "UNKNOWN\n");
     }
@@ -570,28 +570,28 @@ __DomeClass_ctor(void *_self, va_list *app)
             self->init.method = method;
             continue;
         }
-        if (selector == (Method) __dome_open) {
+        if (selector == (Method) __dome_open_window) {
             if (tag) {
-                self->open.tag = tag;
-                self->open.selector = selector;
+                self->open_window.tag = tag;
+                self->open_window.selector = selector;
             }
-            self->open.method = method;
+            self->open_window.method = method;
             continue;
         }
-        if (selector == (Method) __dome_close) {
+        if (selector == (Method) __dome_close_window) {
             if (tag) {
-                self->close.tag = tag;
-                self->close.selector = selector;
+                self->close_window.tag = tag;
+                self->close_window.selector = selector;
             }
-            self->close.method = method;
+            self->close_window.method = method;
             continue;
         }
-        if (selector == (Method) __dome_stop) {
+        if (selector == (Method) __dome_stop_window) {
             if (tag) {
-                self->stop.tag = tag;
-                self->stop.selector = selector;
+                self->stop_window.tag = tag;
+                self->stop_window.selector = selector;
             }
-            self->stop.method = method;
+            self->stop_window.method = method;
             continue;
         }
         if (selector == (Method) __dome_status) {
@@ -626,44 +626,44 @@ __DomeClass_ctor(void *_self, va_list *app)
             self->get_name.method = method;
             continue;
         }
-        if (selector == (Method) __dome_get_position) {
+        if (selector == (Method) __dome_get_window_position) {
             if (tag) {
-                self->get_position.tag = tag;
-                self->get_position.selector = selector;
+                self->get_window_position.tag = tag;
+                self->get_window_position.selector = selector;
             }
-            self->get_position.method = method;
+            self->get_window_position.method = method;
             continue;
         }
-        if (selector == (Method) __dome_get_open_speed) {
+        if (selector == (Method) __dome_get_window_open_speed) {
             if (tag) {
-                self->get_open_speed.tag = tag;
-                self->get_open_speed.selector = selector;
+                self->get_window_open_speed.tag = tag;
+                self->get_window_open_speed.selector = selector;
             }
-            self->get_open_speed.method = method;
+            self->get_window_open_speed.method = method;
             continue;
         }
-        if (selector == (Method) __dome_set_open_speed) {
+        if (selector == (Method) __dome_set_window_open_speed) {
             if (tag) {
-                self->set_open_speed.tag = tag;
-                self->set_open_speed.selector = selector;
+                self->set_window_open_speed.tag = tag;
+                self->set_window_open_speed.selector = selector;
             }
-            self->set_open_speed.method = method;
+            self->set_window_open_speed.method = method;
             continue;
         }
-        if (selector == (Method) __dome_get_close_speed) {
+        if (selector == (Method) __dome_get_window_close_speed) {
             if (tag) {
-                self->get_close_speed.tag = tag;
-                self->get_close_speed.selector = selector;
+                self->get_window_close_speed.tag = tag;
+                self->get_window_close_speed.selector = selector;
             }
-            self->get_close_speed.method = method;
+            self->get_window_close_speed.method = method;
             continue;
         }
-        if (selector == (Method) __dome_set_close_speed) {
+        if (selector == (Method) __dome_set_window_close_speed) {
             if (tag) {
-                self->set_close_speed.tag = tag;
-                self->set_close_speed.selector = selector;
+                self->set_window_close_speed.tag = tag;
+                self->set_window_close_speed.selector = selector;
             }
-            self->set_close_speed.method = method;
+            self->set_window_close_speed.method = method;
             continue;
         }
         if (selector == (Method) __dome_raw) {
@@ -781,16 +781,16 @@ VirtualDomeClass_ctor(void *_self, va_list *app)
     self->_.raw.method = (Method) 0;
     self->_.init.method = (Method) 0;
     self->_.status.method = (Method) 0;
-    self->_.open.method = (Method) 0;
-	self->_.close.method = (Method) 0;
-	self->_.stop.method = (Method) 0;
+    self->_.open_window.method = (Method) 0;
+	self->_.close_window.method = (Method) 0;
+	self->_.stop_window.method = (Method) 0;
 	self->_.reg.method = (Method) 0;
 	self->_.inspect.method = (Method) 0;
-	self->_.get_position.method = (Method) 0;
-	self->_.get_open_speed.method = (Method) 0;
-	self->_.set_open_speed.method = (Method) 0;
-	self->_.get_close_speed.method = (Method) 0;
-	self->_.set_close_speed.method = (Method) 0;
+	self->_.get_window_position.method = (Method) 0;
+	self->_.get_window_open_speed.method = (Method) 0;
+	self->_.set_window_open_speed.method = (Method) 0;
+	self->_.get_window_close_speed.method = (Method) 0;
+	self->_.set_window_close_speed.method = (Method) 0;
 	
     return self;
 }
@@ -871,8 +871,12 @@ VirtualDome_init(void *_self)
 	}
 	state &= ~DOME_STATE_MALFUNCTION;
     if (state == DOME_STATE_UNINITIALIZED) {
-        self->_.d_state.state = DOME_STATE_CLOSED;
-		self->_.position = 0.;
+        if (self->_.slew_available) {
+            self->_.d_state.state = DOME_STATE_WINDOW_CLOSED | DOME_STATE_PARKED;
+        } else {
+            self->_.d_state.state = DOME_STATE_WINDOW_CLOSED;
+        }
+		self->_.window_position = 0.;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
@@ -890,11 +894,11 @@ VirtualDome_simulate_thr(void *arg)
 }
 
 static int
-VirtualDome_open(void *_self)
+VirtualDome_open_window(void *_self)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
-	unsigned int state;
+	unsigned int state, tmp;
     int ret = AAOS_OK;
     double duration;
     pthread_t tid;
@@ -903,74 +907,75 @@ VirtualDome_open(void *_self)
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
 	state = self->_.d_state.state;
+    tmp = 0xFFF0&state;
 	if (state&DOME_STATE_MALFUNCTION) {
 		Pthread_mutex_unlock(&self->_.d_state.mtx);
 		return AAOS_EDEVMAL;
 	}
-	state &= ~DOME_STATE_MALFUNCTION;
+    if (state&DOME_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EUNINIT;
+    }
+	state &= ~(DOME_STATE_MALFUNCTION|DOME_STATE_UNINITIALIZED|0x00F0);
     switch (state) {
-        case DOME_STATE_UNINITIALIZED:
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            ret = AAOS_EUNINIT;
-            break;
-        case DOME_STATE_CLOSED:
-        case DOME_STATE_STOPPED:
+        case DOME_STATE_WINDOW_CLOSED:
+        case DOME_STATE_WINDOW_STOPPED:
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            self->last_open_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
-            duration = (1. - self->_.position) / self->_.open_speed;
+            self->last_window_open_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
+            duration = (1. - self->_.window_position) / self->_.window_open_speed;
             Pthread_create(&tid, NULL, VirtualDome_simulate_thr, &duration);
             self->tid = tid;
-            self->_.d_state.state = DOME_STATE_OPENING;
+            self->_.d_state.state = DOME_STATE_WINDOW_OPENING;
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_join(tid, &result);
             Pthread_mutex_lock(&self->_.d_state.mtx);
             if (result == NULL) {
-                self->_.d_state.state = DOME_STATE_OPENED;
-                self->_.position = 1.;
+                self->_.d_state.state = tmp | DOME_STATE_WINDOW_OPENED;
+                self->_.window_position = 1.;
                 ret = AAOS_OK;
             } else {
                 Clock_gettime(CLOCK_MONOTONIC, &tp);
-                self->_.position += (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_open_time) * self->_.open_speed;
-                if (self->_.position > 1.) {
-                    self->_.position = 1.;
+                self->_.window_position += (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_window_open_time) * self->_.window_open_speed;
+                if (self->_.window_position > 1.) {
+                    self->_.window_position = 1.;
                 }
                 ret = AAOS_ECANCELED;
             }
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_cond_broadcast(&self->_.d_state.cond);
             break;
-        case DOME_STATE_CLOSING:
+        case DOME_STATE_WINDOW_CLOSING:
             Pthread_cancel(self->tid);
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            self->last_open_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
-            self->_.position -= (self->last_open_time - self->last_close_time) * self->_.close_speed;
-            if (self->_.position < 0.) {
-                self->_.position = 0.;
+            self->last_window_open_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
+            self->_.window_position -= (self->last_window_open_time - self->last_window_close_time) * self->_.window_close_speed;
+            if (self->_.window_position < 0.) {
+                self->_.window_position = 0.;
             }
-            duration = (1. - self->_.position) / self->_.open_speed;
+            duration = (1. - self->_.window_position) / self->_.window_open_speed;
             Pthread_create(&tid, NULL, VirtualDome_simulate_thr, &duration);
             self->tid = tid;
-            self->_.d_state.state = DOME_STATE_OPENING;
+            self->_.d_state.state = tmp | DOME_STATE_WINDOW_OPENING;
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_join(tid, &result);
             Pthread_mutex_lock(&self->_.d_state.mtx);
             if (result == NULL) {
-                self->_.d_state.state = DOME_STATE_OPENED;
-                self->_.position = 1.;
+                self->_.d_state.state = tmp | DOME_STATE_WINDOW_OPENED;
+                self->_.window_position = 1.;
                 ret = AAOS_OK;
             } else {
                 Clock_gettime(CLOCK_MONOTONIC, &tp);
-                self->_.position += (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_open_time) * self->_.open_speed;
-                if (self->_.position > 1.) {
-                    self->_.position = 1.;
+                self->_.window_position += (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_window_open_time) * self->_.window_open_speed;
+                if (self->_.window_position > 1.) {
+                    self->_.window_position = 1.;
                 }
                 ret = AAOS_ECANCELED;
             }
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_cond_broadcast(&self->_.d_state.cond);
             break;
-        case DOME_STATE_OPENING:
-            while (self->_.d_state.state == DOME_STATE_OPENING) {
+        case DOME_STATE_WINDOW_OPENING:
+            while (self->_.d_state.state&DOME_STATE_WINDOW_OPENING) {
                 Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
             }
             state = self->_.d_state.state;
@@ -979,7 +984,7 @@ VirtualDome_open(void *_self)
                 ret = AAOS_EDEVMAL;
             } else {
                 state &= ~DOME_STATE_MALFUNCTION;
-                if (state == DOME_STATE_OPENED) {
+                if (state & DOME_STATE_WINDOW_OPENED) {
                     ret = AAOS_OK;
                 } else {
                     ret = AAOS_ECANCELED;
@@ -998,11 +1003,11 @@ VirtualDome_open(void *_self)
 }
 
 static int
-VirtualDome_close(void *_self)
+VirtualDome_close_window(void *_self)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
-    unsigned int state;
+    unsigned int state, tmp;
     int ret = AAOS_OK;
     double duration;
     pthread_t tid;
@@ -1011,74 +1016,75 @@ VirtualDome_close(void *_self)
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
+    tmp = 0xFFF0&state;
     if (state&DOME_STATE_MALFUNCTION) {
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         return AAOS_EDEVMAL;
     }
-    state &= ~DOME_STATE_MALFUNCTION;
+    if (state&DOME_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EUNINIT;
+    }
+    state &= ~(DOME_STATE_MALFUNCTION|DOME_STATE_UNINITIALIZED|0x00F0);
     switch (state) {
-        case DOME_STATE_UNINITIALIZED:
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            ret = AAOS_EUNINIT;
-            break;
-        case DOME_STATE_OPENED:
-        case DOME_STATE_STOPPED:
+        case DOME_STATE_WINDOW_OPENED:
+        case DOME_STATE_WINDOW_STOPPED:
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            self->last_close_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
-            duration =  self->_.position / self->_.close_speed;
+            self->last_window_close_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
+            duration =  self->_.window_position / self->_.window_close_speed;
             Pthread_create(&tid, NULL, VirtualDome_simulate_thr, &duration);
             self->tid = tid;
-            self->_.d_state.state = DOME_STATE_CLOSING;
+            self->_.d_state.state = tmp | DOME_STATE_WINDOW_CLOSING;
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_join(tid, &result);
             Pthread_mutex_lock(&self->_.d_state.mtx);
             if (result == NULL) {
-                self->_.d_state.state = DOME_STATE_CLOSED;
-                self->_.position = 0.;
+                self->_.d_state.state = tmp | DOME_STATE_WINDOW_CLOSED;
+                self->_.window_position = 0.;
                 ret = AAOS_OK;
             } else {
                 Clock_gettime(CLOCK_MONOTONIC, &tp);
-                self->_.position -= (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_close_time) * self->_.close_speed;
-                if (self->_.position < 0.) {
-                    self->_.position = 0.;
+                self->_.window_position -= (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_window_close_time) * self->_.window_close_speed;
+                if (self->_.window_position < 0.) {
+                    self->_.window_position = 0.;
                 }
                 ret = AAOS_ECANCELED;
             }
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_cond_broadcast(&self->_.d_state.cond);
             break;
-        case DOME_STATE_OPENING:
+        case DOME_STATE_WINDOW_OPENING:
             Pthread_cancel(self->tid);
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            self->last_close_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
-            self->_.position += (self->last_close_time - self->last_open_time) * self->_.open_speed;
-            if (self->_.position > 1.) {
-                self->_.position = 1.;
+            self->last_window_close_time = tp.tv_sec + tp.tv_nsec / 1000000000.;
+            self->_.window_position += (self->last_window_close_time - self->last_window_open_time) * self->_.window_open_speed;
+            if (self->_.window_position > 1.) {
+                self->_.window_position = 1.;
             }
-            duration = self->_.position / self->_.close_speed;
+            duration = self->_.window_position / self->_.window_close_speed;
             Pthread_create(&tid, NULL, VirtualDome_simulate_thr, &duration);
             self->tid = tid;
-            self->_.d_state.state = DOME_STATE_CLOSING;
+            self->_.d_state.state = tmp | DOME_STATE_WINDOW_CLOSING;
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_join(tid, &result);
             Pthread_mutex_lock(&self->_.d_state.mtx);
             if (result == NULL) {
-                self->_.d_state.state = DOME_STATE_CLOSED;
-                self->_.position = 0.;
+                self->_.d_state.state = tmp | DOME_STATE_WINDOW_CLOSED;
+                self->_.window_position = 0.;
                 ret = AAOS_OK;
             } else {
                 Clock_gettime(CLOCK_MONOTONIC, &tp);
-                self->_.position -= (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_close_time) * self->_.open_speed;
-                if (self->_.position < 0.) {
-                    self->_.position = 0.;
+                self->_.window_position -= (tp.tv_sec + tp.tv_nsec / 1000000000. - self->last_window_close_time) * self->_.window_open_speed;
+                if (self->_.window_position < 0.) {
+                    self->_.window_position = 0.;
                 }
                 ret = AAOS_ECANCELED;
             }
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             Pthread_cond_broadcast(&self->_.d_state.cond);
             break;
-        case DOME_STATE_CLOSING:
-            while (self->_.d_state.state == DOME_STATE_CLOSING) {
+        case DOME_STATE_WINDOW_CLOSING:
+            while (self->_.d_state.state&DOME_STATE_WINDOW_CLOSING) {
                 Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
             }
             state = self->_.d_state.state;
@@ -1087,7 +1093,7 @@ VirtualDome_close(void *_self)
                 ret = AAOS_EDEVMAL;
             } else {
                 state &= ~DOME_STATE_MALFUNCTION;
-                if (state == DOME_STATE_CLOSED) {
+                if (state&DOME_STATE_WINDOW_CLOSED) {
                     ret = AAOS_OK;
                 } else {
                     ret = AAOS_ECANCELED;
@@ -1106,11 +1112,11 @@ VirtualDome_close(void *_self)
 }
 
 static int
-VirtualDome_stop(void *_self)
+VirtualDome_stop_window(void *_self)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
-    unsigned int state;
+    unsigned int state, tmp;
     int ret = AAOS_OK;
     double duration;
     pthread_t tid;
@@ -1119,40 +1125,41 @@ VirtualDome_stop(void *_self)
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
+    tmp = 0xFFF0&state;
     if (state&DOME_STATE_MALFUNCTION) {
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         return AAOS_EDEVMAL;
     }
+    if (state&DOME_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EUNINIT;
+    }
     state &= ~DOME_STATE_MALFUNCTION;
     switch (state) {
-        case DOME_STATE_UNINITIALIZED:
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            ret = AAOS_EUNINIT;
-            break;
-        case DOME_STATE_OPENED:
-        case DOME_STATE_STOPPED:
-        case DOME_STATE_CLOSED:
+        case DOME_STATE_WINDOW_OPENED:
+        case DOME_STATE_WINDOW_STOPPED:
+        case DOME_STATE_WINDOW_CLOSED:
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             ret = AAOS_OK;
             break;
-        case DOME_STATE_OPENING:
+        case DOME_STATE_WINDOW_OPENING:
             Pthread_cancel(self->tid);
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            self->_.d_state.state = DOME_STATE_STOPPED;
-            self->_.position += (tp.tv_sec + tp.tv_nsec / 1000000000. -  self->last_open_time) * self->_.open_speed;
-            if (self->_.position > 1.) {
-                self->_.position = 1.;
+            self->_.d_state.state = tmp|DOME_STATE_WINDOW_STOPPED;
+            self->_.window_position += (tp.tv_sec + tp.tv_nsec / 1000000000. -  self->last_window_open_time) * self->_.window_open_speed;
+            if (self->_.window_position > 1.) {
+                self->_.window_position = 1.;
             }
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             ret = AAOS_OK;
             break;
-        case DOME_STATE_CLOSING:
+        case DOME_STATE_WINDOW_CLOSING:
             Pthread_cancel(self->tid);
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            self->_.d_state.state = DOME_STATE_STOPPED;
-            self->_.position -= (tp.tv_sec + tp.tv_nsec / 1000000000. -  self->last_close_time) * self->_.open_speed;
-            if (self->_.position < 0.) {
-                self->_.position = 0.;
+            self->_.d_state.state = tmp|DOME_STATE_WINDOW_STOPPED;
+            self->_.window_position -= (tp.tv_sec + tp.tv_nsec / 1000000000. -  self->last_window_close_time) * self->_.window_open_speed;
+            if (self->_.window_position < 0.) {
+                self->_.window_position = 0.;
             }
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             ret = AAOS_OK;
@@ -1169,36 +1176,38 @@ VirtualDome_status(void *_self, void *status_buffer, size_t size, size_t *length
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
-    unsigned int state;
+    unsigned int state, state2, tmp;
     bool status;
     double position = 0., open_speed = 0., close_speed = 0.;
     struct timespec tp;
 
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
+    state2 = state;
     if (state&DOME_STATE_MALFUNCTION) {
         status = false;
     } else {
         status = true;
     }
     state &= ~DOME_STATE_MALFUNCTION;
-    if (state == DOME_STATE_CLOSED || state == DOME_STATE_OPENED || state == DOME_STATE_OPENED) {
-        position = self->_.position;
-    } else if (state == DOME_STATE_CLOSING) {
+    state &= 0x000F;
+    if (state == DOME_STATE_WINDOW_CLOSED || state == DOME_STATE_WINDOW_OPENED || state == DOME_STATE_WINDOW_OPENED) {
+        position = self->_.window_position;
+    } else if (state == DOME_STATE_WINDOW_CLOSING) {
         Clock_gettime(CLOCK_MONOTONIC, &tp);
-        position = self->_.position - (tp.tv_sec + tp.tv_nsec/1000000000. - self->last_close_time) * self->_.close_speed;
+        position = self->_.window_position - (tp.tv_sec + tp.tv_nsec/1000000000. - self->last_window_close_time) * self->_.window_close_speed;
         if (position < 0.) {
             position = 0.;
         }
-    } else if (state == DOME_STATE_OPENING) {
+    } else if (state == DOME_STATE_WINDOW_OPENING) {
         Clock_gettime(CLOCK_MONOTONIC, &tp);
-        position = self->_.position + (tp.tv_sec + tp.tv_nsec/1000000000. - self->last_open_time) * self->_.open_speed;
+        position = self->_.window_position + (tp.tv_sec + tp.tv_nsec/1000000000. - self->last_window_open_time) * self->_.window_open_speed;
         if (position > 1.) {
             position = 1.;
         }
     }
-    open_speed = self->_.open_speed;
-    close_speed = self->_.close_speed;
+    open_speed = self->_.window_open_speed;
+    close_speed = self->_.window_close_speed;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
     cJSON *root_json;
@@ -1214,19 +1223,19 @@ VirtualDome_status(void *_self, void *status_buffer, size_t size, size_t *length
             cJSON_AddStringToObject(root_json, "status", "MALFUNCTION");
         }
         switch (state) {
-            case DOME_STATE_CLOSED:
+            case DOME_STATE_WINDOW_CLOSED:
                 cJSON_AddStringToObject(root_json, "state", "CLOSED");
                 break;
-            case DOME_STATE_OPENED:
+            case DOME_STATE_WINDOW_OPENED:
                 cJSON_AddStringToObject(root_json, "state", "OPEN");
                 break;
-            case DOME_STATE_STOPPED:
+            case DOME_STATE_WINDOW_STOPPED:
                 cJSON_AddStringToObject(root_json, "state", "STOPPED");
                 break;
-            case DOME_STATE_OPENING:
+            case DOME_STATE_WINDOW_OPENING:
                 cJSON_AddStringToObject(root_json, "state", "OPENING");
                 break;
-            case DOME_STATE_CLOSING:
+            case DOME_STATE_WINDOW_CLOSING:
                 cJSON_AddStringToObject(root_json, "state", "CLOSING");
                 break;
             default:
@@ -1246,27 +1255,27 @@ VirtualDome_status(void *_self, void *status_buffer, size_t size, size_t *length
 }
 
 static int
-VirtualDome_get_open_speed(void *_self, double *speed)
+VirtualDome_get_window_open_speed(void *_self, double *speed)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    *speed = self->_.open_speed;
+    *speed = self->_.window_open_speed;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
     return AAOS_OK;
 }
 
 static int
-VirtualDome_set_open_speed(void *_self, double speed)
+VirtualDome_set_window_open_speed(void *_self, double speed)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
     int ret;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    if ((self->_.d_state.state&(~DOME_STATE_MALFUNCTION)) != DOME_STATE_OPENING) {
-        self->_.open_speed = speed;
+    if (!(self->_.d_state.state&DOME_STATE_WINDOW_OPENING)) {
+        self->_.window_open_speed = speed;
         ret = AAOS_OK;
     } else {
         ret = AAOS_EBUSY;
@@ -1277,27 +1286,27 @@ VirtualDome_set_open_speed(void *_self, double speed)
 }
 
 static int
-VirtualDome_get_close_speed(void *_self, double *speed)
+VirtualDome_get_window_close_speed(void *_self, double *speed)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    *speed = self->_.close_speed;
+    *speed = self->_.window_close_speed;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
     return AAOS_OK;
 }
 
 static int
-VirtualDome_set_close_speed(void *_self, double speed)
+VirtualDome_set_window_close_speed(void *_self, double speed)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
     int ret;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    if ((self->_.d_state.state&(~DOME_STATE_MALFUNCTION)) != DOME_STATE_CLOSING) {
-        self->_.close_speed = speed;
+    if (!(self->_.d_state.state&DOME_STATE_WINDOW_CLOSING)) {
+        self->_.window_close_speed = speed;
         ret = AAOS_OK;
     } else {
         ret = AAOS_EBUSY;
@@ -1308,7 +1317,7 @@ VirtualDome_set_close_speed(void *_self, double speed)
 }
 
 static int
-VirtualDome_get_position(void *_self, double *position)
+VirtualDome_get_window_position(void *_self, double *position)
 {
     struct VirtualDome *self = cast(VirtualDome(), _self);
     
@@ -1316,34 +1325,35 @@ VirtualDome_get_position(void *_self, double *position)
     struct timespec tp;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    state = self->_.d_state.state&(~DOME_STATE_MALFUNCTION);
+    state = self->_.d_state.state;
+    if (state&DOME_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EUNINIT;
+    }
+    state &= 0x000F;
     switch (state) {
-        case DOME_STATE_CLOSED:
+        case DOME_STATE_WINDOW_CLOSED:
             *position = 0.;
             break;
-        case DOME_STATE_OPENED:
+        case DOME_STATE_WINDOW_OPENED:
             *position = 1.;
             break;
-        case DOME_STATE_STOPPED:
-            *position = self->_.position;
+        case DOME_STATE_WINDOW_STOPPED:
+            *position = self->_.window_position;
             break;
-        case DOME_STATE_OPENING:
+        case DOME_STATE_WINDOW_OPENING:
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            *position = self->_.position + (tp.tv_sec + tp.tv_nsec/ 1000000000. - self->last_open_time) * self->_.open_speed;
+            *position = self->_.window_position + (tp.tv_sec + tp.tv_nsec/ 1000000000. - self->last_window_open_time) * self->_.window_open_speed;
             if (*position > 1.) {
                 *position = 1.;
             }
             break;
-        case DOME_STATE_CLOSING:
+        case DOME_STATE_WINDOW_CLOSING:
             Clock_gettime(CLOCK_MONOTONIC, &tp);
-            *position = self->_.position - (tp.tv_sec + tp.tv_nsec/ 1000000000. - self->last_close_time) * self->_.close_speed;
+            *position = self->_.window_position - (tp.tv_sec + tp.tv_nsec/ 1000000000. - self->last_window_close_time) * self->_.window_close_speed;
             if (*position < 0.) {
                 *position = 0.;
             }
-            break;
-        case DOME_STATE_UNINITIALIZED:
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            return AAOS_EUNINIT;
             break;
         default:
             break;
@@ -1378,15 +1388,15 @@ virtual_dome_virtual_table_initialize(void)
 {
     _virtual_dome_virtual_table = new(__DomeVirtualTable(),
                                       __dome_init, "init", VirtualDome_init,
-                                      __dome_open, "open", VirtualDome_open,
-                                      __dome_close, "close", VirtualDome_close,
-                                      __dome_stop, "stop", VirtualDome_stop,
+                                      __dome_open_window, "open_window", VirtualDome_open_window,
+                                      __dome_close_window, "close_window", VirtualDome_close_window,
+                                      __dome_stop_window, "stop_windows", VirtualDome_stop_window,
                                       __dome_status, "status", VirtualDome_status,
-                                      __dome_get_open_speed, "get_open_speed", VirtualDome_get_open_speed,
-                                      __dome_set_open_speed, "set_open_speed", VirtualDome_set_open_speed,
-                                      __dome_get_close_speed, "get_close_speed", VirtualDome_get_close_speed,
-                                      __dome_set_close_speed, "set_close_speed", VirtualDome_set_close_speed,
-                                      __dome_get_position, "get_position", VirtualDome_get_position,
+                                      __dome_get_window_open_speed, "get_window_open_speed", VirtualDome_get_window_open_speed,
+                                      __dome_set_window_open_speed, "set_window_open_speed", VirtualDome_set_window_open_speed,
+                                      __dome_get_window_close_speed, "get_window_close_speed", VirtualDome_get_window_close_speed,
+                                      __dome_set_window_close_speed, "set_window_close_speed", VirtualDome_set_window_close_speed,
+                                      __dome_get_window_position, "get_window_position", VirtualDome_get_window_position,
                                       __dome_inspect, "inspect", VirtualDome_inspect,
                                       __dome_register, "register", VirtualDome_register,
                                       (void *) 0);

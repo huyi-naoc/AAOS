@@ -18,8 +18,48 @@
 
 struct TelescopeState {
     unsigned int state;
+    unsigned int option;
     pthread_mutex_t mtx;
     pthread_cond_t cond;
+};
+
+struct TelescopeCapbility {
+	bool dome_available;
+    bool switch_instrument_available;
+    bool switch_detector_available;
+    bool switch_filter_available;
+    bool focus_available;
+    bool lid_available;
+    bool derotate_available;
+	
+	double primary_axis_min;
+	double primary_axis_max;
+	double secondary_axis_min;
+	double secondary_axis_max;	
+};
+
+struct TelescopeParameter {
+	double move_speed; /* Pulse guide speed, in 15 arcsec per second */
+	double track_rate_x; /* the primary axis tracking speed, in 15 arcsec per second */
+	double track_rate_y; /* the secondary axis tracking speed, in 15 arcsec per second */
+	double slew_speed_x;
+	double slew_speed_y;
+	double ra_from;
+	double dec_from;
+	double ra_to;
+	double dec_to;
+	double last_slew_begin_time;
+	double last_track_begin_time;
+	double last_move_begin_time;
+	double last_park_begin_time;
+	double ra;
+	double dec;
+	double alt;
+	double az;
+	
+	pthread_rwlock_t move_speed_rwlock;
+	pthread_rwlock_t track_rate_rwlock;
+	pthread_rwlock_t slew_speed_rwlock;
 };
 
 struct __Telescope {
@@ -63,6 +103,8 @@ struct __Telescope {
     pthread_t tid;
     
     struct TelescopeState t_state;
+	struct TelescopeParameter t_param;
+    struct TelescopeCapbility t_cap;
 };
 
 struct __TelescopeClass {
@@ -200,5 +242,8 @@ struct AICMount {
     double home_dec;
     double home_alt;
     double home_az;
+    double polling_interval;
+    unsigned int max_polling_times;
+    pthread_mutex_t mtx;
 };
 #endif /* telescope_r_h */

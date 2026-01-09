@@ -20,8 +20,8 @@ AM_PROG_CC_C_O
 case ${host_os} in
     linux*)
         AC_DEFINE([LINUX], , [Linux operating system])
-        AC_CHECK_HEADERS([libudev.h mntent.h netinet/tcp.h sys/epoll.h sys/sendfile.h])
-        AC_CHECK_LIB([udev], [main])
+        AC_CHECK_HEADERS([mntent.h netinet/tcp.h sys/epoll.h sys/sendfile.h])
+        AC_CHECK_LIB([udev], [udev_new], [AC_CHECK_HEADERS([libudev.h]) LIBS="-ludev $LIBS"], [AC_MSG_ERROR([libudev not found. Terminating.])])
         ;;
     darwin*)
         AC_DEFINE([MACOSX], , [Macintosh operating system])
@@ -32,18 +32,16 @@ case ${host_os} in
 esac
 
 # Checks for libraries.
-# FIXME: Replace `main' with a function in `-lcfitsio':
-AC_CHECK_LIB([cfitsio], [main])
-# FIXME: Replace `main' with a function in `-lconfig':
-AC_CHECK_LIB([config], [main])
-# FIXME: Replace `main' with a function in `-lm':
-AC_CHECK_LIB([m], [main])
-AC_CHECK_LIB([cjson], [main])
-AC_CHECK_LIB([chealpix], [main])
+AC_CHECK_LIB([cfitsio], [ffopen], [AC_CHECK_HEADERS([fitsio2.h]) LIBS="-lcfitsio $LIBS"], [AC_MSG_ERROR([libcfitsio not found. Terminating.])])
+AC_CHECK_LIB([chealpix], [ang2pix_ring], [AC_CHECK_HEADERS([chealpix]) LIBS="-lchealpix $LIBS"], [AC_MSG_ERROR([libcheapix not found. Terminating.])])
+AC_CHECK_LIB([cjson], [cJSON_CreateObject], [AC_CHECK_HEADERS([cjson/cJSON.h]) LIBS="-lcjson $LIBS"], [AC_MSG_ERROR([libcjson not found. Terminating.])])
+AC_CHECK_LIB([config], [config_init], [AC_CHECK_HEADERS([libconfig.h]) LIBS="-lconfig $LIBS"], [AC_MSG_ERROR([libconfig not found. Terminating.])])
+AC_CHECK_LIB([mysqlclient], [mysql_init], [AC_CHECK_HEADERS([mysql/mysql.h]) LIBS="-lmysqlclient $LIBS"], [AC_MSG_ERROR([libmysqlclient not found. Terminating.])])
+AC_CHECK_LIB([m], [sqrt])
 
 LIBS="$LIBS -pthread"
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h pthread.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h sys/un.h syslog.h termios.h unistd.h   chealpix.h cjson/cJSON.h fitsio2.h libconfig.h])
+AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h pthread.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h sys/un.h syslog.h termios.h unistd.h])
 GOBJECT_INTROSPECTION_CHECK([1.40.0])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
@@ -66,27 +64,27 @@ AC_FUNC_REALLOC
 AC_FUNC_STRERROR_R
 AC_CHECK_FUNCS([atexit clock_gettime floor ftruncate memset mkdir munmap regcomp select socket strchr strerror strrchr strstr])
 
-AC_ARG_ENABLE([debug], [AS_HELP_STRING([--enable-debug], [Enable debug mode [default = no]])], [debug=${enableval}], [ascom=no])
+AC_ARG_ENABLE([debug], [AS_HELP_STRING([--enable-debug], [Enable debug mode [default = no]])], [debug=${enableval}], [debug=no])
 if test x"${debug}" = xyes; then
     AC_DEFINE([DEBUG], , [enable debug mode])
 fi
 
-AC_ARG_ENABLE([mysql], [AS_HELP_STRING([--enable-mysql], [Enable MySQL [default = yes]])], [mysql=${enableval}], [mysql=yes])
-if test x"${mysql}" = xyes; then
-    AC_CHECK_HEADERS([mysql/mysql.h], [have_mysql=yes], [have_mysql=no])
-    if test x"${have_mysql}" = xyes; then
-        AC_SEARCH_LIBS([mysql_init], [mysqlclient], [have_mysql=yes], [have_mysql=no])
-        if test x"${have_mysql}" = xyes; then
-            AC_DEFINE([__USE_MYSQL__], , [use mysql library])
-        else
-            AC_MSG_ERROR([libmysql is required for --enable-mysql])
-        fi
-    else
-        AC_MSG_ERROR([mysql.h is required for --enable-mysql])
-    fi
-else
-    AC_MSG_NOTICE([*** MySQL will not be enabled ***])
-fi
+#AC_ARG_ENABLE([mysql], [AS_HELP_STRING([--enable-mysql], [Enable MySQL [default = yes]])], [mysql=${enableval}], [mysql=yes])
+#if test x"${mysql}" = xyes; then
+#    AC_CHECK_HEADERS([mysql/mysql.h], [have_mysql=yes], [have_mysql=no])
+#    if test x"${have_mysql}" = xyes; then
+#        AC_SEARCH_LIBS([mysql_init], [mysqlclient], [have_mysql=yes], [have_mysql=no])
+#        if test x"${have_mysql}" = xyes; then
+#            AC_DEFINE([__USE_MYSQL__], , [use mysql library])
+#        else
+#            AC_MSG_ERROR([libmysql is required for --enable-mysql])
+#        fi
+#    else
+#        AC_MSG_ERROR([mysql.h is required for --enable-mysql])
+#    fi
+#else
+#    AC_MSG_NOTICE([*** MySQL will not be enabled ***])
+#fi
 
 AC_ARG_ENABLE([ascom], [AS_HELP_STRING([--enable-ascom], [Enable ASCOM interface [default = no]])], [ascom=${enableval}], [ascom=no])
 if test x"${ascom}" = xyes; then
@@ -132,7 +130,7 @@ else
     AC_MSG_NOTICE([*** GSL library will NOT be linked, some functions may not work properly ***])
 fi
 
-AC_ARG_ENABLE([sofa], [AS_HELP_STRING([--enable-sofa],[Use IAU SOFA library [default = yes]])], [sofa=${enableval}], [sofa=yes])
+AC_ARG_ENABLE([sofa], [AS_HELP_STRING([--enable-sofa],[Use IAU SOFA library [default = no]])], [sofa=${enableval}], [sofa=no])
 if test x"${sofa}" = xyes; then
     AC_CHECK_HEADERS([sofa.h sofam.h], [have_sofa=yes], [have_sofa=no])
     if test x"${have_sofa}" = xyes; then
@@ -146,8 +144,26 @@ if test x"${sofa}" = xyes; then
         AC_MSG_ERROR([sofa.h and sofam.h are required for --enable-sofa])
     fi
 fi
-    
-AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis], [Use aravis library for GiGE compatible cameras [default=yes]])], [aravis=${enableval}], [aravis=yes])
+
+AC_ARG_ENABLE([asi], [AS_HELP_STRING([--enable-asi],[Compile ZWO ASI camera driver [default = no]])], [asi=${enableval}], [asi=no])
+if test x"${asi}" = xyes; then
+    CFLAGS="$CFLAGS -I..$(top_builddir)/thirdparty/zwo/include"
+    AC_DEFINE([__USE_ASI_CAMERA__], , [use ZWO ASI camera])
+fi
+
+AC_ARG_ENABLE([qhy], [AS_HELP_STRING([--enable-qhy],[Compile QHY camera driver [default = no]])], [qhy=${enableval}], [qhy=no])
+if test x"${qhy}" = xyes; then
+    CFLAGS="$CFLAGS -I..$(top_builddir)/thirdparty/qhy/include"
+    AC_DEFINE([__USE_QHY_CAMERA__], , [use QHY camera])
+fi
+
+AC_ARG_ENABLE([leading], [AS_HELP_STRING([--enable-leading],[Compile Leading InGaAs camera driver [default = no]])], [leading=${enableval}], [leading=no])
+if test x"${leading}" = xyes; then
+    CFLAGS="$CFLAGS -I..$(top_builddir)/thirdparty/leading/include"
+    AC_DEFINE([__USE_LEADING_CAMERA__], , [use QHY camera])
+fi
+
+AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis], [Use aravis library for GiGE compatible cameras [default=no]])], [aravis=${enableval}], [aravis=no])
 if test x"${aravis}" = xyes; then
     AC_CHECK_HEADERS([aravis-0.8/arv.h glib-2.0/glib.h], [have_aravis=yes], [have_aravis=no])
     if test x"${have_aravis}" = xyes; then

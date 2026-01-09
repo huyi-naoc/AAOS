@@ -298,9 +298,9 @@ main(int argc, char *argv[])
     }
     
     while (argc != 0) {
-        if (strcmp(argv[0], "open") == 0) {
-            if ((ret = dome_open(dome)) == AAOS_OK) {
-                fprintf(stderr, "open dome success.\n");
+        if (strcmp(argv[0], "open_window") == 0) {
+            if ((ret = dome_open_window(dome)) == AAOS_OK) {
+                fprintf(stderr, "open dome's window success.\n");
             } else {
                 error_handler(ret);
             }
@@ -308,9 +308,9 @@ main(int argc, char *argv[])
             argv++;
             continue;
         }
-        if (strcmp(argv[0], "close") == 0) {
-            if ((ret = dome_close(dome)) == AAOS_OK) {
-                fprintf(stderr, "close dome success.\n");
+        if (strcmp(argv[0], "close_window") == 0) {
+            if ((ret = dome_close_window(dome)) == AAOS_OK) {
+                fprintf(stderr, "close dome's window success.\n");
             } else {
                 error_handler(ret);
             }
@@ -318,9 +318,9 @@ main(int argc, char *argv[])
             argv++;
             continue;
         }
-        if (strcmp(argv[0], "stop") == 0) {
-            if ((ret = dome_stop(dome)) == AAOS_OK) {
-                fprintf(stderr, "stop dome success.\n");
+        if (strcmp(argv[0], "stop_window") == 0) {
+            if ((ret = dome_stop_window(dome)) == AAOS_OK) {
+                fprintf(stderr, "stop dome's window success.\n");
             } else {
                 error_handler(ret);
             }
@@ -354,17 +354,17 @@ main(int argc, char *argv[])
                 fprintf(stderr, "set command needs two parameters.\n");
                 exit(EXIT_FAILURE);
             }
-            if (strcmp(argv[1], "open_speed") == 0) {
+            if (strcmp(argv[1], "window_open_speed") == 0) {
                 double speed = atof(argv[2]);
-                if ((ret = dome_set_open_speed(dome, speed)) == AAOS_OK) {
-                    fprintf(stderr, "set open_speed success.\n");
+                if ((ret = dome_set_window_open_speed(dome, speed)) == AAOS_OK) {
+                    fprintf(stderr, "set dome's window_open_speed success.\n");
                 } else {
                     error_handler(ret);
                 }
-            } else if (strcmp(argv[1], "close_speed") == 0) {
+            } else if (strcmp(argv[1], "window_close_speed") == 0) {
                 double speed = atof(argv[2]);
-                if ((ret = dome_set_close_speed(dome, speed)) == AAOS_OK) {
-                    fprintf(stderr, "set close_speed success.\n");
+                if ((ret = dome_set_window_close_speed(dome, speed)) == AAOS_OK) {
+                    fprintf(stderr, "set dome's window_close_speed success.\n");
                 } else {
                     error_handler(ret);
                 }
@@ -382,21 +382,21 @@ main(int argc, char *argv[])
             }
             if (strcmp(argv[1], "open_speed") == 0) {
                 double speed;
-                if ((ret = dome_get_open_speed(dome, &speed)) == AAOS_OK) {
+                if ((ret = dome_get_window_open_speed(dome, &speed)) == AAOS_OK) {
                     printf("%.4f\n", speed);
                 } else {
                     error_handler(ret);
                 }
-            } else if (strcmp(argv[1], "close_speed") == 0) {
+            } else if (strcmp(argv[1], "window_close_speed") == 0) {
                 double speed;
-                if ((ret = dome_get_close_speed(dome, &speed)) == AAOS_OK) {
+                if ((ret = dome_get_window_close_speed(dome, &speed)) == AAOS_OK) {
                     printf("%.4f\n", speed);
                 } else {
                     error_handler(ret);
                 }
-            } else if (strcmp(argv[1], "position") == 0) {
+            } else if (strcmp(argv[1], "window_position") == 0) {
                 double position;
-                if ((ret = dome_get_position(dome, &position)) == AAOS_OK) {
+                if ((ret = dome_get_window_position(dome, &position)) == AAOS_OK) {
                     printf("%.4f\n", position);
                 } else {
                     error_handler(ret);

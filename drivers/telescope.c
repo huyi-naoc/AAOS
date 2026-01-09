@@ -709,6 +709,12 @@ __telescope_move(void *_self, unsigned int direction, double duration)
     }
 }
 
+static int
+__Telescope_move(void *_self, unsigned int direction, double duration)
+{
+    return AAOS_ENOTSUP;
+}
+
 int
 __telescope_try_move(void *_self, unsigned direction, double duration)
 {
@@ -723,6 +729,12 @@ __telescope_try_move(void *_self, unsigned direction, double duration)
     }
 }
 
+static int
+__Telescope_try_move(void *_self, unsigned int direction, double duration)
+{
+    return AAOS_ENOTSUP;
+}
+
 int
 __telescope_timed_move(void *_self, unsigned int direction, double duration, double timeout)
 {
@@ -735,6 +747,12 @@ __telescope_timed_move(void *_self, unsigned int direction, double duration, dou
         forward(_self, &result, (Method) __telescope_timed_move, "timed_move", _self, direction, duration, timeout);
         return result;
     }
+}
+
+static int
+__Telescope_timed_move(void *_self, unsigned int direction, double duration, double timeout)
+{
+    return AAOS_ENOTSUP;
 }
 
 int
@@ -1422,7 +1440,6 @@ __Telescope_initialize(void)
                        dtor, "dtor", __Telescope_dtor,
                        puto, "puto", __Telescope_puto,
                        forward, "forward", __Telescope_forward,
-                       
                        __telescope_release, "release", __Telescope_release,
                        __telescope_get_name, "get_name", __Telescope_get_name,
                        __telescope_set_option, "set_option", __Telescope_set_option,
@@ -1431,6 +1448,9 @@ __Telescope_initialize(void)
                        __telescope_power_off, "power_off", __Telescope_power_off,
                        __telescope_inspect, "inspect", __Telescope_inspect,
                        __telescope_wait, "wait", __Telescope_wait,
+                       __telescope_move, "move", __Telescope_move,
+                       __telescope_try_move, "try_move", __Telescope_try_move,
+                       __telescope_timed_move, "timed_move", __Telescope_timed_move,
                        __telescope_switch_instrument, "switch_instrument", __Telescope_switch_instrument,
                        __telescope_switch_filter, "switch_filter", __Telescope_switch_filter,
                        __telescope_switch_detector, "switch_detector", __Telescope_switch_detector,
@@ -2794,122 +2814,106 @@ virtual_telescope_virtual_table(void)
  * Driver for AIC equatorial mount. http://aic-optics.com
  */
 
+union AICMountResponse {
+    struct SiTechStandardResponse {
+        unsigned int boolParams;
+        double RightAsc;
+        double Declination;
+        double ScopeAlititude;
+        double ScopeAzimuth;
+        double SecondaryAxisAngle;
+        double PrimaryAxisAngle;
+        double ScopeSiderealTime;
+        double ScopeJulianDay;
+        double ScopeTime;
+        double AirMass;
+        char extra[256];
+    } standard_response;
+    struct SitechSiteLocationsResponse {
+        double siteLatitude;
+        double siteLongitude;
+        double siteElevation;
+    } locations_response;
+};
+    
+
 static int
-AICMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_size, void *results, size_t results_size, size_t *return_size)
+aic_mount_response_parse(const char *string, union AICMountResponse *response)
 {
-    struct AICMount *self = cast(SYSU80(), _self);
+    char *buffer = Malloc(strlen(string) + 1), *tok, *field1, *field2;
+    int i;
+    int ret = AAOS_OK;
     
-    int cfd;
-    ssize_t nwrite, nread;
+    snprintf(buffer, strlen(string) + 1, "%s", string);
     
-    if (strncmp(raw_command, "AIC", 3) == 0) {
-        if ((cfd = Tcp_connect(self->address, self->port2, NULL, NULL)) < 0) {
-            switch (errno) {
-                case ENETDOWN:
-                    return AAOS_ENETDOWN;
+    field1 = strsep(&buffer, "_");
+    field2 = strsep(&buffer, "_");
+    
+    if (field2 != NULL && strcmp(field2, "SiteLocations") == 0) {
+        for (i = 0; (tok = strsep(&field1, "_")); i++) {
+            switch (i) {
+                case 0:
+                    response->locations_response.siteLatitude = atof(tok);
                     break;
-                case ENETUNREACH:
-                    return AAOS_ENETUNREACH;
+                case 1:
+                    response->locations_response.siteLongitude = atof(tok);
+                    break;
+                case 2:
+                    response->locations_response.siteElevation = atof(tok);
                     break;
                 default:
-                    return AAOS_ERROR;
                     break;
             }
         }
-        if ((nwrite = Writen(cfd, raw_command, size)) < 0) {
-            Close(cfd);
-            if (write_size) {
-                *write_size = 0;
-            }
-            switch (errno) {
-                case ENETDOWN:
-                    return AAOS_ENETDOWN;
-                    break;
-                case ENETUNREACH:
-                    return AAOS_ENETUNREACH;
-                    break;
-                default:
-                    return AAOS_ERROR;
-                    break;
-            }
-        }
-        if ((nread = Readn3(cfd, results, results_size, "\n", 1)) < 0) {
-            Close(cfd);
-            if (return_size) {
-                *return_size = 0;
-            }
-            switch (errno) {
-                case ENETDOWN:
-                    return AAOS_ENETDOWN;
-                    break;
-                case ENETUNREACH:
-                    return AAOS_ENETUNREACH;
-                    break;
-                default:
-                    return AAOS_ERROR;
-                    break;
-            }
-        } else {
-            if (return_size != NULL) {
-                *return_size = nread;
-            }
+        if (i < 2) {
+            ret = AAOS_EBADMSG;
         }
     } else {
-        if ((cfd = Tcp_connect(self->address, self->port2, NULL, NULL)) < 0) {
-            switch (errno) {
-                case ENETDOWN:
-                    return AAOS_ENETDOWN;
+        for (i = 0; (tok = strsep(&field1, ";")); i++) {
+            switch (i) {
+                case 0:
+                    response->standard_response.boolParams = atoi(tok);
                     break;
-                case ENETUNREACH:
-                    return AAOS_ENETUNREACH;
+                case 1:
+                    response->standard_response.RightAsc = atof(tok);
+                    break;
+                case 2:
+                    response->standard_response.Declination = atof(tok);
+                    break;
+                case 3:
+                    response->standard_response.ScopeAlititude = atof(tok);
+                    break;
+                case 4:
+                    response->standard_response.ScopeAzimuth = atof(tok);
+                    break;
+                case 5:
+                    response->standard_response.SecondaryAxisAngle = atof(tok);
+                    break;
+                case 6:
+                    response->standard_response.PrimaryAxisAngle = atof(tok);
+                    break;
+                case 7:
+                    response->standard_response.ScopeSiderealTime = atof(tok);
+                    break;
+                case 8:
+                    response->standard_response.ScopeJulianDay = atof(tok);
+                    break;
+                case 9:
+                    response->standard_response.ScopeTime = atof(tok);
+                    break;
+                case 10:
+                    response->standard_response.AirMass = atof(tok);
                     break;
                 default:
-                    return AAOS_ERROR;
                     break;
             }
         }
-        if ((nwrite = Writen(cfd, raw_command, size)) < 0) {
-            Close(cfd);
-            if (write_size) {
-                *write_size = 0;
-            }
-            switch (errno) {
-                case ENETDOWN:
-                    return AAOS_ENETDOWN;
-                    break;
-                case ENETUNREACH:
-                    return AAOS_ENETUNREACH;
-                    break;
-                default:
-                    return AAOS_ERROR;
-                    break;
-            }
+        if (i < 10) {
+            ret = AAOS_EBADMSG;
         }
-        if (strcmp(raw_command, "ReadScopeStatus\n") == 0 || strcmp(raw_command, "ReadScopeDestination\n") == 0) {
-            if ((nread = Readn3(cfd, results, results_size, "_", 1)) < 0) {
-                Close(cfd);
-                if (return_size) {
-                    *return_size = 0;
-                }
-                switch (errno) {
-                    case ENETDOWN:
-                        return AAOS_ENETDOWN;
-                        break;
-                    case ENETUNREACH:
-                        return AAOS_ENETUNREACH;
-                        break;
-                    default:
-                        return AAOS_ERROR;
-                        break;
-                }
-            } else {
-                if (return_size != NULL) {
-                    *return_size = nread;
-                }
-            }
-        } else {
-            char delimeter[COMMANDSIZE];
-            snprintf(delimeter, COMMANDSIZE, "_%s", (char *) raw_command);
+        memset(response->standard_response.extra, '\0', 256);
+        if (field2 != NULL && *field2 != '\0') {
+            snprintf(response->standard_response.extra, 256, "%s", field2);
         }
     }
     
@@ -2917,15 +2921,172 @@ AICMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_si
 }
 
 static int
+AICMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_size, void *results, size_t results_size, size_t *return_size)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    int cfd, ret = AAOS_OK;
+    ssize_t nwrite, nread;
+    
+    Pthread_mutex_lock(&self->mtx);
+    if (strncmp(raw_command, "AIC", 3) == 0) {
+        cfd = Tcp_connect(self->address, self->port2, NULL, NULL);
+    } else {
+        cfd = Tcp_connect(self->address, self->port, NULL, NULL);
+    }
+    if (cfd < 0) {
+        switch (errno) {
+            case ENETDOWN:
+                ret = AAOS_ENETDOWN;
+                break;
+            case ENETUNREACH:
+                ret = AAOS_ENETUNREACH;
+                break;
+            default:
+                ret = AAOS_ERROR;
+                break;
+        }
+        goto error;
+    }
+    if ((nwrite = Writen(cfd, raw_command, size)) < 0) {
+        Close(cfd);
+        if (write_size) {
+            *write_size = 0;
+        }
+        switch (errno) {
+            case ENETDOWN:
+                ret = AAOS_ENETDOWN;
+                break;
+            case ENETUNREACH:
+                ret = AAOS_ENETUNREACH;
+                break;
+            default:
+                ret = AAOS_ERROR;
+                break;
+        }
+        goto error;
+    }
+    if ((nread = Readn3(cfd, results, results_size, "\n", 1)) < 0) {
+        Close(cfd);
+        if (return_size) {
+            *return_size = 0;
+        }
+        switch (errno) {
+            case ENETDOWN:
+                ret =  AAOS_ENETDOWN;
+                break;
+            case ENETUNREACH:
+                ret = AAOS_ENETUNREACH;
+                break;
+            default:
+                ret = AAOS_ERROR;
+                break;
+        }
+        goto error;
+    } else {
+        if (return_size != NULL) {
+            *return_size = nread;
+        }
+    }
+error:
+    Pthread_mutex_unlock(&self->mtx);
+    return ret;
+}
+
+static int
+AICMount_slew_altaz(void *_self, double alt, double az)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    int ret;
+    unsigned int state, flag;
+    struct timespec tp;
+    
+    union AICMountResponse response;
+    unsigned int cnt = 0;
+    
+    if (alt < 10.) {
+        return AAOS_EINVAL;
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
+        
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    //self->_.ra_to = ra;
+    //self->_.dec_to = dec;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    snprintf(command, COMMANDSIZE, "GoToAltAxz %.6f %.6f J2K\n", alt, az);
+    
+    if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_SLEWING;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    while (true) {
+        cnt++;
+        if (cnt > self->max_polling_times) {
+            ret = AAOS_ETIMEDOUT;
+            break;
+        }
+        Nanosleep(self->polling_interval);
+        if ((ret = AICMount_raw(self, "ReadScopeStatus\n", 17, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            break;
+        }
+        aic_mount_response_parse(buf, &response);
+        if (response.standard_response.boolParams&0x0002) {
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state = TELESCOPE_STATE_TRACKING | (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION);
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+            break;
+        } else if (response.standard_response.boolParams&0x0008) {
+            ret = AAOS_ECANCELED;
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state = TELESCOPE_STATE_PARKED | (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION);
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+        } else if (response.standard_response.boolParams&0x0010) {
+            ret = AAOS_ECANCELED;
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state = TELESCOPE_STATE_PARKED | (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION);
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+            break;
+        } else if (response.standard_response.boolParams&0x0004) {
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            /*
+            if (self->_.ra_to != ra || self->_.dec_to != dec) {
+                Pthread_mutex_unlock(&self->_.t_state.mtx);
+                ret = AAOS_ECANCELED;
+                break;
+            }
+             */
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+        }
+    }
+
+    return ret;
+}
+
+static int
 AICMount_slew(void *_self, double ra, double dec)
 {
-    struct SYSU80 *self = cast(SYSU80(), _self);
+    struct AICMount *self = cast(AICMount(), _self);
     
     char command[COMMANDSIZE], buf[BUFSIZE];
     int ret;
     unsigned int state, flag;
     struct timespec tp;
     double jd, alt, az, ha;
+    union AICMountResponse response;
+    unsigned int cnt = 0;
     
     Clock_gettime(CLOCK_REALTIME, &tp);
     jd = jd_tp(&tp);
@@ -2937,32 +3098,276 @@ AICMount_slew(void *_self, double ra, double dec)
     Pthread_mutex_lock(&self->_.t_state.mtx);
     state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
     flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
+        
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
+    }
     self->_.ra_to = ra;
     self->_.dec_to = dec;
-    if (flag) {
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    snprintf(command, COMMANDSIZE, "GoTo %.6f %.6f J2K\n", ra, dec);
+    
+    if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_SLEWING;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    while (true) {
+        cnt++;
+        if (cnt > self->max_polling_times) {
+            ret = AAOS_ETIMEDOUT;
+            break;
+        }
+        Nanosleep(self->polling_interval);
+        if ((ret = AICMount_raw(self, "ReadScopeStatus\n", 17, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            break;
+        }
+        aic_mount_response_parse(buf, &response);
+        if (response.standard_response.boolParams&0x0002) {
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state = TELESCOPE_STATE_TRACKING | (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION);
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+            break;
+        } else if (response.standard_response.boolParams&0x0008) {
+            ret = AAOS_ECANCELED;
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state = TELESCOPE_STATE_PARKED | (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION);
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+        } else if (response.standard_response.boolParams&0x0010) {
+            ret = AAOS_ECANCELED;
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            self->_.t_state.state = TELESCOPE_STATE_PARKED | (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION);
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+            break;
+        } else if (response.standard_response.boolParams&0x0004) {
+            Pthread_mutex_lock(&self->_.t_state.mtx);
+            if (self->_.ra_to != ra || self->_.dec_to != dec) {
+                Pthread_mutex_unlock(&self->_.t_state.mtx);
+                ret = AAOS_ECANCELED;
+                break;
+            }
+            Pthread_mutex_unlock(&self->_.t_state.mtx);
+        }
+    }
+
+    return ret;
+}
+
+static int
+AICMount_park(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    char buf[BUFSIZE];
+    unsigned int state, flag;
+    int ret = AAOS_OK;
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    if ((ret = AICMount_raw(self, "Park\n", 6, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto error;
+    }
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_PARKED;
+error:
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return ret;
+}
+
+static int
+AICMount_park_off(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    char buf[BUFSIZE];
+    unsigned int state, flag;
+    int ret = AAOS_OK;
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    if ((ret = AICMount_raw(self, "UnPark\n", 8, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto error;
+    }
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_TRACKING;
+error:
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return ret;
+}
+
+static int
+AICMount_stop(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    char buf[BUFSIZE];
+    unsigned int state, flag;
+    int ret = AAOS_OK;
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    if ((ret = AICMount_raw(self, "Abort\n", 7, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto error;
+    }
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_PARKED;
+    if ((ret = AICMount_raw(self, "UnPark\n", 8, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto error;
+    }
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_TRACKING;
+error:
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return ret;
+}
+
+static int
+AICMount_go_home(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    unsigned int state, flag;
+    int ret = AAOS_OK;
+    
+    if (self->home_alt >= 0. && self->home_alt <= 90. && self->home_az >= 0. && self->home_az < 360.) {
+        ret = AICMount_slew_altaz(self, self->home_alt, self->home_az);
+    } else {
+        ret = AICMount_slew(self, self->home_ra, self->home_dec);
+    }
+    ret = AICMount_park(self);
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     
-    snprintf(command, COMMANDSIZE, "0x00010000 %lf %lf", ra, dec);
+    return ret;
+}
+
+static int
+AICMount_move(void *_self, int direction, double duration)
+{
+    struct AICMount *self = cast(AICMount(), _self);
     
-    if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
-        goto end;
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    unsigned int state, flag;
+    union AICMountResponse response;
+    int ret = AAOS_OK;
+    
+    switch (direction) {
+        case TELESCOPE_MOVE_EAST:
+            snprintf(command, COMMANDSIZE, "PulseGuide 2 %d", (int) duration * 1000);
+            break;
+        case TELESCOPE_MOVE_WEST:
+            snprintf(command, COMMANDSIZE, "PulseGuide 3 %d", (int) duration * 1000);
+            break;
+        case TELESCOPE_MOVE_NORTH:
+            snprintf(command, COMMANDSIZE, "PulseGuide 0 %d", (int) duration * 1000);
+            break;
+        case TELESCOPE_MOVE_SOUTH:
+            snprintf(command, COMMANDSIZE, "PulseGuide 1 %d", (int) duration * 1000);
+            break;
+        default:
+            return AAOS_EINVAL;
+            break;
     }
     
-    //ret = SYSU80_wait_slew(self);
-
-end:
     Pthread_mutex_lock(&self->_.t_state.mtx);
-    if (ret == AAOS_OK || ret == AAOS_ETIMEDOUT) {
-        self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
-    } else {
-        self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     
+    if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_MOVING;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    Nanosleep(duration);
+    
+    if ((ret = AICMount_raw(self, "ReadScopeStatus\n", 17, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+    
+    aic_mount_response_parse(buf, &response);
+    if (!(response.standard_response.boolParams&0x0002)) {
+        Nanosleep(self->polling_interval);
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_TRACKING;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+	
+	
+    
     return ret;
+}
+
+static int
+AICMount_set_track_rate(void *_self, double track_rate_x, double track_rate_y)
+{
+	struct AICMount *self = cast(AICMount(), _self);
+	
+	char command[COMMANDSIZE], buf[BUFSIZE];
+    unsigned int state, flag;
+	int ret = AAOS_OK;
+	
+	snprintf(command, COMMANDSIZE, "SetTrackMode 1 1 %.3f %.3f\n", track_rate_x, track_rate_y);
+	
+	Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag&&!(self->_.t_state.option&TELESCOPE_OPTION_IGNORE_MALFUNCTION)) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+	
+	if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        return ret;
+    }
+	
+	Pthread_rwlock_wrlock(&self->_.t_param.track_rate_rwlock);
+	self->_.t_param.track_rate_x = track_rate_x;
+	self->_.t_param.track_rate_y = track_rate_y;
+    Pthread_rwlock_unlock(&self->_.t_param.track_rate_rwlock);
+	
+    return ret;
+}
+
+static int
+AICMount_set_move_speed(void *_self, double move_speed)
+{
+	return AAOS_ENOTSUP;
 }
 
 /*

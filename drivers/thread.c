@@ -7,6 +7,7 @@
 
 #include "def.h"
 #include "detector_rpc.h"
+#include "dome_rpc.h"
 #include "rpc.h"
 #include "scheduler_def.h"
 #include "scheduler_rpc.h"
@@ -236,7 +237,7 @@ __ObservationThread_cycle(void *_self)
 #endif
         return AAOS_EBADCMD;
     }
-     value_json = cJSON_GetObjectItemCaseSensitive(target_json, "targname");
+    value_json = cJSON_GetObjectItemCaseSensitive(target_json, "targname");
     if (value_json != NULL && cJSON_IsString(value_json)) {
         if (strcasecmp(value_json->valuestring, "bad wearther") == 0) {
             is_badweather = true;
@@ -411,9 +412,9 @@ __ObserbationThread_stop(void *_self)
     Pthread_mutex_lock(&self->mtx);
 	if (self->state == OT_STATE_SLEW) {
 		if (self->has_telescope && self->telescope != NULL) {
-			telescope_stop(self->telescope)
+            telescope_stop(self->telescope);
 		}
-	} else if (self->state == OT_STATE_EXPOSURE) {
+	} else if (self->state == OT_STATE_EXPOSE) {
 		if (self->has_detector && self->detector != NULL) {
 			detector_stop(self->detector);
 		}

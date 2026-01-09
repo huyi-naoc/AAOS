@@ -27,12 +27,17 @@ struct DetectorClass {
     struct Method expose;
     struct Method set_binning;
     struct Method get_binning;
+    struct Method set_capture_mode;
+    struct Method get_capture_mode;
+
     struct Method set_exposure_time;
     struct Method get_exposure_time;
     struct Method set_frame_rate;
     struct Method get_frame_rate;
     struct Method set_gain;
     struct Method get_gain;
+    struct Method set_overscan;
+    struct Method get_overscan;
     struct Method set_pixel_format;
     struct Method get_pixel_format;
     struct Method set_readout_rate;
@@ -41,6 +46,8 @@ struct DetectorClass {
     struct Method get_region;
     struct Method set_temperature;
     struct Method get_temperature;
+    struct Method set_trigger_mode;
+    struct Method get_trigger_mode;
     struct Method enable_cooling;
     struct Method disable_cooling;
     

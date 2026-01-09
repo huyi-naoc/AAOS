@@ -18,7 +18,7 @@
 
 static void *d;
 static void *server;
-static const char *config_path = "/usr/local/aaos/etc/schedulerd.cfg";
+static const char *config_path = "/opt/aaos/etc/schedulerd.cfg";
 static bool daemon_flag = true;
 static bool feed_dog_flag = true;
 static config_t cfg;
@@ -40,7 +40,7 @@ read_daemon(void)
     setting = config_lookup(&cfg, "daemon");
 
     if (setting != NULL) {
-        const char *name = NULL, *username = "aag", *rootdir = "/", *lockfile = NULL;
+        const char *name = NULL, *username = "sitian", *rootdir = "/opt/aaos", *lockfile = NULL;
         int daemonized = 1;
 
         config_setting_lookup_string(setting, "name", &name);
@@ -408,11 +408,26 @@ main(int argc, char *argv[])
     argv += optind;
     
     config_init(&cfg);
-
+    
     if ((ret = Access(config_path, F_OK)) < 0) {
-        fprintf(stderr, "configuration file does not exist.\n");
-        fprintf(stderr, "Exit...\n");
-        exit(EXIT_FAILURE);
+        if ((ret = Access("schedulerd.cfg", F_OK)) == 0) {
+            config_path = "schedulerd.cfg";
+        } else if ((ret = Access("etc/schedulerd.cfg", F_OK)) == 0) {
+            config_path = "etc/schedulerd.cfg";
+        } else if ((ret = Access("/opt/aaos/etc/schedulerd.cfg", F_OK)) == 0) {
+            config_path = "/opt/aaos/etc/schedulerd.cfg";
+        } else if ((ret = Access("/usr/local/aaos/etc/schedulerd.cfg", F_OK)) == 0) {
+            config_path = "/usr/local/aaos/etc/schedulerd.cfg";
+        } else if ((ret = Access("/etc/aaos/schedulerd.cfg", F_OK)) == 0) {
+            config_path = "/etc/aaos/schedulerd.cfg";
+        } else if ((ret = Access("/etc/schedulerd.cfg", F_OK)) == 0) {
+            config_path = "/etc/schedulerd.cfg";
+        } else {
+            fprintf(stderr, "configuration file does not exist.\n");
+            fprintf(stderr, "Exit...\n");
+            config_destroy(&cfg);
+            exit(EXIT_FAILURE);
+        }
     }
     
     if(config_read_file(&cfg, config_path) == CONFIG_FALSE) {

@@ -2900,123 +2900,6 @@ SchedulerServer_process_thr(void *arg)
 }
 
 
-static void*
-SchedulerServer_start_tcp_thr(void *arg)
-{
-    struct RPCServer *self = (struct RPCServer *) arg;
-    void *client;
-    pthread_t tid;
-    sigset_t set;
-    uint16_t option;
-    int ret;
-    
-    sigemptyset(&set);
-    sigaddset(&set, SIGPIPE);
-    Pthread_sigmask(SIG_BLOCK, &set, NULL);
-    
-    self->_.lfd = Tcp_listen(self->_.address, self->_.port, NULL, NULL);
-    option = self->_.option&(~(TCPSERVER_OPTION_TCP|TCPSERVER_OPTION_UDS));
-    
-    switch (option) {
-        case TCPSERVER_OPTION_DEFAULT:
-            for (;;) {
-                if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
-                    Pthread_create(&tid, NULL, SchedulerServer_process_thr, client);
-                }
-            }
-            break;
-        default:
-            break;
-    }
-    
-    return NULL;
-}
-
-static void*
-SchedulerServer_start_uds_thr(void *arg)
-{
-    struct RPCServer *self = (struct RPCServer *) arg;
-    void *client;
-    pthread_t tid;
-    sigset_t set;
-    uint16_t option;
-    int ret;
-    
-    sigemptyset(&set);
-    sigaddset(&set, SIGPIPE);
-    Pthread_sigmask(SIG_BLOCK, &set, NULL);
-    
-    self->_.lfd2 = Un_stream_listen(self->_.path);
-    option = self->_.option&(~(TCPSERVER_OPTION_TCP|TCPSERVER_OPTION_UDS));
-    
-    switch (option) {
-        case TCPSERVER_OPTION_DEFAULT:
-            for (;;) {
-                if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
-                    Pthread_create(&tid, NULL, SchedulerServer_process_thr, client);
-                }
-            }
-            break;
-        default:
-            break;
-    }
-    
-    return NULL;
-}
-
-static void
-SchedulerServer_start(void *_self)
-{
-    struct RPCServer *self = cast(RPCServer(), _self);
-    
-    pthread_t tids[2];
-    
-    if (self->_.option&TCPSERVER_OPTION_TCP) {
-        Pthread_create(&tids[0], NULL, SchedulerServer_start_tcp_thr, self);
-    }
-    if (self->_.option&TCPSERVER_OPTION_UDS) {
-        Pthread_create(&tids[1], NULL, SchedulerServer_start_uds_thr, self);
-    }
-    if (self->_.option&TCPSERVER_OPTION_TCP) {
-        Pthread_join(tids[0], NULL);
-    }
-    if (self->_.option&TCPSERVER_OPTION_UDS) {
-        Pthread_join(tids[1], NULL);
-    }
-}
-
-/*
-static void
-SchedulerServer_start(void *_self)
-{
-    struct RPCServer *self = cast(RPCServer(), _self);
-    
-    void *client;
-    pthread_t tid, *tids;
-    sigset_t set;
-    int ret;
-    size_t i;
-
-    sigemptyset(&set);
-    sigaddset(&set, SIGPIPE);
-    Pthread_sigmask(SIG_BLOCK, &set, NULL);
-
-    self->_.lfd = Tcp_listen(NULL, self->_.port, NULL, NULL);
-
-    switch (self->_.option) {
-        case TCPSERVER_OPTION_DEFAULT:
-            for (;;) {
-                if ((ret = rpc_server_accept(self, &client)) == AAOS_OK) {
-                    Pthread_create(&tid, NULL, SchedulerServer_process_thr, client);
-                }
-            }
-            break;
-        default:
-            break;
-    }
-
-}
-*/
 
 static void *
 SchedulerServer_ctor(void *_self, va_list *app)
@@ -3042,7 +2925,7 @@ SchedulerServerClass_ctor(void *_self, va_list *app)
     struct SchedulerServerClass *self = super_ctor(SchedulerServerClass(), _self, app);
     
     self->_.accept.method = (Method) 0;
-    self->_.start.method = (Method) 0;
+    self->_.accept2.method = (Method) 0;
     
     return self;
 }
@@ -3089,9 +2972,9 @@ static void
 SchedulerServer_initialize(void)
 {
     _SchedulerServer = new(SchedulerServerClass(), "SchedulerServer", RPCServer(), sizeof(struct SchedulerServer),
-                        ctor, "ctor", SchedulerServer_ctor,
-                        dtor, "dtor", SchedulerServer_dtor,
-                        (void *) 0);
+                           ctor, "ctor", SchedulerServer_ctor,
+                           dtor, "dtor", SchedulerServer_dtor,
+                           (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(SchedulerServer_destroy);
 #endif
@@ -3121,9 +3004,9 @@ scheduler_server_virtual_table_initialize(void)
 {
 
     _scheduler_server_virtual_table = new(RPCServerVirtualTable(),
-                                        rpc_server_accept, "accept", SchedulerServer_accept,
-                                        rpc_server_start, "start", SchedulerServer_start,
-                                        (void *)0);
+                                          rpc_server_accept, "accept", SchedulerServer_accept,
+                                          rpc_server_accept2, "accept2", SchedulerServer_accept2,
+                                          (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(scheduler_server_virtual_table_destroy);
 #endif

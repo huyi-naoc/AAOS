@@ -1045,24 +1045,24 @@ __Scheduler_task_init_cb(struct __Scheduler *self, MYSQL_RES *res)
     unsigned long *lengths;
 
     n_rows = mysql_num_rows(res);
-    identifiers = (uint64_t *) Malloc(sizeof(uint64_t) * n_rows);
-
-    while ((row = mysql_fetch_row(res))) {
-        lengths = mysql_fetch_lengths(res);
-        if (lengths[0] != 0) {
-            identifiers[cnt] = strtoull(row[0], NULL, 0);
-            identifiers[cnt] = identifiers[cnt]&(~(0xFFFFFFFFULL<<32));
-            cnt++;
+    if (n_rows > 0) {
+        identifiers = (uint64_t *) Malloc(sizeof(uint64_t) * n_rows);
+	while ((row = mysql_fetch_row(res))) {
+            lengths = mysql_fetch_lengths(res);
+	    if (lengths[0] != 0) {
+                identifiers[cnt] = strtoull(row[0], NULL, 0);
+                identifiers[cnt] = identifiers[cnt]&(~(0xFFFFFFFFULL<<32));
+                cnt++;
+            }
         }
-    }
-    self->max_task_id = identifiers[0];
-    for (i = 1; i < cnt; i++) {
-        if (self->max_site_id < identifiers[i]) {
-            self->max_site_id = identifiers[i];
+        self->max_task_id = identifiers[0];
+        for (i = 1; i < cnt; i++) {
+            if (self->max_task_id < identifiers[i]) {
+                self->max_task_id = identifiers[i];
+            }
         }
+        free(identifiers);
     }
-
-    free(identifiers);
 
     return AAOS_OK;
 } 
@@ -2927,6 +2927,7 @@ __Scheduler_add_task_record_thr(void *arg)
     if (task_record->record2 != NULL) {
         scheduler_add_task_record(scheduler_local, task_record->record2, SCHEDULER_FORMAT_JSON);
     } else {
+        scheduler_add_task_record(scheduler_local, task_record->record2, SCHEDULER_FORMAT_JSON);
         scheduler_add_task_record(scheduler_local, task_record->record, SCHEDULER_FORMAT_JSON);
     }
     delete(scheduler_local);
@@ -2943,6 +2944,7 @@ __Scheduler_add_task_record_json(struct __Scheduler *self, int status, const cha
     cJSON *root_json, *general_json, *site_json, *telescope_json, *target_json, *value_json, *value2_json;
     int ret = AAOS_OK, ret2;
     uint64_t site_id, tel_id, targ_id, task_id;
+    double d_value;
     uint32_t nside;
     float timestamp;
     char sql[BUFSIZE];
@@ -2957,7 +2959,8 @@ __Scheduler_add_task_record_json(struct __Scheduler *self, int status, const cha
     root_json = cJSON_Parse(info);
     if (root_json != NULL) {
         if ((general_json = cJSON_GetObjectItemCaseSensitive(root_json, "GENERAL-INFO")) != NULL && (value_json = cJSON_GetObjectItemCaseSensitive(general_json, "task_id")) != NULL && cJSON_IsNumber(value_json)) {
-            task_id = value_json->valueint;
+            d_value = value_json->valuedouble;
+            task_id = (uint64_t) d_value;
         } else {
 #ifdef DEBUG
             fprintf(stderr, "%s %s %d: `task_id field is absent in GENERAL-INFO.\n", __FILE__, __func__, __LINE__);
@@ -2976,15 +2979,15 @@ __Scheduler_add_task_record_json(struct __Scheduler *self, int status, const cha
             goto end;
         }
         if ((telescope_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) != NULL && (value_json = cJSON_GetObjectItemCaseSensitive(telescope_json, "tel_id")) != NULL && cJSON_IsNumber(value_json)) {
+            tel_id = value_json->valueint;
+        } else {
 #ifdef DEBUG
             fprintf(stderr, "%s %s %d: `tel_id field is absent in TELESCOPE-INFO.\n", __FILE__, __func__, __LINE__);
 #endif
-            tel_id = value_json->valueint;
-        } else {
             ret = AAOS_EBADCMD;
             goto end;
         }
-        if ((site_json = cJSON_GetObjectItemCaseSensitive(root_json, "SITE-INFO")) != NULL && (value_json = cJSON_GetObjectItemCaseSensitive(root_json, "site_id")) != NULL && cJSON_IsNumber(value_json)) {
+        if ((site_json = cJSON_GetObjectItemCaseSensitive(root_json, "SITE-INFO")) != NULL && (value_json = cJSON_GetObjectItemCaseSensitive(site_json, "site_id")) != NULL && cJSON_IsNumber(value_json)) {
             site_id = value_json->valueint;
         } else {
             if (self->type == SCHEDULER_TYPE_SITE && self->site != NULL) {
@@ -3001,8 +3004,10 @@ __Scheduler_add_task_record_json(struct __Scheduler *self, int status, const cha
                 }
             } else {
 #ifdef DEBUG
+		fprintf(stderr, "%s\n", info);
                 fprintf(stderr, "%s %s %d: `site_id field is absent in SITE-INFO.\n", __FILE__, __func__, __LINE__);
 #endif
+                ret = AAOS_EBADCMD;
                 goto end;
             }
         }
@@ -3593,6 +3598,8 @@ __Scheduler_init(void *_self)
         __Scheduler_database_query(self, sql, __Scheduler_telescope_init_cb);
         __scheduler_create_sql(SCHEDULER_TARGET_INIT, 0, self->target_db_table, sql, BUFSIZE);
         __Scheduler_database_query(self, sql, __Scheduler_target_init_cb);
+        __scheduler_create_sql(SCHEDULER_TASK_RECORD_INIT, 0, self->task_db_table, sql, BUFSIZE);
+        __Scheduler_database_query(self, sql, __Scheduler_task_init_cb);
         __scheduler_set_member(self, "connect_global");
         if ((fp = popen(self->algorithm, "r")) != NULL ) {
             pclose(fp);

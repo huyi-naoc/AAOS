@@ -1,4 +1,3 @@
-//
 //  thread_r.h
 //  AAOS
 //
