@@ -30,8 +30,10 @@ struct __Dome {
     double window_position;
     double slew_speed;
     double track_speed;
+    double latitude;
+    double longitude;
+    double altitude;
 	bool slew_available;
-    
 };
 
 struct __DomeClass {
@@ -53,6 +55,8 @@ struct __DomeClass {
 	struct Method slew;
 	struct Method park;
 	struct Method park_off;
+    struct Method stop;
+    struct Method abort;
     struct Method get_name;
 };
 
@@ -75,6 +79,8 @@ struct __DomeVirtualTable {
     struct Method slew;
 	struct Method park;
 	struct Method park_off;
+    struct Method stop;
+    struct Method abort;
 };
 
 struct VirtualDome {

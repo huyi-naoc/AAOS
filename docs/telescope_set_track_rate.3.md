@@ -2,13 +2,13 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
+
 
 telescope\_set\_track\_rate - set track rates of both axes of telescope
 
-SYNOPSIS
-========
+# SYNOPSIS
+
 
 **#include <telescope_rpc.h>**  
 **#include <telescope_def.h>**
@@ -18,20 +18,18 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
+
 
 The **telescope_set_track_rate**() function set the track rate of the telescope referenced by *\*\_self*. The unit of *track_rate_x* and *track_rate_y* are both in arsec per second. This setting will be applied immediate if the telescope state is *TELESCOPE_STATE_TRACKING*, or after the returning of **telescope_move**() family function, **telescope_park_off**() function, **telescope_slew**() family functions, **telescope_stop**() function.
 
 The *track_rate_x* could be the track rate of either RA axis for a equatorial mount or east-west axis for a horizontal mount, whereas the *track_rate_y* could be the track rate of either DEC axis for a equatorial mount or north-south axis for a horizontal mount. 
 
-RETURN VALUE
-============
+# RETURN VALUE
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+On success, *telescope_status*() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-ERRORS
-======
+# ERRORS
 
 This functions shall fail if:
 

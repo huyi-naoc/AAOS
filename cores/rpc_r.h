@@ -34,6 +34,8 @@ struct RPCClass {
 
 struct RPCVirtualTable {
     struct VirtualTable _;
+    struct Method read;
+    struct Method write;
     struct Method call;
     struct Method process;
     struct Method execute;

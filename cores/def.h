@@ -48,6 +48,7 @@
 #define PROTO_THERMAL   9
 #define PROTO_SCHEDULER 10
 #define PROTO_DOME      11
+#define PROTO_THREAD    12
 #define PROTO_SYSTEM    0xFFFF   /* system error recovery */
 
 #define SYSTEM_COMMAND_REGISTER 0xFFFF
@@ -57,6 +58,7 @@
 
 #define SERIAL_RPC_PORT         "12000"
 #define DETECTOR_RPC_PORT       "12001"
+#define LOG_RPC_PORT            "12050"
 
 #define TEL_RPC_PORT            "13000"
 #define AWS_RPC_PORT            "13001"
@@ -65,6 +67,8 @@
 #define THM_RPC_PORT            "13004"
 #define DET_RPC_PORT            "13005"
 #define DOM_RPC_PORT            "13006"
+#define PIP_RPC_PORT            "13007"
+#define THR_RPC_PORT            "13500"
 
 #define SCHEDULER_RPC_SITE_PORT   "12500"
 #define SCHEDULER_RPC_GLOBAL      "12501"
@@ -117,6 +121,13 @@ enum {AAOS_OK, AAOS_EACCES, AAOS_EAGAIN, AAOS_EBADF, AAOS_EBADMSG, AAOS_EBUSY, A
 #define _DOME_RPC_PRIORITY_     105
 #endif
 
+#ifndef _THREAD_PRIORITY_
+#define _THREAD_PRIORITY_       130
+#endif
+
+#ifndef _THREAD_RPC_PRIORITY_
+#define _THREAD_RPC_PRIORITY_   131
+#endif
 
 extern int load_sofa_library;
 #endif /* def_h */

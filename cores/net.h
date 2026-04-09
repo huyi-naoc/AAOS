@@ -33,6 +33,8 @@ int tcp_socket_get_sockfd(const void *_self);
 int tcp_socket_read(void *_self, void *read_buffer, size_t request_size, size_t *read_size);
 int tcp_socket_read_until(void *_self, void *read_buffer, size_t request_size, size_t *read_size, const char *delim);
 int tcp_socket_write(void *_self, const void *write_buffer, size_t request_size, size_t *write_size);
+int tcp_socket_read_nb(void *_self, void *read_buffer, size_t request_size, size_t *read_size);
+int tcp_socket_write_nb(void *_self, void *read_buffer, size_t request_size, size_t *read_size);
 
 extern const void *TCPSocket(void);
 extern const void *TCPSocketClass(void);

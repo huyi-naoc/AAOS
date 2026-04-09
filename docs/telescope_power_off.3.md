@@ -25,10 +25,14 @@ The **telescope_power_off**() function powers off the telescope referenced by *\
 
 If the telescope has already been powered off, calling this function does nothing and return successfully. Otherwise, it will change the state of the telescope to *TELESCOPE_STATE_PWROFF* no matter which state the telescope is right now. 
 
-RETURN VALUE
-============
+## Parameters
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*\_self*
+:   Pointer to the telescope instance.
+
+# RETURN VALUE
+
+On success, **telescope_power_off**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
 ERRORS
 ======

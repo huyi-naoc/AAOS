@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-telescope\_park - park the telescope
+telescope\_park - park the telescope (de‑energise both axes)
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <telescope_rpc.h>**  
 **#include <telescope_def.h>**
@@ -18,60 +16,54 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_park**() function park the telescope referenced by *\*\_self* at its current position no matter how the two axes of the telescope are moving, which means the two axis are both de-energized by this function.    
+The **telescope_park**() function stops any motion the telescope referenced by *\*\_self* and de‑energises both axes, leaving it at its current position. 
 
-If the telescope has already been parked, calling this function does nothing and return successfully. Otherwise, if the telescope state is *TELESCOPE_STATE_MOVING*, *TELESCOPE_STATE_SLEWING* or *TELESCOPE_STATE_TRACKING*, the state will change to *TELESCOPE_STATE_PARKED*.
+If the telescope is already parked, the function does nothing and returns success. If the telescope is in a *moving*, *slewing* or *tracking* state, the state is changed to *parked*.
 
-RETURN VALUE
-============
+## Parameters
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*\_self*
+:   Pointer to the telescope instance.
 
-ERRORS
-======
+# RETURN VALUE
 
-This functions shall fail if:
+On success, **telescope_park**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_EDEVMAL
-------------
+# ERRORS
 
-The underline telescope is in *MALFUNCTION* state.
+The function may fail with the following error codes:
 
-AAOS\_EPWROFF
-------------
+## AAOS\_EDEVMAL
 
-The underline telescope is not powered.
+The underlying telescope is in a *malfunction* state.
 
-AAOS\_EUNINT
------------
+## AAOS\_EPWROFF
 
-The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+The underlying telescope is not powered.
 
-CONFORMING TO
-=============
+## AAOS\_EUNINT
+
+The underlying telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_park**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_park_off**(3)
+**telescope_park_off**(3).
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

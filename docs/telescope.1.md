@@ -2,176 +2,154 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-telescope - the command-line client of **telescoped** in AAOS 
+telescope — command‑line client for the **telescoped** daemon in AAOS
 
-SYNOPSIS
-========
+# SYNOPSIS
 
-**telescope** [-fhintuv] *command* [parameter list]
+**telescope** [options] *command* [*arguments*]
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-**telescope** is the command-line client of **telescoped** in Automated Astronomical Observatory Operating System (AAOS). It is used for operating telescope, get and set runtime parameters of a telescope. The telescope here is referred to a merely equatorial mount, which can point to and track celetial objects.  
+**telescope** is the command‑line client for the **telescoped** daemon in the Automated Astronomical Observatory Operating System (AAOS). It is used to operate a telescope and to get or set its runtime parameters. The telescope is assumed to be an equatorial mount capable of pointing to and tracking celestial objects. 
 
-It currently supports two types of telescope, the virtual telescope and the Astro-Physics Mount 1600GTO. ASA DDM100 will be also supported soon.  
+Currently four telescope types are supported: virtual telescopes conformed to AAOS standard, the Astro‑Physics Mount 1600GTO, the Sun Yat-Sen 80 cm infared telescope, and telescopes using Sitech controller. Support for the ASA DDM100 and ASCOM compatible telescopes are planned.  
 
-OPTIONS
-=======
+# OPTIONS
 
 `-h, --help`
+:   Display the help message and exit.
 
-:   Show the help message and exit
+`-v, --version`
+:   Display the program version and exit.
 
 `-f, --format` *FORMAT*
-
-:   Set the input format (`degree`, `string`) for the parameters of *slew* command. Default is `string`. 
+:   Set the input format for coordinate arguments of the **slew** command. Accepted values are `degree` or `string`.  The default is `string`, e.g., 22h24m15.25s.
 
 `-i, --index` *INDEX*
-
-:   Set the index of the telescope to operate. It will overwrite previous -t or -i option. Default is `1`.
+:   Select the telescope by numeric index.  This option overrides any previous `-i` or `-n` option.  The default index is **1**.
 
 `-n, --name` *NAME*
+:   Select the telescope by its configured name.  This option overrides any previous `-i` or `-n` option.
 
-:   Set the name of the telescope to operate. It will overwrite previous -t
- or -i option.
+`-t, --telescope` *ADDRESS:PORT*
+:   Specify the telescope server’s address and port. If omitted, `localhost:13000` is used. If *address* ends with `.sock`, a Unix Domain Socket is used instead of a TCP socket.
 
-`-t, --telescope` *TELESCOPE*
-
-:   Set the telescope server's address and port in format of *[address]:[port]*. If this option has not present, default localhost:13000 will be applied. 
 
 `-u, --unit` *UNIT*
+:   Choose the unit for the **set move_speed** and **set slew_speed** commands. Valid units are `nature`, `second`, `minute`, and `degree`. `nature` represents 15 arcseconds per second.  The default is `nature`.
 
-:   Set the unit (`nature`, `second`, `minute`, `degree`)  of `set move_speed` or `set slew_speed` command. `nature` means in unit of 15 arcsec per second. Default is `nature`.
+# COMMANDS
 
-COMMANDS
-========
+`enable` *parameter*
+:   Enable a telescope parameter. Supported *parameter* values are:
+     
+    - `derotator` - enable the derotator of the current detetctor (horizontal mount or Nasmyth focus). 
 
-get *parameter*
----------------
+`disable` *parameter*
+:   Enable a telescope parameter. Supported *parameter* values are:
+    
+    - `derotator` - disable the derotator of the current detetctor, (horizontal mount or Nasmyth focus). 
 
-**Get** *parameter*s of the underline telescope and print it to stdout. Available *parameter*s are list as following: 
+`focus` *absolute* *step*
+:   Adjust the focus. If *absolute* is `0`, the *step* is interpreted as a relative offset from the current focus position; otherwise *step* is taken as an absolute position.   
 
-**move_speed**
+`get` *parameter*
+:   Retrieve *parameter* from the telescope and write it to standard output.  Supported *parameter* values are:
 
-:   get move speed of a single axis.
+    - `derotator_angle` - current angle of the derotator for the active detector.
+    - `move_speed` — move speed of a single axis.
+    - `slew_speed` — slew speed of the two axes (RA/EW and DEC/Alt).
+    - `track_rate` — track rate of the two axes.
+  
+`go_home`
+:   Slew the telescope to its home position and park it there. Subsequent operations (e.g., closing the dome) are then safe.
 
-**slew_speed**
+`info`
+:   Print the capabilities of the telescope.  Output is JSON by default.
 
-:   get slew speed of two axes, the first axis is RA (equatorial mount) or east-west (horizontal mount) axis, the second axis is DEC (equatorial mount) or altitude (horizontal mount) axis.
+`init`
+:   Initialise the telescope (e.g., set time, location, etc.).
 
-**track_rate**
+`move` *direction* *duration*
+:   Move a single axis of the telescope.  *direction* may be `east`, `west`, `north`, or `south`.  *duration* specifies how long the axis should move. After the move completes the telescope resumes tracking. If the telescope is already moving or slewing, the previous command is aborted.
 
-:   set track rate of two axes, the first axis is RA (equatorial mount) or east-west (horizontal mount) axis, the second axis is DEC (equatorial mount) or altitude (horizontal mount) axis.
+`timed_move` *direction* *duration* *timeout*
+:   Same as **move**, but blocks for up to *timeout* seconds while a previous move or slew operation finishes.  If the timeout expires, the command fails.
 
+`try_move` *direction* *duration*
+:   Same as **move**, but returns immediately if the telescope is busy; no movement occurs in that case.
 
-go_home
--------
+`open_cover`
+:   Open the optical‑tube cover.
 
-Slew the underline telescope to its proper position and park at there. The subsequent operatioins, such as close the dome, will be safe.
+`close_cover`
+:   Close the optical‑tube cover.
 
-init
-----
+`park`
+:   Park the telescope at its current position, regardless of its current activity.
 
-Initialize the underline telescope, such as set up the time, location, and etc.
+`park_off`
+:   Disable parking; the telescope will resume normal tracking.
 
-move  *direction* *duration*
-----------------------------
+`power_off`
+:   Power off the telescope.
 
-**Move** the single axis of the telescope. *direction* can be `east`, `west`, `north`, `south`, *duration* is the duration of axis moving. After *move* completes, the telescope start to track. If the telescope is moving or slewing, the previous command will be aborted. 
+`power_on`
+:   Power on the telescope.
 
-timed_move *direction* *duration* *timeout*
--------------------------------------------
+`raw` *cmd*
+:   Send a raw ASCII command *cmd* directly to the telescope.
 
-*timed_move* shall be equivalent to *move*, except that it has a third paramter *timeout* and if the telescope is moving or slewing, this command will wait until the previous *move* or *slew* command, or until it times out. 
+`slew` *ra* *dec*
+:   Slew the telescope to the celestial coordinates (*ra*, *dec*). The coordinate format is controlled by **-f, --format**. After the slew completes the telescope resumes tracking. If the telescope is already moving or slewing, the previous command is aborted.
 
-try_move *direction* *duration*
--------------------------------
+`timed_slew` *ra* *dec* *timeout*
+:   Same as **slew**, but blocks for up to *timeout* seconds while a previous move or slew operation finishes.
 
-*try_move* shall be equivalent to *move*, except that if the telescope is moving or slewing, this command will return immediately and has no effect.
+`try_slew` *ra* *dec*
+:   Same as **slew**, but returns immediately if the telescope is busy; no movement occurs in that case.
 
-park
-----
+`set` *parameter* [*value1* [*value2* …]]
+:   Set a runtime parameter of the telescope. Supported *parameter* values are:
 
-**Park** the telescope to the current position no matter what the telescope is doing now.
+    - `move_speed` — set the move speed of a single axis.
+    - `slew_speed` — set the slew speed of the two axes (RA/EW and DEC/Alt).
+    - `track_rate` — set the track rate of the two axes (RA/EW and DEC/Alt).
+  
+`status`
+:   Print the current status of the telescope to standard output. The status includes at least the current location and the telescope’s *STATE*.
 
-park_off
---------
+`stop`
+:   Stop any ongoing operation (move, slew, etc.) and then resume tracking.
 
-**Park off** the telescope, and then it starts to track.
+`switch` *device_type* *device_name*
+:   Switch devices. Supported *device_type* values are:
 
-power_off
---------
+    - `instrument` - select an instrument.
+    - `detector` - select a detector.
+    - `filter` - select a filter, grism, or slit.
 
-**Power off** the underline telescope. 
+# EXIT STATUS
 
-power_on
----------
+The telescope utility exits with one of the following values:
 
-**Power on** the underline telescope.
+`0`
+: Success.
 
-raw *cmd*
----------
+`>0` 
+: Failure. The exact non‑zero value corresponds to the error reported by the daemon (e.g. `1` for a generic error, other values for specific conditions).
 
-Send raw command to the underline telescope. *cmd* is a literal ASCII string.
-
-slew *ra* *dec*
----------------
-
-**Slew** the telescope to the celetial position at (*ra*, *dec*). The format of the coordinates is specified by **-f, --format** option. After *slew* completes, the telescope starts to track. If the telescope is moving or slewing, the previous command will be aborted. 
-
-timed_slew *ra* *dec* *timeout*
--------------------------------------------
-
-*timed_slew* shall be equivalent to *slew*, except that it has a third paramter *timeout* and if the telescope is moving or slewing, this command will wait until the previous *move* or *slew* command completes, or until it times out. 
-
-try_slew *ra* *dec*
--------------------------------
-
-*try_slew* shall be equivalent to *slew*, except that if the telescope is moving or slewing, this command will return immediately and has no effect.
-
-set *parameter* [*value1* [*value2*, [...]]]
--------------------------------------------
-
-**Set** parameters of the underline telescope. Available *parameter*s are list as following: 
-
-**move_speed**
-
-:   set move speed of a single axis.
-
-**slew_speed**
-
-:   set slew speed of two axes, the first axis is RA (equatorial mount) or east-west (horizontal mount) axis, the second axis is DEC (equatorial mount) or altitude (horizontal mount) axis.
-
-**track_rate**
-
-:   set track rate of two axes, the first axis is RA (equatorial mount) or east-west (horizontal mount) axis, the second axis is DEC (equatorial mount) or altitude (horizontal mount) axis.
-
-status
-------
-
-Print the status of the undeline telescope to the stdout. The status contains at least the currrent location of the telescope, the *STATE* of the telescope. 
-
-stop
-----
-
-Stop the telescope no matter what it is doing now, and then start track.
-
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_get_index_by_name**(3), **telescope_get_move_speed**(3), **telescope_get_slew_speed**(3), **telescope_get_track_rate**(3), **telescope_go_home**(3), **telescope_init**(3), **telescope_move**(3), **telescope_park**(3), **telescope_park_off**(3), **telescope_power_off**(3), **telescope_power_on**(3), **telescope_raw**(3), **telescope_set_move_speed**(3), **telescope_set_slew_speed**(3), **telescope_set_track_rate**(3), **telescope_slew**(3), **telescope_stop**(3), **telescope_status**(3), **telescoped**(8)
+**telescope_close_cover**, **telescope_enable_derotator**, **telescope_disable_derotator**, **telescope_focus**(3), **telescope_get_derotator_angle**(3), **telescope_get_index_by_name**(3), **telescope_get_move_speed**(3), **telescope_get_slew_speed**(3), **telescope_get_track_rate**(3), **telescope_go_home**(3), **telescope_info**(3), **telescope_init**(3), **telescope_move**(3), **telescope_open_cover**(3), **telescope_park**(3), **telescope_park_off**(3), **telescope_power_off**(3), **telescope_power_on**(3), **telescope_raw**(3), **telescope_set_move_speed**(3), **telescope_set_slew_speed**(3), **telescope_set_track_rate**(3), **telescope_slew**(3), **telescope_stop**(3), **telescope_status**(3), **telescope_switch_detector**(3), **telescope_switch_filter**(3), **telescope_switch_instrument**(3), **telescoped**(8)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

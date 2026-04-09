@@ -19,6 +19,10 @@
 
 #include <cjson/cJSON.h>
 
+void **detectors;
+size_t n_detector;
+void *detector_list;
+
 static bool
 detector_find_by_name_if(void *detector, va_list *app)
 {
@@ -528,6 +532,68 @@ Detector_get_binning(void *_self, uint32_t *x_binning, uint32_t *y_binning)
 }
 
 int
+detector_set_capture_mode(void *_self, uint32_t capture_mode)
+{
+    const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
+    
+    if (isOf(class, DetectorClass()) && class->set_capture_mode.method) {
+        return ((int (*)(void *, uint32_t)) class->set_capture_mode.method)(_self, capture_mode);
+    } else {
+        int result;
+        forward(_self, &result, (Method) detector_set_capture_mode, "set_capture_mode", _self, capture_mode);
+        return result;
+    }
+}
+
+static int
+Detector_set_capture_mode(void *_self, uint32_t capture_mode)
+{
+    struct Detector *self = cast(Detector(), _self);
+    
+    void *protobuf = self->_.protobuf;
+    
+    protobuf_set(protobuf, PACKET_PROTOCOL, PROTO_DETECTOR);
+    protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_SET_CAPTURE_MODE);
+    protobuf_set(protobuf, PACKET_U32F0, capture_mode);
+    
+    return rpc_call(self);
+}
+
+int
+detector_get_capture_mode(void *_self, uint32_t *capture_mode)
+{
+    const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
+    
+    if (isOf(class, DetectorClass()) && class->get_capture_mode.method) {
+        return ((int (*)(void *, uint32_t *)) class->get_capture_mode.method)(_self, capture_mode);
+    } else {
+        int result;
+        forward(_self, &result, (Method) detector_get_capture_mode, "get_capture_mode", _self, capture_mode);
+        return result;
+    }
+}
+
+static int
+Detector_get_caputure_mode(void *_self, uint32_t *capture_mode)
+{
+    struct Detector *self = cast(Detector(), _self);
+    
+    void *protobuf = self->_.protobuf;
+    int ret = AAOS_OK;
+    
+    protobuf_set(protobuf, PACKET_PROTOCOL, PROTO_DETECTOR);
+    protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_GET_CAPTURE_MODE);
+    
+    if ((ret = rpc_call(self)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_get(protobuf, PACKET_U32F0, capture_mode);
+    
+    return ret;
+}
+
+int
 detector_set_exposure_time(void *_self, double exposure_time)
 {
     const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
@@ -776,6 +842,69 @@ Detector_get_pixel_format(void *_self, uint32_t *pixel_format)
 }
 
 int
+detector_set_overscan(void *_self, uint32_t x_overscan, uint32_t y_overscan)
+{
+    const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
+    
+    if (isOf(class, DetectorClass()) && class->set_overscan.method) {
+        return ((int (*)(void *, uint32_t, uint32_t)) class->set_overscan.method)(_self, x_overscan, y_overscan);
+    } else {
+        int result;
+        forward(_self, &result, (Method) detector_set_overscan, "set_overscan", _self, x_overscan, y_overscan);
+        return result;
+    }
+}
+
+static int
+Detector_set_overscan(void *_self, uint32_t x_overscan, uint32_t y_overscan)
+{
+    struct Detector *self = cast(Detector(), _self);
+    
+    void *protobuf = self->_.protobuf;
+    
+    protobuf_set(protobuf, PACKET_PROTOCOL, PROTO_DETECTOR);
+    protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_SET_OVERSCAN);
+    protobuf_set(protobuf, PACKET_U32F0, x_overscan);
+    protobuf_set(protobuf, PACKET_U32F1, y_overscan);
+    
+    return rpc_call(self);
+}
+
+int
+detector_get_overscan(void *_self, uint32_t *x_overscan, uint32_t *y_overscan)
+{
+    const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
+    
+    if (isOf(class, DetectorClass()) && class->get_overscan.method) {
+        return ((int (*)(void *, uint32_t *, uint32_t *)) class->get_overscan.method)(_self, x_overscan, y_overscan);
+    } else {
+        int result;
+        forward(_self, &result, (Method) detector_get_overscan, "get_overscan", _self, x_overscan, y_overscan);
+        return result;
+    }
+}
+
+static int
+Detector_get_overscan(void *_self, uint32_t *x_overscan, uint32_t *y_overscan)
+{
+    struct Detector *self = cast(Detector(), _self);
+    
+    void *protobuf = self->_.protobuf;
+    int ret = AAOS_OK;
+    
+    protobuf_set(protobuf, PACKET_PROTOCOL, PROTO_DETECTOR);
+    protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_GET_OVERSCAN);
+    
+    if ((ret = rpc_call(self)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_get(protobuf, PACKET_U32F0, x_overscan);
+    protobuf_get(protobuf, PACKET_U32F1, y_overscan);
+    return ret;
+}
+
+int
 detector_set_readout_rate(void *_self, double readout_rate)
 {
     const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
@@ -963,6 +1092,68 @@ Detector_get_temperature(void *_self, double *temperature)
     }
     
     protobuf_get(protobuf, PACKET_DF0, temperature);
+    
+    return ret;
+}
+
+int
+detector_set_trigger_mode(void *_self, uint32_t trigger_mode)
+{
+    const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
+    
+    if (isOf(class, DetectorClass()) && class->set_trigger_mode.method) {
+        return ((int (*)(void *, uint32_t)) class->set_trigger_mode.method)(_self, trigger_mode);
+    } else {
+        int result;
+        forward(_self, &result, (Method) detector_set_trigger_mode, "set_trigger_mode", _self, trigger_mode);
+        return result;
+    }
+}
+
+static int
+Detector_set_trigger_mode(void *_self, uint32_t trigger_mode)
+{
+    struct Detector *self = cast(Detector(), _self);
+    
+    void *protobuf = self->_.protobuf;
+    
+    protobuf_set(protobuf, PACKET_PROTOCOL, PROTO_DETECTOR);
+    protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_SET_TRIGGER_MODE);
+    protobuf_set(protobuf, PACKET_U32F0, trigger_mode);
+    
+    return rpc_call(self);
+}
+
+int
+detector_get_trigger_mode(void *_self, uint32_t *trigger_mode)
+{
+    const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
+    
+    if (isOf(class, DetectorClass()) && class->get_trigger_mode.method) {
+        return ((int (*)(void *, uint32_t *)) class->get_trigger_mode.method)(_self, trigger_mode);
+    } else {
+        int result;
+        forward(_self, &result, (Method) detector_get_trigger_mode, "get_trigger_mode", _self, trigger_mode);
+        return result;
+    }
+}
+
+static int
+Detector_get_trigger_mode(void *_self, uint32_t *trigger_mode)
+{
+    struct Detector *self = cast(Detector(), _self);
+    
+    void *protobuf = self->_.protobuf;
+    int ret = AAOS_OK;
+    
+    protobuf_set(protobuf, PACKET_PROTOCOL, PROTO_DETECTOR);
+    protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_GET_TRIGGER_MODE);
+    
+    if ((ret = rpc_call(self)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_get(protobuf, PACKET_U32F0, trigger_mode);
     
     return ret;
 }
@@ -1569,7 +1760,7 @@ Detector_list_image(void *_self, char *filelist, size_t size)
 }
 
 int
-detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*image_callback)(void *, const char *, ...), ...)
+detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*image_callback)(void *, const char *, va_list *), ...)
 {
     const struct DetectorClass *class = (const struct DetectorClass *) classOf(_self);
     
@@ -1577,7 +1768,7 @@ detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     va_list ap;
     va_start(ap, image_callback);
     if (isOf(class, DetectorClass()) && class->expose.method) {
-        result = ((int (*)(void *, double, uint32_t, void (*)(void *, const char *, ...), va_list *)) class->expose.method)(_self, exposure_time, n_frame, image_callback, &ap);
+        result = ((int (*)(void *, double, uint32_t, void (*)(void *, const char *, va_list *), va_list *)) class->expose.method)(_self, exposure_time, n_frame, image_callback, &ap);
     } else {
         forward(_self, &result, (Method) detector_expose, "expose", _self, exposure_time, n_frame, image_callback, &ap);
     }
@@ -1586,10 +1777,8 @@ detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     return result;
 }
 
-
-
 static int
-Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*image_callback)(void *, const char *, ...), va_list *app)
+Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*image_callback)(void *, const char *, va_list *), va_list *app)
 {
     struct Detector *self = cast(Detector(), _self);
     
@@ -1633,7 +1822,7 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
                 if (image_callback == NULL) {
                     fprintf(stdout, "%s\n", filename);
                 } else {
-                    image_callback(_self, filename);
+                    image_callback(_self, filename, app);
                 }
             }
         } else {
@@ -1650,7 +1839,7 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
                 if (image_callback == NULL) {
                     fprintf(stdout, "%s\n", filename);
                 } else {
-                    image_callback(_self, filename);
+                    image_callback(_self, filename, app);
                 }
             }
         }
@@ -1670,13 +1859,12 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
             if (image_callback == NULL) {
                 fprintf(stdout, "%s\n", filename);
             } else {
-                image_callback(_self, filename);
+                image_callback(_self, filename, app);
             }
         }
     }
     
 error:
-    
     if ((ret = rpc_read(self)) != AAOS_OK) {
         return -1 * ret;
     }
@@ -2588,6 +2776,94 @@ Detector_execute_get_binning(struct Detector *self)
 }
 
 static int
+Detector_execute_set_capture_mode(struct Detector *self)
+{
+    uint16_t index;
+    void *detector;
+    uint32_t capture_mode;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        uint32_t length;
+        char *s;
+        int idx;
+        protobuf_get(self, PACKET_LENGTH, &length);
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &s);
+        } else {
+            protobuf_get(self, PACKET_BUF, &s, NULL);
+        }
+        get_index_by_name(s, &idx);
+        
+        index = (uint16_t) idx;
+        protobuf_set(self, PACKET_INDEX, &index);
+        if ((detector = get_detector_by_name(s)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    } else {
+        if ((detector = get_detector_by_index((int) index)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    }
+    protobuf_get(self, PACKET_U32F0, &capture_mode);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return __detector_set_capture_mode(detector, capture_mode);
+}
+
+static int
+Detector_execute_get_capture_mode(struct Detector *self)
+{
+    uint16_t index;
+    void *detector;
+    uint32_t capture_mode;
+    int ret = AAOS_OK;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        uint32_t length;
+        char *s;
+        int idx;
+        protobuf_get(self, PACKET_LENGTH, &length);
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &s);
+        } else {
+            protobuf_get(self, PACKET_BUF, &s, NULL);
+        }
+        get_index_by_name(s, &idx);
+        
+        index = (uint16_t) idx;
+        protobuf_set(self, PACKET_INDEX, &index);
+        if ((detector = get_detector_by_name(s)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    } else {
+        if ((detector = get_detector_by_index((int) index)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    }
+    
+    if ((ret = __detector_get_pixel_format(detector, &capture_mode)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_set(self, PACKET_U32F0, capture_mode);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
 Detector_execute_set_exposure_time(struct Detector *self)
 {
     uint16_t index;
@@ -2849,6 +3125,96 @@ Detector_execute_get_gain(struct Detector *self)
     return ret;
 }
 
+
+static int
+Detector_execute_set_overscan(struct Detector *self)
+{
+    uint16_t index;
+    void *detector;
+    uint32_t x_overscan, y_overscan;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        uint32_t length;
+        char *s;
+        int idx;
+        protobuf_get(self, PACKET_LENGTH, &length);
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &s);
+        } else {
+            protobuf_get(self, PACKET_BUF, &s, NULL);
+        }
+        get_index_by_name(s, &idx);
+        
+        index = (uint16_t) idx;
+        protobuf_set(self, PACKET_INDEX, &index);
+        if ((detector = get_detector_by_name(s)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    } else {
+        if ((detector = get_detector_by_index((int) index)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    }
+    protobuf_get(self, PACKET_U32F0, &x_overscan);
+    protobuf_get(self, PACKET_U32F1, &y_overscan);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    return __detector_set_overscan(detector, x_overscan, y_overscan);
+}
+
+static int
+Detector_execute_get_overscan(struct Detector *self)
+{
+    uint16_t index;
+    void *detector;
+    uint32_t x_overscan, y_overscan;
+    int ret = AAOS_OK;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        uint32_t length;
+        char *s;
+        int idx;
+        protobuf_get(self, PACKET_LENGTH, &length);
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &s);
+        } else {
+            protobuf_get(self, PACKET_BUF, &s, NULL);
+        }
+        get_index_by_name(s, &idx);
+        
+        index = (uint16_t) idx;
+        protobuf_set(self, PACKET_INDEX, &index);
+        if ((detector = get_detector_by_name(s)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    } else {
+        if ((detector = get_detector_by_index((int) index)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    }
+    
+    if ((ret = __detector_get_overscan(detector, &x_overscan, &y_overscan)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_set(self, PACKET_U32F0, x_overscan);
+    protobuf_set(self, PACKET_U32F1, y_overscan);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
 static int
 Detector_execute_set_pixel_format(struct Detector *self)
 {
@@ -2887,7 +3253,7 @@ Detector_execute_set_pixel_format(struct Detector *self)
     protobuf_get(self, PACKET_U32F0, &pixel_format);
     protobuf_set(self, PACKET_LENGTH, 0);
     
-    return __detector_set_gain(detector, pixel_format);
+    return __detector_set_pixel_format(detector, pixel_format);
 }
 
 static int
@@ -3202,6 +3568,94 @@ Detector_execute_get_temperature(struct Detector *self)
     }
     
     protobuf_set(self, PACKET_DF0, temperature);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
+Detector_execute_set_trigger_mode(struct Detector *self)
+{
+    uint16_t index;
+    void *detector;
+    uint32_t trigger_mode;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        uint32_t length;
+        char *s;
+        int idx;
+        protobuf_get(self, PACKET_LENGTH, &length);
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &s);
+        } else {
+            protobuf_get(self, PACKET_BUF, &s, NULL);
+        }
+        get_index_by_name(s, &idx);
+        
+        index = (uint16_t) idx;
+        protobuf_set(self, PACKET_INDEX, &index);
+        if ((detector = get_detector_by_name(s)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    } else {
+        if ((detector = get_detector_by_index((int) index)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    }
+    protobuf_get(self, PACKET_U32F0, &trigger_mode);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return __detector_set_trigger_mode(detector, trigger_mode);
+}
+
+static int
+Detector_execute_get_trigger_mode(struct Detector *self)
+{
+    uint16_t index;
+    void *detector;
+    uint32_t trigger_mode;
+    int ret = AAOS_OK;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        uint32_t length;
+        char *s;
+        int idx;
+        protobuf_get(self, PACKET_LENGTH, &length);
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &s);
+        } else {
+            protobuf_get(self, PACKET_BUF, &s, NULL);
+        }
+        get_index_by_name(s, &idx);
+        
+        index = (uint16_t) idx;
+        protobuf_set(self, PACKET_INDEX, &index);
+        if ((detector = get_detector_by_name(s)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    } else {
+        if ((detector = get_detector_by_index((int) index)) == NULL) {
+            protobuf_set(self, PACKET_ERRORCODE, AAOS_ENOTFOUND);
+            protobuf_set(self, PACKET_LENGTH, 0);
+            return AAOS_ENOTFOUND;
+        }
+    }
+    
+    if ((ret = __detector_get_trigger_mode(detector, &trigger_mode)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_set(self, PACKET_U32F0, trigger_mode);
     protobuf_set(self, PACKET_LENGTH, 0);
     
     return ret;
@@ -4114,7 +4568,6 @@ Detector_execute_default(struct Detector *self)
 static int
 Detector_execute_get_index_by_name(struct Detector *self)
 {
-   
     char *name;
     int index, ret;
     uint16_t idx;
@@ -4195,6 +4648,12 @@ Detector_execute(void *_self)
         case DETECTOR_COMMAND_GET_BINNING:
             return Detector_execute_get_binning(self);
             break;
+        case DETECTOR_COMMAND_SET_CAPTURE_MODE:
+            return Detector_execute_set_capture_mode(self);
+            break;
+        case DETECTOR_COMMAND_GET_CAPTURE_MODE:
+            return Detector_execute_get_capture_mode(self);
+            break;
         case DETECTOR_COMMAND_SET_EXPOSURE_TIME:
             return Detector_execute_set_exposure_time(self);
             break;
@@ -4212,6 +4671,12 @@ Detector_execute(void *_self)
             break;
         case DETECTOR_COMMAND_GET_GAIN:
             return Detector_execute_get_gain(self);
+            break;
+        case DETECTOR_COMMAND_SET_OVERSCAN:
+            return Detector_execute_set_overscan(self);
+            break;
+        case DETECTOR_COMMAND_GET_OVERSCAN:
+            return Detector_execute_get_overscan(self);
             break;
         case DETECTOR_COMMAND_SET_PIXEL_FORMAT:
             return Detector_execute_set_pixel_format(self);
@@ -4236,6 +4701,12 @@ Detector_execute(void *_self)
             break;
         case DETECTOR_COMMAND_GET_TEMPERATURE:
             return Detector_execute_get_temperature(self);
+            break;
+        case DETECTOR_COMMAND_SET_TRIGGER_MODE:
+            return Detector_execute_set_trigger_mode(self);
+            break;
+        case DETECTOR_COMMAND_GET_TRIGGER_MODE:
+            return Detector_execute_get_trigger_mode(self);
             break;
         case DETECTOR_COMMAND_SET_PREFIX:
             return Detector_execute_set_prefix(self);
@@ -4417,6 +4888,22 @@ DetectorClass_ctor(void *_self, va_list *app)
             self->get_binning.method = method;
             continue;
         }
+        if (selector == (Method) detector_set_capture_mode) {
+            if (tag) {
+                self->set_capture_mode.tag = tag;
+                self->set_capture_mode.selector = selector;
+            }
+            self->set_capture_mode.method = method;
+            continue;
+        }
+        if (selector == (Method) detector_get_capture_mode) {
+            if (tag) {
+                self->get_capture_mode.tag = tag;
+                self->get_capture_mode.selector = selector;
+            }
+            self->get_capture_mode.method = method;
+            continue;
+        }
         if (selector == (Method) detector_set_exposure_time) {
             if (tag) {
                 self->set_exposure_time.tag = tag;
@@ -4463,6 +4950,22 @@ DetectorClass_ctor(void *_self, va_list *app)
                 self->get_gain.selector = selector;
             }
             self->get_gain.method = method;
+            continue;
+        }
+        if (selector == (Method) detector_set_overscan) {
+            if (tag) {
+                self->set_overscan.tag = tag;
+                self->set_overscan.selector = selector;
+            }
+            self->set_overscan.method = method;
+            continue;
+        }
+        if (selector == (Method) detector_get_overscan) {
+            if (tag) {
+                self->get_overscan.tag = tag;
+                self->get_overscan.selector = selector;
+            }
+            self->get_overscan.method = method;
             continue;
         }
         if (selector == (Method) detector_set_pixel_format) {
@@ -4527,6 +5030,22 @@ DetectorClass_ctor(void *_self, va_list *app)
                 self->get_temperature.selector = selector;
             }
             self->get_temperature.method = method;
+            continue;
+        }
+        if (selector == (Method) detector_set_trigger_mode) {
+            if (tag) {
+                self->set_trigger_mode.tag = tag;
+                self->set_trigger_mode.selector = selector;
+            }
+            self->set_trigger_mode.method = method;
+            continue;
+        }
+        if (selector == (Method) detector_get_trigger_mode) {
+            if (tag) {
+                self->get_trigger_mode.tag = tag;
+                self->get_trigger_mode.selector = selector;
+            }
+            self->get_trigger_mode.method = method;
             continue;
         }
         if (selector == (Method) detector_set_template) {
@@ -4770,12 +5289,16 @@ Detector_initialize(void)
                     detector_wait_for_completion, "wait_for_completion", Detector_wait_for_completion,
                     detector_set_binning, "set_binning", Detector_set_binning,
                     detector_get_binning, "get_binning", Detector_get_binning,
+                    detector_set_capture_mode, "set_capture_mode", Detector_set_capture_mode,
+                    detector_get_capture_mode, "get_capture_mode", Detector_get_caputure_mode,
                     detector_set_exposure_time, "set_exposure_time", Detector_set_exposure_time,
                     detector_get_exposure_time, "get_exposure_time", Detector_get_exposure_time,
                     detector_set_frame_rate, "set_frame_rate", Detector_set_frame_rate,
                     detector_get_frame_rate, "get_frame_rate", Detector_get_frame_rate,
                     detector_set_gain, "set_gain", Detector_set_gain,
                     detector_get_gain, "get_gain", Detector_get_gain,
+                    detector_set_overscan, "set_overscan", Detector_set_overscan,
+                    detector_get_overscan, "get_overscan", Detector_get_overscan,
                     detector_set_pixel_format, "set_pixel_format", Detector_set_pixel_format,
                     detector_get_pixel_format, "get_pixel_format", Detector_get_pixel_format,
                     detector_set_readout_rate, "set_readout_rate", Detector_set_readout_rate,
@@ -4784,6 +5307,8 @@ Detector_initialize(void)
                     detector_get_temperature, "get_temperature", Detector_get_temperature,
                     detector_set_region, "set_region", Detector_set_region,
                     detector_get_region, "get_region", Detector_get_region,
+                    detector_set_trigger_mode, "set_trigger_mode", Detector_set_trigger_mode,
+                    detector_get_trigger_mode, "get_trigger_mode", Detector_get_trigger_mode,
                     detector_clear_option, "clear_option", Detector_clear_option,
                     detector_set_option, "set_option", Detector_set_option,
                     detector_get_option, "get_option", Detector_get_option,
@@ -4798,7 +5323,7 @@ Detector_initialize(void)
                     detector_delete_all_image, "delete_all_image", Detector_delete_all_image,
                     detector_get_image, "get_image", Detector_get_image,
                     detector_enable_cooling, "enable_cooling", Detector_enable_cooling,
-                    detector_disable_cooling, "enable_cooling", Detector_disable_cooling,
+                    detector_disable_cooling, "disable_cooling", Detector_disable_cooling,
                     (void *) 0);
     
 #ifndef _USE_COMPILER_ATTRIBUTION_

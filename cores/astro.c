@@ -1584,6 +1584,82 @@ error:
     fclose(fp);
     return nlines;
 }
+
+static void
+inverse_3x3(double m[3][3], double *im[3][3])
+{
+    double det;
+    double a, b, c;
+    double d, e, f;
+    double g, h, i;
+    
+    a = m[0][0];
+    b = m[0][1];
+    c = m[0][2];
+    d = m[1][0];
+    e = m[1][1];
+    f = m[1][2];
+    g = m[2][0];
+    h = m[2][1];
+    i = m[2][2];
+    
+    det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    
+    if (det != 0) {
+        im[0][0] = (e * i - f * h) / det;
+        im[0][1] = -1. * (d * i - f * g) / det;
+        im[0][2] = (d * h - e * g) / det;
+        im[1][0] = -1. * (b * i - c * h) / det;
+        im[1][1] = (a * i - c * g) / det;
+        im[1][2] = -1. * (a * h - b * g) / det;
+        im[2][0] = (b * f - c * e) / det;
+        im[2][1] = - 1. * (a * f - c * d) / det;
+        im[2][2] = (a * e - b * d) / det;
+    }
+}
+
+void
+j2000_to_jtime(double ra, double dec, double timestamp, double *ra_time, double *dec_time)
+{
+    double jd_, rbnp[3][3], x_j2000, y_j2000, z_j2000, x_jtime, y_jtime, z_jtime;
+    
+    x_j2000 = cos(DD2R*dec) * cos(DD2R*ra);
+    y_j2000 = cos(DD2R*dec) * sin(DD2R*ra);
+    z_j2000 = sin(DD2R*dec);
+    
+    jd_ = jd(timestamp);
+    iauPnm(jd_, 0.0, rbnp);
+    
+    x_jtime = rbnp[0][0] * x_j2000 + rbnp[0][1] * y_j2000 + rbnp[0][2] * z_j2000;
+    y_jtime = rbnp[1][0] * x_j2000 + rbnp[1][1] * y_j2000 + rbnp[1][2] * z_j2000;
+    z_jtime = rbnp[2][0] * x_j2000 + rbnp[2][1] * y_j2000 + rbnp[2][2] * z_j2000;
+    
+    *ra_jtime = atan2(y_jtime, x_jtime) * DR2D;
+    *dec_jtime = asin(z_jtime) * DR2D;
+}
+
+void
+jtime_to_j2000(double ra_time, double dec_time, double timestamp, double ra, double dec)
+{
+    double jd_, rbnp[3][3], irbnp[3][3], x_j2000, y_j2000, z_j2000, x_jtime, y_jtime, z_jtime;
+    
+    x_jtime = cos(DD2R*dec_time) * cos(DD2R*ra_time);
+    y_jtime = cos(DD2R*dec_time) * sin(DD2R*ra_time);
+    z_jtime = sin(DD2R*dec_time);
+    
+    jd_ = jd(timestamp);
+    iauPnm(jd_, 0.0, rbnp);
+    
+    inverse_3x3(rbnp, irbnp);
+    
+    x_j2000 = irbnp[0][0] * x_jtime + irbnp[0][1] * y_jtime + irbnp[0][2] * z_jtime;
+    y_j2000 = irbnp[1][0] * x_jtime + irbnp[1][1] * y_jtime + irbnp[1][2] * z_jtime;
+    z_j2000 = irbnp[2][0] * x_jtime + irbnp[2][1] * y_jtime + irbnp[2][2] * z_jtime;
+    
+    *ra = atan2(y_j2000, x_j2000) * DR2D;
+    *dec = asin(z_j2000) * DR2D;
+}
+
 #endif
 
 static void __destructor__(void) __attribute__ ((destructor(101)));

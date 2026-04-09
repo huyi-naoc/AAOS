@@ -385,6 +385,7 @@ read_configuration(void)
 		    config_setting_lookup_string(asi_camera_setting, "so_path", &so_path);
 		    config_setting_lookup_float(asi_camera_setting, "settemp", &temperature);
 		    detectors[i] = new(ASICamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path);
+
 		    if (detectors[i] != NULL) {
 			__detector_set_template(detectors[i], template);
 			__detector_set(detectors[i], "temperature", temperature);
@@ -409,7 +410,7 @@ read_configuration(void)
         }
 #endif
             else {
-                
+               fprintf(stderr, "Unsupported detector type: %s\n", type);
             }
         }
     }

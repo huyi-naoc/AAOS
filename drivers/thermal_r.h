@@ -101,5 +101,4 @@ struct KLCAMSimpleThermalUnitClass {
     struct __ThermalUnitClass _;
 };
 
-
 #endif /* thermal_r_h */

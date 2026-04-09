@@ -2126,6 +2126,7 @@ Scheduler_execute_register_thread(struct Scheduler *self)
     int ret;
 
     protobuf_get(self, PACKET_U64F0, &identifier);
+
     if ((ret = __scheduler_register_thread(scheduler, identifier, self)) == AAOS_OK) {   
         protobuf_set(self, PACKET_LENGTH, 0);
     }

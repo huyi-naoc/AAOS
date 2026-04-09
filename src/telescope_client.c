@@ -78,26 +78,36 @@ Usage:  telescope [options] COMMAND [PARAMETERS ... ]\n\
 Commands:\n\
     power_on\n\
     power_off\n\
+    open_cover\n\
+    close_cover\n\
     init\n\
     park\n\
     park_off\n\
     go_home\n\
     stop\n\
     status\n\
+    info\n\
     move        DRECTION DURATION\n\
-                DRECTION can be north, south, east, and west\n\
+                DRECTION can be north, south, east, or west\n\
                 DURATION is in seconds\n\
     try_move    DRECTION DURATION\n\
     timed_move  DRECTION DURATION TIMEOUT\n\
     slew        RA DEC\n\
     try_slew    RA DEC\n\
     timed_slew  RA DEC TIMEOUT\n\
-    set         NAME\n\
-                NAME can be move_speed, slew_speed, and track_rate\n\
-    get         NAME VALUE1 ... \n\
+    get         NAME\n\
+                NAME can be move_speed, slew_speed, track_rate, or\n\
+                derotator_angle\n\
+    set         NAME VALUE1 ... \n\
                 move_speed parameter has one value\n\
                 slew_speed and track_rate have two values\n\
     focus       ABSOLUTE STEP\n\
+    enable      NAME\n\
+                NAME can be derotator\n\
+    disable     NMAE\n\
+                NAME can be derotator\n\
+    switch      DEVICE NAME\n\
+                DEVICE can be instrument, detector, or filter\n\
 	inspect\n\
 	register    TIMEOUT\n\
 ";
@@ -836,6 +846,46 @@ main(int argc, char *argv[])
             argv += 4;
             continue;
         }
+        if (strcmp(argv[0], "enable") == 0) {
+            if (argc < 2) {
+                fprintf(stderr, "Too few parameters for \"set\" command.\n");
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+            }
+            argc--;
+            argv++;
+            if (strcmp(argv[0], "derotator") == 0) {
+                ret = telescope_enable_derotator(telescope);
+                argc--;
+                argv++;
+                goto label_enable;
+            }
+            fprintf(stderr, "Unknown enable entry `%s`.\n", argv[0]);
+            fprintf(stderr, "Exit...\n");
+            exit(EXIT_FAILURE);
+        label_enable:
+            continue;
+        }
+        if (strcmp(argv[0], "disable") == 0) {
+            if (argc < 2) {
+                fprintf(stderr, "Too few parameters for \"set\" command.\n");
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+            }
+            argc--;
+            argv++;
+            if (strcmp(argv[0], "derotator") == 0) {
+                ret = telescope_disable_derotator(telescope);
+                argc--;
+                argv++;
+                goto label_disable;
+            }
+            fprintf(stderr, "Unknown enable entry `%s`.\n", argv[0]);
+            fprintf(stderr, "Exit...\n");
+            exit(EXIT_FAILURE);
+        label_disable:
+            continue;
+        }
         if (strcmp(argv[0], "set") == 0) {
             if (argc < 3) {
                 fprintf(stderr, "Too few parameters for \"set\" command.\n");
@@ -891,6 +941,12 @@ main(int argc, char *argv[])
                 fprintf(stderr, "Too few parameters for \"get\" command.\n");
                 fprintf(stderr, "Exit...\n");
                 exit(EXIT_FAILURE);
+            }
+            if (strcmp(argv[1], "derotator_angle") == 0) {
+                double angle;
+                ret = telescope_get_derotator_angle(telescope, &angle);
+                printf("angle\t: %.2f\n", angle);
+                goto label_get;
             }
             if (strcmp(argv[1], "move_speed") == 0) {
                 double move_speed;
@@ -950,6 +1006,18 @@ main(int argc, char *argv[])
             argv++;
             continue;
         }
+        if (strcmp(argv[0], "info") == 0) {
+            char buf[BUFSIZE];
+            ret = telescope_info(telescope, buf, BUFSIZE, NULL);
+            if (ret == AAOS_OK) {
+                printf("%s\n", buf);
+            } else {
+                error_handler(ret);
+            }
+            argc-- ;
+            argv++;
+            continue;
+        }
         if (strcmp(argv[0], "focus") == 0) {
             if (argc < 3) {
                 fprintf(stderr, "Too few parameters for \"focus\" command.\n");
@@ -968,6 +1036,30 @@ main(int argc, char *argv[])
             }
             argc -= 3;
             argv += 3;
+            continue;
+        }
+        if (strcmp(argv[0], "open_cover") == 0) {
+            
+            ret = telescope_open_cover(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "open cover complete.\n");
+            } else {
+                fprintf(stderr, "open cover failed.\n");
+            }
+            argc--;
+            argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "close_cover") == 0) {
+            
+            ret = telescope_close_cover(telescope);
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "close cover complete.\n");
+            } else {
+                fprintf(stderr, "close cover failed.\n");
+            }
+            argc--;
+            argv++;
             continue;
         }
         fprintf(stderr, "Unknown command `%s`.\n", argv[0]);

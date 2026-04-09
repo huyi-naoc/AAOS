@@ -2,219 +2,140 @@
 %
 % Aug 2025
 
-NAME
-====
+# NAME
 
-detector - the command-line client of **detetctord** in AAOS 
+detector - the command-line client of **detectord** in AAOS 
 
-SYNOPSIS
-========
+# SYNOPSIS
 
-**detector** [-dinu] *command* [parameter list]
 
-**detector** [hv]
+**detector** [-dinu] *command* [*arguments*]  
 
-DESCRIPTION
-===========
+**detector** -h | -v
 
-**detector** is the command-line client of **detectord** in Automated Astronomical Observatory Operating System (AAOS). It is used for operating detectors (i.e., CCD, CMOS or HgCrTe camera), get and set runtime parameters of a telescope.
+# DESCRIPTION
 
-It currently supports two types of detector, the virtual detector and the GenICam (using thirdparty aravis library).
+**detector** is the command-line client of **detectord** in Automated Astronomical Observatory Operating System (AAOS). It is used for operating detectors (i.e., CCD, CMOS or HgCrTe camera), get and set runtime parameters of a detector.
 
-OPTIONS
-=======
-`-d, --detector` *DETECTOR*
+Currently four detector types are supported: virtual detector that conforms to the AAOS standard, GenICam compatible cameras accessed through the third‑party *aravis* library, ZWO ASI series cameras, and QHY cameras.
 
-:   Set the detector server's address and port in format of *[address]:[port]*. If this option has not present, default localhost:13005 will be applied. If address is a path with suffix ``*.sock*'', it will try to connect Unix Domain Socket. 
+# OPTIONS
+
+`-d, --detector` *ADDRESS:PORT*
+:  Specify the detector server’s address and port. If this option is not supplied, the default `localhost:13005` is used.  If *address* ends with `.sock`, a Unix Domain Socket is used instead of a TCP socket.
 
 `-h, --help`
 
-:   Show the help message and exit
+: Display the help message and exit
 
 `-i, --index` *INDEX*
 
-:   Set the index of the detector to operate. It will overwrite previous -n or -i option. Default is `1`.
+: Select the detector by numeric index.  This option overrides any previous `-i` or `-n` option. The default index is **1**.
 
 `-n, --name` *NAME*
 
-:   Set the name of the detector to operate. It will overwrite previous -n
- or -i option.
-
+:  Select the detector by its configured name.  This option overrides any previous `-i` or `-n` option.
 
 `-u, --unit` *UNIT*
 
 :   Set the exposure time unit (`s`, `ms`)  of `expose` command. Deafult is `s`.
 
-COMMANDS
-========
+`-v, --version`
+: Display the program version and exit.
 
-abort
------
+# COMMANDS
 
-Abort the current exposure command. The difference between **abort** and **stop** is that **abort** will cancel the current exposing frame while **stop** will wait the current frame complete.
+`abort`
+:   Abort the current exposure command.  The difference between **abort** and **stop** is that **abort** cancels the current exposing frame, whereas **stop** waits for the current frame to finish.
 
-disable *parameters*
---------------------
+`disable` *parameters*
+:   Disable a detector function.  Currently the only supported *parameter* is:
+    
+    - `cooling` – disable cooling.
 
-**disable** detector's *parameter* function. Available *parameter* are list as following:
+`enable` *parameters*
+:   Enable a detector function.  Currently the only supported *parameter* is:
+    
+    - `cooling` – enable cooling.
 
-**cooling**
-
-:   disable cooling. 
-
-enable *parameters*
--------------------
-
-**enable** detector's *parameter* function. Available *parameter* are list as following:
-
-**cooling**
-
-:   enable cooling.
-
-
-expose *exptime* *frames*
--------------------------
-
-Execute exposure command, then wait for the command complete and print the filename of images on stdout. If option *DETECTOR_OPTION_NOTIFY_EACH_COMPLETION* (0x0008) is set, each frame will be stored in different FITS file, otherwise, each frame will be stored as an extention of a single FITS file. When the image file is closed, the filename will be printed on stdout immediately. If option *DETECTOR_OPTION_NOTIFY_LAST_FILLING* (0x0004) is set, **expose** command will return just after the last frame is began to read out.
+`expose` *exptime* *frames*
+:   Start an exposure of length *exptime* (in the unit selected by **-u**) and acquire *frames* frames.  The command waits until the exposure sequence completes and prints the name(s) of the generated FITS file(s) on **stdout**.
   
-**expose** command may change the frame rate silently.
+    If the option `DETECTOR_OPTION_NOTIFY_EACH_COMPLETION` (0x0008) is set, each frame is stored in a separate FITS file. Otherwise all frames are stored as extensions of a single FITS file. When a FITS file is closed, its name is printed immediately. If the option `DETECTOR_OPTION_NOTIFY_LAST_FILLING` (0x0004) is set, **expose** returns as soon as the last frame begins read‑out.
 
-**expose** command can be aborted or stopped by **abort** or **stop** command.
+    The **expose** command may silently change the frame rate. It can be aborted or stopped with the **abort** or **stop** commands.
+  
+`get` *parameter*
 
-get *parameter*
----------------
+:   Retrieve *parameter* from the detector and print it to **stdout**.  Supported parameters are:
 
-**Get** *parameter*s of the underline detector and print it to stdout. Available *parameter*s are list as following: 
+    - `binning` – current X and Y binning factors.
+    - `capture_mode` – current capture mode.
+    - `directory` – directory where images are saved.
+    - `exptime` – most recent exposure time (seconds).
+    - `framerate` – most recent frame rate (frames s⁻¹).
+    - `gain` – most recent gain (e⁻/ADU).
+    - `pixel_format` - current pixel format.
+    - `prefix` – filename prefix for saved images.
+    - `readout_rate` – most recent read‑out rate (Mbps).
+    - `region` – current region of interest (ROI) as `x‑offset,y‑offset,width,height`.
+    - `temperature` – current detector‑chip temperature.
+    - `template` – most recent template FITS file used for image creation.
+    - `trigger_mode` - current trigger mode.
 
-**binning**
+`info`
+:   Print information about the detector on **stdout**, including its name, description, manufacturer, serial number, and capabilities (e.g., ROI support, multiple gain settings, cooling). 
 
-:   get the x and y binning.
+`power_off`
+:   Power off the detector.  This command is not necessarily supported by all detector types.
 
-**directory**
+`power_on`
+:   Power on the detector.  This command is not necessarily supported by all detector types.
 
-:   get the directory where the images are saved.
+`raw` *cmd*
+:   Send a raw command *cmd* (a literal ASCII string) directly to the detector.
 
-**exptime**
+`set` *parameter* [*value1* [*value2* …]]
+:   Set *parameter* of the underlying detector.  Supported parameters are:
+  
+    - `binning` – set X and Y binning factors.  
+    - `capture_mode` – set capture mode; valid values are `sanphot`, `multiframe`, and `video`.
+    - `directory` – set the directory where images are saved.
+    - `exptime` – set exposure time (seconds or milliseconds, depending on **-u**).
+    - `framerate` – set frame rate (frames s⁻¹).
+    - `gain` – set gain (e⁻/ADU).
+    - `pixel_format` – set pixel format; valid values are `mono8`, `mono10`, `mono10_packed`, `mono12`, `mono12_packed`, `mono14`, `mono14_packed`, `mono16`, `mono16_packed`, `mono24`, `mono24_packed`, `mono32`, `mono64`, `RGB24`, `YUV422`, or the numbers **1**‑**16** corresponding to the above list.
+    - `prefix` – set the filename prefix for saved images.
+    - `readout_rate` – set read‑out rate (Mbps).
+    - `region` – set region of interest as `x‑offset,y‑offset,width,height`.
+    - `temperature` – set the desired detector‑chip temperature.
+    - `template` – set the template FITS file used for image creation.
+    - `trigger_mode` – set trigger mode; valid values are `default`, `software_level`, `software_edge`, `hardware_level_high`, `hardware_level_low`, `hardware_edge_rise`, `hardware_edge_fall`, or the numbers **1**‑**7** corresponding to the above list.
 
-:   get the most recent exposure time (in second).
+`status`
+:   Print the current status of the underlying detector on **stdout**. The output always includes at least the detector *STATE*.
 
-**framerate**
+`stop`
+:   Stop the current exposure command.  Unlike **abort**, this command waits for the current frame to finish before returning.
 
-:   get the most recent frame rate (in fps).
+# EXIT STATUS
 
-**prefix**
+The **detector** utility exits with one of the following values:
 
-:   get the prefix of the image file.
+`0`
+:   Success.
 
+`>0`
+:   Failure.  The non‑zero value corresponds to the error reported by the daemon (e.g. `1` for a generic error, other values for specific conditions).
 
-**gain**
+# CONFORMING TO
 
-:   get the most recent gain (in e-/ADU).
+AAOS‑draft‑2022
 
-**readout_rate**
+# SEE ALSO
 
-:   get the most recent readout rate (in Mbps).
+**detector_abort**(3), **detector_disable_cooling**(3), **detector_enable_cooling**(3), **detector_expose**(3), **detector_get_binning**(3), **detector_get_directory**(3), **detector_get_exposure_time**(3), **detector_get_frame_rate**(3), **detector_get_gain**(3), **detector_get_index_by_name**(3), **detector_get_prefix**(3), **detector_get_readout_rate**(3), **detector_get_region**(3), **detector_get_temperature**(3), **detector_info**(3), **detector_init**(3), **detector_power_off**(3), **detector_power_on**(3), **detector_raw**(3), **detector_set_binning**(3), **detector_set_directory**(3), **detector_set_exposure_time**(3), **detector_set_frame_rate**(3), **detector_set_gain**(3), **detector_set_index_by_name**(3), **detector_set_prefix**(3), **detector_set_readout_rate**(3), **detector_set_region**(3), **detector_set_temperature**(3), **detector_status**(3), **detector_stop**(3), **detectord**(8)
 
-**region**
+# BUGS
 
-:   get the most recent region of interest (ROI, x-offset, y-offset, width, height).
-
-**temerature**
-
-:   get the current temerature close to the detector's chip, usually monitoring whether the chip has been cooled to the setting temperature.
-
-**template**
-:   get thre most recent template file that image files are create from.
-
-info
-----
-
-Print the information of the detetcor on stdout, such as its name, description, manufacturer, serial number, capability (i.e., whether support ROI, different gain, cooling). 
-
-power\_off
-----------
-
-Power off underline detector. **power\_off** is not necessarily supported by all types of detectors.
-
-power\_on
-----------
-
-Power on underline detector. **power\_on** is not necessarily supported by all t
-ypes of detectors.
-
-
-raw *cmd*
----------
-
-Send raw command to the underline detector. *cmd* is a literal ASCII string.
-
-set *parameter* [*value1* [*value2*, [...]]]
---------------------------------------------
-
-**set** *parameter*s of the underline detector and print it to stdout. Available *parameter*s are list as following: 
-
-**binning**
-
-:   set the x and y binning.
-
-**directory**
-
-:   set the directory where the images are saved.
-
-**exptime**
-
-:   set the most recent exposure time (in second or mili-second, see -u option).
-
-**framerate**
-
-:   set the most recent frame rate (in fps).
-
-**prefix**
-
-:   set the prefix of the image file.
-
-
-**gain**
-
-:   set the most recent gain (in e-/ADU).
-
-**readout_rate**
-
-:   set the most recent readout rate (in Mbps).
-
-**region**
-
-:   set the most recent region of interest (ROI, x-offset, y-offset, width, height).
-
-**temerature**
-
-:   set the desired cooling temerature.
-
-**template**
-:   set thre most recent template FITS file that image files are create from.
-
-status
-------
-
-Print the status of the undeline detector on stdout. The status contains at least  the *STATE* of the detector. 
-
-stop
-----
-
-Stop the current exposure command.
-
-CONFORMING TO
-=============
-
-AAOS-draft-2022
-
-SEE ALSO
-========
-
-**detector_arbot**(3), **detector_disable_cooling**(3), **detector_enable_cooling**(3), **detector_expose**(3), **detector_get_binning**(3), **detector_get_directory**(3), **detector_get_exposure_time**(3), **detector_get_frame_rate**(3), **detector_get_gain**(3), **detector_get_index_by_name**(3), **detector_get_prefix**(3), **detector_get_readout_rate**(3), **detector_get_region**(3), **detector_get_temperature**(3), **detector_info**(3), **detector_power_off**(3), **detector_power_on**(3), **detector_raw**(3), **detector_set_binning**(3), **detector_set_directory**(3), **detector_set_exposure_time**(3), **detector_set_frame_rate**(3), **detector_set_gain**(3), **detector_set_index_by_name**(3), **detector_set_prefix**(3), **detector_set_readout_rate**(3), **detector_set_region**(3), **detector_set_temperature**(3), **detector_status**(3), **detector_stop**(3), **detectord**(8)
-
-BUGS
-====
-
-Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-
+Bugs can be reported and filed at <https://github.com/huyi-naoc/AAOS/issues>.

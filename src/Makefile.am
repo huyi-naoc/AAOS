@@ -1,5 +1,5 @@
-bin_PROGRAMS = aws detector dome pdu scheduler serial telescope thermal
-sbin_PROGRAMS = awsd detectord domed pdud schedulerd seriald telescoped thermald
+bin_PROGRAMS = aws detector dome pdu scheduler serial telescope thermal thread
+sbin_PROGRAMS = awsd detectord domed pdud schedulerd seriald telescoped thermald threadd
 
 aws_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
 aws_LDADD = ../cores/libaaoscore.la  ../drivers/libaaosdriver.la
@@ -64,3 +64,11 @@ thermal_SOURCES = thermal_client.c
 thermald_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
 thermald_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
 thermald_SOURCES = thermal_server.c
+
+thread_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
+thread_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
+thread_SOURCES = thread_client.c
+
+threadd_CFLAGS = -I$(top_srcdir)/cores -I$(top_srcdir)/drivers -Wno-unused-result
+threadd_LDADD = ../cores/libaaoscore.la ../drivers/libaaosdriver.la
+threadd_SOURCES = thread_server.c

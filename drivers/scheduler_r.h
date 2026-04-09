@@ -32,17 +32,17 @@ struct __Scheduler {
     char *target_db_table;
     char *task_db_table;
 
-    void *site_list;
-    void *telescope_list;
+    void *site_list;        /* global scheduler */
+    void *telescope_list;   /* site scheduler */
     void *target_list;
 
     char *global_addr;
     char *global_port;
-    void *site;         /* Connection to global scheduler. */
+    void *site;             /* Connection to global scheduler. */
 
     char *site_addr;
     char *site_port;
-    void *telescope;    /* Connection to site scheduler. */
+    void *telescope;        /* Connection to site scheduler. */
 
     char *ipc_model;
     char *algorithm;

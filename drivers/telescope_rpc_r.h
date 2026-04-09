@@ -23,6 +23,7 @@ struct TelescopeClass {
     struct Method set_option;
 
     struct Method status;
+    struct Method info;
     struct Method power_on;
     struct Method power_off;
     struct Method init;
@@ -49,6 +50,11 @@ struct TelescopeClass {
     struct Method switch_instrument;
     struct Method switch_detector;
     struct Method focus;
+    struct Method open_cover;
+    struct Method close_cover;
+    struct Method get_derotator_angle;
+    struct Method enable_derotator;
+    struct Method disable_derotator;
     
     struct Method inspect;
     struct Method reg;

@@ -25,13 +25,49 @@ struct TelescopeState {
 
 struct TelescopeCapbility {
 	bool dome_available;
+
     bool switch_instrument_available;
+    char **instruments;
+    size_t n_instrument;
+    
     bool switch_detector_available;
+    char ***detectors_2d;
+    size_t *n_detector;
+
     bool switch_filter_available;
-    bool focus_available;
+    char ****filters_3d;
+    
+    size_t **n_filter;
+
+    bool slew_available;
+    bool slew_speed_available;
+    double max_slew_speed_x;
+    double min_slew_speed_x;
+    double max_slew_speed_y;
+    double min_slew_speed_y;
+    
+    bool move_available;
+    bool move_speed_available;
+    double max_move_speed;
+    double min_move_speed;
+
+    bool track_available;
+    bool track_rate_available;
+    double max_track_rate_x;
+    double min_track_rate_x;
+    double max_track_rate_y;
+    double min_track_rate_y;
+
+    bool derotator_available;
+
     bool lid_available;
-    bool derotate_available;
-	
+    
+    bool cover_available;
+
+    bool focus_available;
+    double max_focus_pos;
+    double min_focus_pos;
+    
 	double primary_axis_min;
 	double primary_axis_max;
 	double secondary_axis_min;
@@ -44,22 +80,52 @@ struct TelescopeParameter {
 	double track_rate_y; /* the secondary axis tracking speed, in 15 arcsec per second */
 	double slew_speed_x;
 	double slew_speed_y;
+    
 	double ra_from;
 	double dec_from;
 	double ra_to;
 	double dec_to;
+    
+    int slew_direction_x;
+    int slew_direction_y;
+
 	double last_slew_begin_time;
 	double last_track_begin_time;
 	double last_move_begin_time;
 	double last_park_begin_time;
-	double ra;
+	
+    double ra;
 	double dec;
 	double alt;
 	double az;
-	
+    
+    double focus_position;
+    double derotator_angle;
+
+    bool is_cover_opened;
+    size_t instrument;
+    size_t detector;
+    size_t filter;
+    
+    unsigned int move_direction;
+    
+    pthread_rwlock_t position_rwlock;   /* ra, dec, az, alt */
+    pthread_rwlock_t slew_rwlock;       /* ra_from, dec_from, ra_to, dec_to */
+    
+    pthread_rwlock_t move_begin_rwlock;
+    pthread_rwlock_t slew_begin_rwlock;
+    pthread_rwlock_t track_begin_rwlock;
+    pthread_rwlock_t park_begin_rwlock;
+    
 	pthread_rwlock_t move_speed_rwlock;
 	pthread_rwlock_t track_rate_rwlock;
 	pthread_rwlock_t slew_speed_rwlock;
+    
+    pthread_rwlock_t cover_rwlock;
+    pthread_rwlock_t instrument_rwlock;
+    pthread_rwlock_t detector_rwlock;
+    pthread_rwlock_t filter_rwlock;
+    pthread_rwlock_t focus_rwlock;
 };
 
 struct __Telescope {
@@ -114,6 +180,7 @@ struct __TelescopeClass {
     struct Method set_option;
     
     struct Method status;
+    struct Method info;
     struct Method power_on;
     struct Method power_off;
     struct Method init;
@@ -134,12 +201,17 @@ struct __TelescopeClass {
     struct Method get_move_speed;
     struct Method set_track_rate;
     struct Method get_track_rate;
+    struct Method get_derotator_angle;
+    struct Method enable_derotator;
+    struct Method disable_derotator;
 
     struct Method switch_filter;
     struct Method switch_instrument;
     struct Method switch_detector;
-    
     struct Method focus;
+    
+    struct Method open_cover;
+    struct Method close_cover;
     
     struct Method inspect;
     struct Method wait;
@@ -148,6 +220,7 @@ struct __TelescopeClass {
 struct __TelescopeVirtualTable {
     struct VirtualTable _;
     struct Method status;
+    struct Method info;
     struct Method power_on;
     struct Method power_off;
     struct Method init;
@@ -168,13 +241,15 @@ struct __TelescopeVirtualTable {
     struct Method get_move_speed;
     struct Method set_track_rate;
     struct Method get_track_rate;
-
     struct Method switch_filter;
     struct Method switch_instrument;
     struct Method switch_detector;
-    
     struct Method focus;
-    
+    struct Method open_cover;
+    struct Method close_cover;
+    struct Method get_derotator_angle;
+    struct Method enable_derotator;
+    struct Method disable_derotator;
     struct Method inspect;
     struct Method wait;
     
@@ -237,13 +312,23 @@ struct AICMount {
     struct __Telescope _;
     char *address;
     char *port;
+    char *address2;
     char *port2;
+    char *address3;
+    char *port3;
     double home_ra;
     double home_dec;
     double home_alt;
     double home_az;
     double polling_interval;
     unsigned int max_polling_times;
+    double focus_polling_interval;
+    unsigned int max_focus_polling_times;
+    double focus_threshold;
     pthread_mutex_t mtx;
+};
+
+struct AICMountClass {
+    struct __TelescopeClass _;
 };
 #endif /* telescope_r_h */

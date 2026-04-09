@@ -244,6 +244,54 @@ __TelescopeVirtualTable_ctor(void *_self, va_list *app)
             self->focus.method = method;
             continue;
         }
+        if (selector == (Method) __telescope_open_cover) {
+            if (tag) {
+                self->open_cover.tag = tag;
+                self->open_cover.selector = selector;
+            }
+            self->open_cover.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_close_cover) {
+            if (tag) {
+                self->close_cover.tag = tag;
+                self->close_cover.selector = selector;
+            }
+            self->close_cover.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_get_derotator_angle) {
+            if (tag) {
+                self->get_derotator_angle.tag = tag;
+                self->get_derotator_angle.selector = selector;
+            }
+            self->get_derotator_angle.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_enable_derotator) {
+            if (tag) {
+                self->enable_derotator.tag = tag;
+                self->enable_derotator.selector = selector;
+            }
+            self->enable_derotator.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_disable_derotator) {
+            if (tag) {
+                self->disable_derotator.tag = tag;
+                self->disable_derotator.selector = selector;
+            }
+            self->disable_derotator.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_info) {
+            if (tag) {
+                self->info.tag = tag;
+                self->info.selector = selector;
+            }
+            self->info.method = method;
+            continue;
+        }
     }
     
     return _self;
@@ -291,18 +339,63 @@ __TelescopeVirtualTable(void)
 
 static pthread_key_t __telescope_option_key;
 
-static
-void TelescopeState_init(struct TelescopeState *t_state)
+static void
+TelescopeState_init(struct TelescopeState *t_state)
 {
     Pthread_mutex_init(&t_state->mtx, NULL);
     Pthread_cond_init(&t_state->cond, NULL);
 }
 
-static
-void TelescopeState_destroy(struct TelescopeState *t_state)
+static void
+TelescopeState_destroy(struct TelescopeState *t_state)
 {
     Pthread_mutex_destroy(&t_state->mtx);
     Pthread_cond_destroy(&t_state->cond);
+}
+
+static void
+TelescopeParameter_init(struct TelescopeParameter *t_param)
+{
+    Pthread_rwlock_init(&t_param->move_begin_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->slew_begin_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->track_begin_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->park_begin_rwlock, NULL);
+    
+    Pthread_rwlock_init(&t_param->slew_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->position_rwlock, NULL);
+    
+    
+    Pthread_rwlock_init(&t_param->move_speed_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->slew_speed_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->track_rate_rwlock, NULL);
+    
+    Pthread_rwlock_init(&t_param->cover_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->instrument_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->detector_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->filter_rwlock, NULL);
+    Pthread_rwlock_init(&t_param->focus_rwlock, NULL);
+}
+
+static void
+TelescopeParameter_destroy(struct TelescopeParameter *t_param)
+{
+    Pthread_rwlock_destroy(&t_param->focus_rwlock);
+    Pthread_rwlock_destroy(&t_param->filter_rwlock);
+    Pthread_rwlock_destroy(&t_param->detector_rwlock);
+    Pthread_rwlock_destroy(&t_param->instrument_rwlock);
+    Pthread_rwlock_destroy(&t_param->cover_rwlock);
+    
+    Pthread_rwlock_destroy(&t_param->track_rate_rwlock);
+    Pthread_rwlock_destroy(&t_param->slew_speed_rwlock);
+    Pthread_rwlock_destroy(&t_param->move_speed_rwlock);
+    
+    Pthread_rwlock_destroy(&t_param->position_rwlock);
+    Pthread_rwlock_destroy(&t_param->slew_rwlock);
+    
+    Pthread_rwlock_destroy(&t_param->park_begin_rwlock);
+    Pthread_rwlock_destroy(&t_param->track_begin_rwlock);
+    Pthread_rwlock_destroy(&t_param->slew_begin_rwlock);
+    Pthread_rwlock_destroy(&t_param->move_begin_rwlock);
 }
 
 int
@@ -394,26 +487,6 @@ __Telescope_get_name(const void *_self)
 }
 
 int
-__telescope_inspect(void *_self)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->inspect.method) {
-        return ((int (*)(void *)) class->inspect.method)(_self);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_inspect, "inspect", _self);
-        return result;
-    }
-}
-
-static int
-__Telescope_inspect(const void *_self)
-{
-    return AAOS_ENOTSUP;
-}
-
-int
 __telescope_wait(void *_self, double timeout)
 {
     const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
@@ -470,162 +543,8 @@ __Telescope_wait(void *_self, double timeout)
 }
 
 /*
- * Virtual function, default is not support.
+ * Virtual function, default is not support. Optional functionalities.
  */
-
-int
-__telescope_status(void *_self, char *status_buffer, size_t status_buffer_size)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->status.method) {
-        return ((int (*)(void *, char *, size_t)) class->status.method)(_self, status_buffer, status_buffer_size);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_status, "status", _self, status_buffer, status_buffer_size);
-        return result;
-    }
-}
-
-int
-__telescope_power_on(void *_self)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->power_on.method) {
-        return ((int (*)(void *)) class->power_on.method)(_self);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_power_on, "power_on", _self);
-        return result;
-    }
-}
-
-static int
-__Telescope_power_on(void *_self)
-{
-    return AAOS_ENOTSUP;
-}
-
-int
-__telescope_power_off(void *_self)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->power_off.method) {
-        return ((int (*)(void *)) class->power_off.method)(_self);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_power_off, "power_off", _self);
-        return result;
-    }
-}
-
-static int
-__Telescope_power_off(void *_self) {
-    return AAOS_ENOTSUP;
-}
-
-int
-__telescope_switch_instrument(void *_self, const char *name)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->switch_instrument.method) {
-        return ((int (*)(void *, const char *)) class->switch_instrument.method)(_self, name);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_switch_instrument, "switch_instrument", _self, name);
-        return result;
-    }
-}
-
-static int
-__Telescope_switch_instrument(void *_self) {
-    return AAOS_ENOTSUP;
-}
-
-int
-__telescope_switch_filter(void *_self, const char *name)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->switch_filter.method) {
-        return ((int (*)(void *, const char *)) class->switch_filter.method)(_self, name);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_switch_filter, "switch_filter", _self, name);
-        return result;
-    }
-}
-
-static int
-__Telescope_switch_filter(void *_self) {
-    return AAOS_ENOTSUP;
-}
-
-int
-__telescope_switch_detector(void *_self, const char *name)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->switch_detector.method) {
-        return ((int (*)(void *, const char *)) class->switch_detector.method)(_self, name);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_switch_detector, "switch_detector", _self, name);
-        return result;
-    }
-}
-
-static int
-__Telescope_switch_detector(void *_self)
-{
-    return AAOS_ENOTSUP;
-}
-
-int
-__telescope_focus(void *_self, unsigned int absolute, double step)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->focus.method) {
-        return ((int (*)(void *, unsigned int, double)) class->switch_detector.method)(_self, absolute, step);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_focus, "focus", _self, absolute, step);
-        return result;
-    }
-}
-
-static int
-__Telescope_focus(void *_self, unsigned int absolute, double step)
-{
-    return AAOS_ENOTSUP;
-}
-
-/*
- * Pure virtual function
- */
-
-/*
- * Do any initilizing, only applied after powered on.
- * If telescope is not in UNINI state, has no effect.
- */
-
-int
-__telescope_init(void *_self)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->init.method) {
-        return ((int (*)(void *)) class->init.method)(_self);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_init, "init", _self);
-        return result;
-    }
-}
 
 /*
  * Stop both axes immediately,
@@ -756,20 +675,6 @@ __Telescope_timed_move(void *_self, unsigned int direction, double duration, dou
 }
 
 int
-__telescope_slew(void *_self, double ra, double dec)
-{
-    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
-    
-    if (isOf(class, __TelescopeClass()) && class->slew.method) {
-        return ((int (*)(void *, double, double)) class->slew.method)(_self, ra, dec);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __telescope_slew, "slew", _self, ra, dec);
-        return result;
-    }
-}
-
-int
 __telescope_try_slew(void *_self, double ra, double dec)
 {
     const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
@@ -781,6 +686,12 @@ __telescope_try_slew(void *_self, double ra, double dec)
         forward(_self, &result, (Method) __telescope_try_slew, "try_slew", _self, ra, dec);
         return result;
     }
+}
+
+static int
+__Telescope_try_slew(void *_self, double ra, double dec)
+{
+    return AAOS_ENOTSUP;
 }
 
 int
@@ -795,6 +706,12 @@ __telescope_timed_slew(void *_self, double ra, double dec, double timeout)
         forward(_self, &result, (Method) __telescope_timed_slew, "timed_slew", _self, ra, dec, timeout);
         return result;
     }
+}
+
+static int
+__Telescope_timed_slew(void *_self, double ra, double dec, double timeout)
+{
+    return AAOS_ENOTSUP;
 }
 
 int
@@ -832,6 +749,12 @@ __telescope_set_move_speed(void *_self, double move_speed)
 }
 
 int
+__Telescope_set_move_speed(void *_self, double move_speed)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
 __telescope_get_move_speed(void *_self, double *move_speed)
 {
     const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
@@ -843,6 +766,12 @@ __telescope_get_move_speed(void *_self, double *move_speed)
         forward(_self, &result, (Method) __telescope_get_move_speed, "get_move_speed", _self, move_speed);
         return result;
     }
+}
+
+int
+__Telescope_get_move_speed(void *_self, double *move_speed)
+{
+    return AAOS_ENOTSUP;
 }
 
 int
@@ -860,6 +789,13 @@ __telescope_set_slew_speed(void *_self, double slew_speed_x, double slew_speed_y
 }
 
 int
+__Telescope_set_slew_speed(void *_self, double slew_speed_x, double slew_speed_y)
+{
+    return AAOS_ENOTSUP;
+}
+
+
+int
 __telescope_get_slew_speed(void *_self, double *slew_speed_x, double *slew_speed_y)
 {
     const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
@@ -871,6 +807,12 @@ __telescope_get_slew_speed(void *_self, double *slew_speed_x, double *slew_speed
         forward(_self, &result, (Method) __telescope_get_slew_speed, "get_slew_speed", _self, slew_speed_x, slew_speed_y);
         return result;
     }
+}
+
+int
+__Telescope_get_slew_speed(void *_self, double *slew_speed_x, double *slew_speed_y)
+{
+    return AAOS_ENOTSUP;
 }
 
 int
@@ -888,6 +830,18 @@ __telescope_set_track_rate(void *_self, double track_rate_x, double track_rate_y
 }
 
 int
+__Telescope_set_track_rate_x(void *_self, double track_rate_x, double track_rate_y)
+{
+    return AAOS_ENOTSUP;
+}
+
+static int
+__Telescope_set_track_rate(void *_self, double track_rate_x, double track_rate_y)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
 __telescope_get_track_rate(void *_self, double *track_rate_x, double *track_rate_y)
 {
     const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
@@ -897,6 +851,316 @@ __telescope_get_track_rate(void *_self, double *track_rate_x, double *track_rate
     } else {
         int result;
         forward(_self, &result, (Method) __telescope_get_track_rate, "get_track_rate", _self, track_rate_x, track_rate_y);
+        return result;
+    }
+}
+
+static int
+__Telescope_get_track_rate(void *_self, double *track_rate_x, double *track_rate_y)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_power_on(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->power_on.method) {
+        return ((int (*)(void *)) class->power_on.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_power_on, "power_on", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_power_on(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_power_off(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->power_off.method) {
+        return ((int (*)(void *)) class->power_off.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_power_off, "power_off", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_power_off(void *_self) {
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_switch_instrument(void *_self, const char *name)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->switch_instrument.method) {
+        return ((int (*)(void *, const char *)) class->switch_instrument.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_switch_instrument, "switch_instrument", _self, name);
+        return result;
+    }
+}
+
+static int
+__Telescope_switch_instrument(void *_self, const char *name)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_switch_filter(void *_self, const char *name)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->switch_filter.method) {
+        return ((int (*)(void *, const char *)) class->switch_filter.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_switch_filter, "switch_filter", _self, name);
+        return result;
+    }
+}
+
+static int
+__Telescope_switch_filter(void *_self, const char *name)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_switch_detector(void *_self, const char *name)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->switch_detector.method) {
+        return ((int (*)(void *, const char *)) class->switch_detector.method)(_self, name);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_switch_detector, "switch_detector", _self, name);
+        return result;
+    }
+}
+
+static int
+__Telescope_switch_detector(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_open_cover(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->open_cover.method) {
+        return ((int (*)(void *)) class->open_cover.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_open_cover, "open_cover", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_open_cover(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_close_cover(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->close_cover.method) {
+        return ((int (*)(void *)) class->close_cover.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_close_cover, "close_cover", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_close_cover(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_focus(void *_self, unsigned int absolute, double step)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->focus.method) {
+        return ((int (*)(void *, unsigned int, double)) class->switch_detector.method)(_self, absolute, step);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_focus, "focus", _self, absolute, step);
+        return result;
+    }
+}
+
+static int
+__Telescope_focus(void *_self, unsigned int absolute, double step)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_enable_derotator(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->enable_derotator.method) {
+        return ((int (*)(void *)) class->enable_derotator.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_enable_derotator, "enable_derotator", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_enable_derotator(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_disable_derotator(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->disable_derotator.method) {
+        return ((int (*)(void *)) class->disable_derotator.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_disable_derotator, "disable_derotator", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_disable_derotator(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_get_derotator_angle(void *_self, double *angle)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->get_derotator_angle.method) {
+        return ((int (*)(void *, double *)) class->get_derotator_angle.method)(_self, angle);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_get_derotator_angle, "get_derotator_angle", _self, angle);
+        return result;
+    }
+}
+
+static int
+__Telescope_get_derotator_angle(void *_self, double *angle)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__telescope_inspect(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->inspect.method) {
+        return ((int (*)(void *)) class->inspect.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_inspect, "inspect", _self);
+        return result;
+    }
+}
+
+static int
+__Telescope_inspect(const void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+/*
+ * Pure virtual function, mandatory functionalities.
+ */
+
+/*
+ * Do any initilizing, only applied after powered on.
+ * If telescope is not in UNINI state, has no effect.
+ */
+
+int
+__telescope_init(void *_self)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->init.method) {
+        return ((int (*)(void *)) class->init.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_init, "init", _self);
+        return result;
+    }
+}
+
+int
+__telescope_status(void *_self, char *status_buffer, size_t status_buffer_size)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->status.method) {
+        return ((int (*)(void *, char *, size_t)) class->status.method)(_self, status_buffer, status_buffer_size);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_status, "status", _self, status_buffer, status_buffer_size);
+        return result;
+    }
+}
+
+int
+__telescope_info(void *_self, char *info_buffer, size_t info_buffer_size)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->info.method) {
+        return ((int (*)(void *, char *, size_t)) class->info.method)(_self, info_buffer, info_buffer_size);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_info, "info", _self, info_buffer, info_buffer_size);
+        return result;
+    }
+}
+
+int
+__telescope_slew(void *_self, double ra, double dec)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->slew.method) {
+        return ((int (*)(void *, double, double)) class->slew.method)(_self, ra, dec);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_slew, "slew", _self, ra, dec);
         return result;
     }
 }
@@ -926,28 +1190,16 @@ __Telescope_forward(const void *_self, void *result, Method selector, const char
 #endif
     
     void *obj = va_arg(*app, void *);
-    if (selector == (Method) __telescope_status) {
-        char *status_buffer = va_arg(*app, char *);
-        size_t status_buffer_size = va_arg(*app, size_t);
-        *((int *) result) = ((int (*)(void *, char *, size_t)) method)(obj, status_buffer, status_buffer_size);
-    } else if (selector == (Method) __telescope_power_on) {
+    if (selector == (Method) __telescope_status || selector == (Method) __telescope_info) {
+        char *buffer = va_arg(*app, char *);
+        size_t buffer_size = va_arg(*app, size_t);
+        *((int *) result) = ((int (*)(void *, char *, size_t)) method)(obj, buffer, buffer_size);
+    } else if (selector == (Method) __telescope_power_on || selector == (Method) __telescope_power_off || selector == (Method) __telescope_init || selector == (Method) __telescope_park || selector == (Method) __telescope_park_off || selector == (Method) __telescope_stop || selector == (Method) __telescope_go_home || selector == (Method) __telescope_enable_derotator || selector == (Method) __telescope_disable_derotator || selector == (Method) __telescope_open_cover || selector == (Method) __telescope_close_cover || selector == (Method) __telescope_inspect) {
         *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_power_off) {
-       *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_init) {
-        *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_park) {
-        *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_park_off) {
-        *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_stop) {
-        *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_go_home) {
-        *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_move) {
-        unsigned int direction = va_arg(*app, unsigned int);
-        double duration = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, unsigned int, double)) method)(obj, direction, duration);
+    }  else if (selector == (Method) __telescope_move || selector == (Method) __telescope_focus) {
+        unsigned int value = va_arg(*app, unsigned int);
+        double value2 = va_arg(*app, double);
+        *((int *) result) = ((int (*)(void *, unsigned int, double)) method)(obj, value, value2);
     } else if (selector == (Method) __telescope_try_move) {
         unsigned int direction = va_arg(*app, unsigned int);
         double duration = va_arg(*app, double);
@@ -957,14 +1209,6 @@ __Telescope_forward(const void *_self, void *result, Method selector, const char
         double duration = va_arg(*app, double);
         double timeout = va_arg(*app, double);
         *((int *) result) = ((int (*)(void *, unsigned int, double, double)) method)(obj, direction, duration, timeout);
-    } else if (selector == (Method) __telescope_slew) {
-        double ra = va_arg(*app, double);
-        double dec = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, double, double)) method)(obj, ra, dec);
-    } else if (selector == (Method) __telescope_try_slew) {
-        double ra = va_arg(*app, double);
-        double dec = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, double, double)) method)(obj, ra, dec);
     } else if (selector == (Method) __telescope_timed_slew) {
         double ra = va_arg(*app, double);
         double dec = va_arg(*app, double);
@@ -978,37 +1222,23 @@ __Telescope_forward(const void *_self, void *result, Method selector, const char
         size_t results_size = va_arg(*app, size_t);
         size_t *return_size = va_arg(*app, size_t *);
         *((int *) result) = ((int (*)(void *, const void *, size_t, size_t *, void *, size_t, size_t *)) method)(obj, command, command_size, write_size, results, results_size, return_size);
-    } else if (selector == (Method) __telescope_set_move_speed) {
+    } else if (selector == (Method) __telescope_set_move_speed || selector == (Method) __telescope_wait) {
         double move_speed = va_arg(*app, double);
         *((int *) result) = ((int (*)(void *, double)) method)(obj, move_speed);
-    } else if (selector == (Method) __telescope_get_move_speed) {
-        double *move_speed = va_arg(*app, double *);
-        *((int *) result) = ((int (*)(void *, double *)) method)(obj, move_speed);
-    } else if (selector == (Method) __telescope_set_slew_speed) {
-        double slew_speed_x = va_arg(*app, double);
-        double slew_speed_y = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, double, double)) method)(obj, slew_speed_x, slew_speed_y);
-    } else if (selector == (Method) __telescope_get_slew_speed) {
-        double *slew_speed_x = va_arg(*app, double *);
-        double *slew_speed_y = va_arg(*app, double *);
-        *((int *) result) = ((int (*)(void *, double *, double *)) method)(obj, slew_speed_x, slew_speed_y);
-    } else if (selector == (Method) __telescope_set_track_rate) {
-        double track_rate_x = va_arg(*app, double);
-        double track_rate_y = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, double, double)) method)(obj, track_rate_x, track_rate_y);
-    } else if (selector == (Method) __telescope_get_track_rate) {
-        double *track_rate_x = va_arg(*app, double *);
-        double *track_rate_y = va_arg(*app, double *);
-        *((int *) result) = ((int (*)(void *, double *, double *)) method)(obj, track_rate_x, track_rate_y);
-    } else if (selector == (Method) __telescope_inspect) {
-        *((int *) result) = ((int (*)(void *)) method)(obj);
-    } else if (selector == (Method) __telescope_wait) {
-        double timeout = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, double)) method)(obj, timeout);
-    } else if (selector == (Method) __telescope_focus) {
-        unsigned int absolute = va_arg(*app, unsigned int);
-        double step = va_arg(*app, double);
-        *((int *) result) = ((int (*)(void *, unsigned int, double)) method)(obj, absolute, step);
+    } else if (selector == (Method) __telescope_get_move_speed || selector == (Method) __telescope_get_derotator_angle) {
+        double *value = va_arg(*app, double *);
+        *((int *) result) = ((int (*)(void *, double *)) method)(obj, value);
+    } else if (selector == (Method) __telescope_set_slew_speed || selector == (Method) __telescope_set_track_rate || selector == (Method) __telescope_slew || selector == (Method) __telescope_try_slew) {
+        double value = va_arg(*app, double);
+        double value2 = va_arg(*app, double);
+        *((int *) result) = ((int (*)(void *, double, double)) method)(obj, value, value2);
+    } else if (selector == (Method) __telescope_get_slew_speed || selector == (Method) __telescope_get_track_rate) {
+        double *value = va_arg(*app, double *);
+        double *value2 = va_arg(*app, double *);
+        *((int *) result) = ((int (*)(void *, double *, double *)) method)(obj, value, value2);
+    } else if (selector == (Method) __telescope_switch_instrument || selector == (Method) __telescope_switch_detector || selector == (Method) __telescope_switch_filter) {
+        const char *name = va_arg(*app, const char *);
+        *((int *) result) = ((int (*)(void *, const char *)) method)(obj, name);
     } else {
         assert(0);
     }
@@ -1129,10 +1359,37 @@ __Telescope_ctor(void *_self, va_list *app)
             self->gmt_offset = value;
             continue;
         }
-        
+        if (strcmp(name, "instruments") == 0) {
+            char **value;
+            size_t dimension;
+            value = va_arg(*app, char **);
+            dimension = va_arg(*app, size_t);
+            self->t_cap.instruments = value;
+            self->t_cap.n_instrument = dimension;
+            continue;
+        }
+        if (strcmp(name, "detectors") == 0) {
+            char ***value;
+            size_t *dimension;
+            value = va_arg(*app, char ***);
+            dimension = va_arg(*app, size_t *);
+            self->t_cap.detectors_2d = value;
+            self->t_cap.n_detector = dimension;
+            continue;
+        }
+        if (strcmp(name, "filters") == 0) {
+            char ****value;
+            size_t **dimension;
+            value = va_arg(*app, char ****);
+            dimension = va_arg(*app, size_t **);
+            self->t_cap.filters_3d = value;
+            self->t_cap.n_filter = dimension;
+            continue;
+        }
     }
     
     TelescopeState_init(&self->t_state);
+    TelescopeParameter_init(&self->t_param);
     
     return (void *) self;
 }
@@ -1142,8 +1399,39 @@ __Telescope_dtor(void *_self)
 {
     struct __Telescope *self = cast(__Telescope(), _self);
     
+    size_t i, j , k;
+
+    if (self->t_cap.instruments != NULL) {
+        for (i = 0; i < self->t_cap.n_instrument; i++) {
+            if (self->t_cap.detectors_2d != NULL && self->t_cap.detectors_2d[i] != NULL && self->t_cap.n_detector != NULL) {
+                for (j = 0; j < self->t_cap.n_detector[i]; j++) {
+                    if (self->t_cap.n_filter[i] != NULL && self->t_cap.filters_3d != NULL && self->t_cap.filters_3d[i] != NULL && self->t_cap.filters_3d[i][j] != NULL) {
+                        for (k = 0; k < self->t_cap.n_filter[i][j]; k++) {
+                            free(self->t_cap.filters_3d[i][j][k]);
+                        }
+                        free(self->t_cap.filters_3d[i][j]);
+                        free(self->t_cap.detectors_2d[i][j]);
+                    }
+                }
+                if (self->t_cap.n_filter != NULL) {
+                    free(self->t_cap.n_filter[i]);
+                }
+                free(self->t_cap.filters_3d[i]);
+                free(self->t_cap.detectors_2d[i]);
+            }
+            free(self->t_cap.instruments[i]);
+        }
+        free(self->t_cap.n_filter);
+        free(self->t_cap.n_detector);
+        free(self->t_cap.filters_3d);
+        free(self->t_cap.detectors_2d);
+        free(self->t_cap.instruments);
+    }
+    
     free(self->description);
     free(self->name);
+    
+    TelescopeParameter_destroy(&self->t_param);
     TelescopeState_destroy(&self->t_state);
     
     return super_dtor(__Telescope(), _self);
@@ -1383,6 +1671,54 @@ __TelescopeClass_ctor(void *_self, va_list *app)
             self->focus.method = method;
             continue;
         }
+        if (selector == (Method) __telescope_open_cover) {
+            if (tag) {
+                self->open_cover.tag = tag;
+                self->open_cover.selector = selector;
+            }
+            self->open_cover.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_close_cover) {
+            if (tag) {
+                self->close_cover.tag = tag;
+                self->close_cover.selector = selector;
+            }
+            self->close_cover.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_get_derotator_angle) {
+            if (tag) {
+                self->get_derotator_angle.tag = tag;
+                self->get_derotator_angle.selector = selector;
+            }
+            self->get_derotator_angle.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_enable_derotator) {
+            if (tag) {
+                self->enable_derotator.tag = tag;
+                self->enable_derotator.selector = selector;
+            }
+            self->enable_derotator.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_disable_derotator) {
+            if (tag) {
+                self->disable_derotator.tag = tag;
+                self->disable_derotator.selector = selector;
+            }
+            self->disable_derotator.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_info) {
+            if (tag) {
+                self->info.tag = tag;
+                self->info.selector = selector;
+            }
+            self->info.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -1455,6 +1791,18 @@ __Telescope_initialize(void)
                        __telescope_switch_filter, "switch_filter", __Telescope_switch_filter,
                        __telescope_switch_detector, "switch_detector", __Telescope_switch_detector,
                        __telescope_focus, "focus", __Telescope_focus,
+                       __telescope_open_cover, "open_cover", __Telescope_open_cover,
+                       __telescope_close_cover, "open_cover", __Telescope_close_cover,
+                       __telescope_set_move_speed, "set_move_speed", __Telescope_set_move_speed,
+                       __telescope_get_move_speed, "get_move_speed", __Telescope_get_move_speed,
+                       __telescope_set_slew_speed, "set_slew_speed", __Telescope_set_slew_speed,
+                       __telescope_get_slew_speed, "get_slew_speed", __Telescope_get_slew_speed,
+                       __telescope_set_track_rate, "set_track_rate", __Telescope_set_track_rate,
+                       __telescope_get_track_rate, "get_track_rate", __Telescope_get_track_rate,
+                       __telescope_get_derotator_angle, "get_derotator_angle", __Telescope_get_derotator_angle,
+                       __telescope_enable_derotator, "enable_derotator", __Telescope_enable_derotator,
+                       __telescope_disable_derotator, "disable_derotator", __Telescope_disable_derotator,
+                       
                        (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(__Telescope_destroy);
@@ -1489,6 +1837,155 @@ get_current_time(void)
     
     return tp.tv_sec + tp.tv_nsec / 1000000000.;
 }
+
+static void
+VirtualTelescope_get_current_postion_r(struct VirtualTelescope *self, double *ra, double *dec, double *alt, double *az)
+{
+    unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    double current_time = get_current_time();
+    double ra_, dec_;
+    double last_park_begin_time, last_move_begin_time, last_slew_bigin_time, last_track_begin_time, time_diff;
+    double move_speed, slew_speed_x, slew_speed_y;
+    double dec_arrive_time, ra_arrive_time, ra_from, ra_to, dec_from, dec_to;
+    unsigned int move_direction;
+    int slew_direction_x, slew_direction_y;
+    
+    Pthread_rwlock_rdlock(&self->_.t_param.position_rwlock);
+    ra_ = self->_.t_param.ra;
+    dec_ = self->_.t_param.dec;
+    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
+    
+    switch (state) {
+        case TELESCOPE_STATE_PARKED:
+            Pthread_rwlock_rdlock(&self->_.t_param.park_begin_rwlock);
+            last_park_begin_time = self->_.t_param.last_park_begin_time;
+            Pthread_rwlock_unlock(&self->_.t_param.park_begin_rwlock);
+            ra_ += SIDEREAL_TRACKING_SPEED * (current_time - self->_.last_park_begin_time);
+            if (ra_ >= 360.) {
+                ra_ -= floor(fabs(ra_) / 360.)  * 360.;
+            } else if (ra_ < 0.) {
+                ra_ += (floor(fabs(ra_) / 360.) + 1) * 360.;
+            }
+            *ra = ra_;
+            *dec = dec_;
+            break;
+        case TELESCOPE_STATE_MOVING:
+            Pthread_rwlock_rdlock(&self->_.t_param.move_begin_rwlock);
+            last_move_begin_time = self->_.t_param.last_move_begin_time;
+            Pthread_rwlock_unlock(&self->_.t_param.move_begin_rwlock);
+            Pthread_rwlock_rdlock(&self->_.t_param.move_speed_rwlock);
+            move_speed = self->_.t_param.move_speed;
+            move_direction = self->_.t_param.move_direction;
+            Pthread_rwlock_unlock(&self->_.t_param.move_speed_rwlock);
+            switch (move_direction) {
+                case TELESCOPE_MOVE_EAST:
+                    ra_ += (move_speed - SIDEREAL_TRACKING_SPEED) * (current_time - last_move_begin_time);
+                    if (ra_ >= 360.) {
+                        ra_ -= (floor(fabs(ra_) / 360.) - 1) * 360.;
+                    }
+                    *ra = ra_;
+                    *dec = dec_;
+                    break;
+                case TELESCOPE_MOVE_WEST:
+                    ra_ -= (move_speed + SIDEREAL_TRACKING_SPEED) * (current_time - last_move_begin_time);
+                    if (self->_.ra < 0.) {
+                        self->_.ra += (floor(fabs(self->_.ra) / 360.) + 1) * 360.;
+                    }
+                    *ra = ra_;
+                    *dec = dec_;
+                    break;
+                case TELESCOPE_MOVE_NORTH:
+                    dec_ += move_speed * (current_time - last_move_begin_time);
+                    if (dec_ > 90.) {
+                        dec_ -= floor(fabs(dec_) / 360.) * 360.;
+                        if (dec_ > 90. && dec_ <= 270.) {
+                            dec_ = 180. - dec_;
+                            ra_ += 180.;
+                            if (ra_ >= 360.) {
+                                ra_ -= 360.;
+                            }
+                        } else if (dec_ > 270.) {
+                            dec_ *= 360. - dec_;
+                        }
+                    }
+                    *ra = ra_;
+                    *dec = dec_;
+                    break;
+                case TELESCOPE_MOVE_SOUTH:
+                    dec_ -= move_speed * (current_time - last_move_begin_time);
+                    if (dec_ < -90.) {
+                        dec_ += floor(fabs(dec_) / 360. + 1) * 360.;
+                        if (dec_ > 90. && dec_ <= 270.) {
+                            dec_ = 180. - dec_;
+                            ra_ += 180.;
+                            if (ra_ >= 360.) {
+                                ra_ -= 360.;
+                            }
+                        } else if (dec_ > 270.) {
+                            dec_ *= 360. - dec_;
+                        }
+                    }
+                    *ra = ra_;
+                    *dec = dec_;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        case TELESCOPE_STATE_SLEWING:
+            Pthread_rwlock_rdlock(&self->_.t_param.slew_begin_rwlock);
+            last_slew_bigin_time = self->_.t_param.last_slew_begin_time;
+            Pthread_rwlock_unlock(&self->_.t_param.slew_begin_rwlock);
+            Pthread_rwlock_rdlock(&self->_.t_param.slew_speed_rwlock);
+            slew_speed_x = self->_.t_param.slew_speed_x;
+            slew_speed_y = self->_.t_param.slew_speed_y;
+            Pthread_rwlock_unlock(&self->_.t_param.slew_speed_rwlock);
+            Pthread_rwlock_rdlock(&self->_.t_param.slew_rwlock);
+            ra_from = self->_.t_param.ra_from;
+            ra_to = self->_.t_param.ra_to;
+            dec_from = self->_.t_param.dec_from;
+            dec_to = self->_.t_param.dec_to;
+            slew_direction_x = self->_.t_param.slew_direction_x;
+            slew_direction_y = self->_.t_param.slew_direction_y;
+            Pthread_rwlock_unlock(&self->_.t_param.slew_rwlock);
+    
+            time_diff = current_time - last_slew_bigin_time;
+            dec_arrive_time = fabs(dec_to - dec_from) / slew_speed_y;
+            if (time_diff < dec_arrive_time) {
+                dec_ += slew_direction_y * slew_speed_y;
+            } else {
+                dec_ = dec_to;
+            }
+            if (fabs(ra_to - ra_from) > 180.) {
+                ra_arrive_time = (360. - fabs(ra_to - ra_from)) / slew_speed_x;
+            } else {
+                ra_arrive_time = fabs(ra_to - ra_from) / slew_speed_x;
+            }
+            if (time_diff < ra_arrive_time) {
+                ra_ += slew_direction_x * (slew_speed_x - slew_direction_x * SIDEREAL_TRACKING_SPEED);
+                if (ra_ > 360.) {
+                    ra_ -= 360.;
+                } else if (ra_ < 0.) {
+                    ra_ += 360.;
+                }
+            } else {
+                ra_ = ra_to;
+            }
+            *ra = ra_;
+            *dec = dec_;
+            break;
+        case TELESCOPE_STATE_TRACKING:
+            *ra = ra_;
+            *dec = dec_;
+            break;
+        default:
+            break;
+    }
+    double jul_d = jd(current_time);
+
+    radec2altaz(jul_d, ra_, dec_, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., alt, az, NULL);
+}
+
 
 static void
 VirtualTelescope_get_current_postion(struct VirtualTelescope *self)
@@ -1604,8 +2101,68 @@ motor_thr(void *arg)
 }
 
 static int
+VirtualTelescope_status_json(struct VirtualTelescope *self, char *status_buffer, size_t status_buffer_size)
+{
+    double ra, dec, az, alt;
+    unsigned int state, flag;
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state;
+    VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    flag = state & TELESCOPE_STATE_MALFUNCTION;
+    state = state & (~TELESCOPE_STATE_MALFUNCTION);
+    
+    cJSON *root_json;
+    
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    if (self->_.name != NULL) {
+        cJSON_AddStringToObject(root_json, "name", self->_.name);
+    }
+    
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "description", self->_.description);
+    }
+    
+    switch (state) {
+        case TELESCOPE_STATE_MOVING:
+            cJSON_AddStringToObject(root_json, "state", "MOVING");
+            break;
+        case TELESCOPE_STATE_PARKED:
+            cJSON_AddStringToObject(root_json, "state", "PARKED");
+            break;
+        case TELESCOPE_STATE_SLEWING:
+            cJSON_AddStringToObject(root_json, "state", "SLEWING");
+            break;
+        case TELESCOPE_STATE_TRACKING:
+            cJSON_AddStringToObject(root_json, "state", "TRACKING");
+            break;
+        default:
+            break;
+    }
+    
+    cJSON_AddNumberToObject(root_json, "ra", ra);
+    cJSON_AddNumberToObject(root_json, "dec", dec);
+    cJSON_AddNumberToObject(root_json, "az", az);
+    cJSON_AddNumberToObject(root_json, "alt", alt);
+    
+    cJSON_PrintPreallocated(root_json, status_buffer, (int) status_buffer_size, 1);
+    cJSON_Delete(root_json);
+    
+    return AAOS_OK;
+}
+
+static int
 VirtualTelescope_status(void *_self, char *status_buffer, size_t status_buffer_size)
 {
+    
+    struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
+    
+    /*
     FILE *fp;
     
     VirtualTelescope_get_current_postion(_self);
@@ -1616,8 +2173,126 @@ VirtualTelescope_status(void *_self, char *status_buffer, size_t status_buffer_s
     puto(_self, fp);
     
     fclose(fp);
+     */
+    
+    return VirtualTelescope_status_json(self, status_buffer, status_buffer_size);
+}
+
+static int
+VirtualTelescope_info_json(struct VirtualTelescope *self, char *info_buffer, size_t info_buffer_size)
+{
+    
+    cJSON *root_json, *capability_json;
+    
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    if (self->_.name != NULL) {
+        cJSON_AddStringToObject(root_json, "name", self->_.name);
+    }
+    
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "description", self->_.description);
+    }
+    
+    if ((capability_json = cJSON_CreateObject()) == NULL) {
+        cJSON_Delete(root_json);
+        return AAOS_ENOMEM;
+    }
+    
+    if (self->_.t_cap.slew_available) {
+        cJSON_AddStringToObject(capability_json, "slew_available", "true");
+    } else {
+        cJSON_AddStringToObject(capability_json, "slew_available", "false");
+    }
+    if (self->_.t_cap.slew_speed_available) {
+        cJSON_AddStringToObject(capability_json, "slew_speed_available", "true");
+        cJSON_AddNumberToObject(capability_json, "max_slew_speed_x", self->_.t_cap.max_slew_speed_x);
+        cJSON_AddNumberToObject(capability_json, "min_slew_speed_x", self->_.t_cap.min_slew_speed_x);
+        cJSON_AddNumberToObject(capability_json, "max_slew_speed_y", self->_.t_cap.max_slew_speed_y);
+        cJSON_AddNumberToObject(capability_json, "min_slew_speed_y", self->_.t_cap.min_slew_speed_y);
+    } else {
+        cJSON_AddStringToObject(capability_json, "slew_speed_available", "false");
+    }
+    
+    
+    if (self->_.t_cap.move_available) {
+        cJSON_AddStringToObject(capability_json, "move_available", "true");
+    } else {
+        cJSON_AddStringToObject(capability_json, "move_available", "false");
+    }
+    if (self->_.t_cap.move_speed_available) {
+        cJSON_AddStringToObject(capability_json, "move_speed_available", "true");
+        cJSON_AddNumberToObject(capability_json, "max_move_speed", self->_.t_cap.max_move_speed);
+        cJSON_AddNumberToObject(capability_json, "min_move_speed", self->_.t_cap.min_move_speed);
+    } else {
+        cJSON_AddStringToObject(capability_json, "move_speed_available", "false");
+    }
+    
+    if (self->_.t_cap.track_rate_available) {
+        cJSON_AddStringToObject(capability_json, "track_rate_available", "true");
+        cJSON_AddNumberToObject(capability_json, "max_track_rate_x", self->_.t_cap.max_track_rate_x);
+        cJSON_AddNumberToObject(capability_json, "min_track_rate_x", self->_.t_cap.min_track_rate_x);
+        cJSON_AddNumberToObject(capability_json, "max_track_rate_y", self->_.t_cap.max_track_rate_y);
+        cJSON_AddNumberToObject(capability_json, "min_track_rate_y", self->_.t_cap.min_track_rate_y);
+        
+    } else {
+        cJSON_AddStringToObject(capability_json, "track_rate_available", "false");
+    }
+    
+    if (self->_.t_cap.cover_available) {
+        cJSON_AddStringToObject(capability_json, "cover_available", "true");
+    } else {
+        cJSON_AddStringToObject(capability_json, "cover_available", "false");
+    }
+    
+    if (self->_.t_cap.derotator_available) {
+        cJSON_AddStringToObject(capability_json, "derotator_available", "true");
+    } else {
+        cJSON_AddStringToObject(capability_json, "derotator_available", "false");
+    }
+    
+    if (self->_.t_cap.switch_instrument_available) {
+        cJSON_AddStringToObject(capability_json, "switch_instrument_available", "true");
+        size_t i, n = self->_.t_cap.n_instrument;
+        cJSON *instruments_json = cJSON_CreateArray();
+        for (i = 0; i < n; i++) {
+            cJSON_AddItemToArray(instruments_json, cJSON_CreateString(self->_.t_cap.instruments[i]));
+        }
+        cJSON_AddItemToObject(capability_json, "instruments", instruments_json);
+    } else {
+        cJSON_AddStringToObject(capability_json, "switch_instrument_available", "false");
+    }
+    
+    cJSON_AddItemToObject(root_json, "capability", capability_json);
+
+    cJSON_PrintPreallocated(root_json, info_buffer, (int) info_buffer_size, 1);
+    cJSON_Delete(root_json);
     
     return AAOS_OK;
+}
+
+static int
+VirtualTelescope_info(void *_self, char *info_buffer, size_t info_buffer_size)
+{
+    
+    struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
+    
+    /*
+    FILE *fp;
+    
+    VirtualTelescope_get_current_postion(_self);
+    
+    if ((fp = fmemopen(status_buffer, status_buffer_size, "w")) == NULL) {
+    }
+    
+    puto(_self, fp);
+    
+    fclose(fp);
+     */
+    
+    return VirtualTelescope_info_json(self, info_buffer, info_buffer_size);
 }
 
 static int
@@ -1676,20 +2351,20 @@ VirtualTelescope_init(void *_self)
 {
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
     
-    self->_.ra = 0.0000001;
-    self->_.dec = 90.;
-    
+    self->_.t_param.ra = 0.0000001;
+    self->_.t_param.dec = 90.;
     
     double current_time = get_current_time();
     double jul_d = jd(current_time);
 
-    radec2altaz(jul_d, self->_.ra, self->_.dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., &self->_.alt, &self->_.az, NULL);
+    radec2altaz(jul_d, self->_.t_param.ra, self->_.t_param.dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1., -300., &self->_.t_param.alt, &self->_.t_param.az, NULL);
+
     
-    self->_.track_rate_x = SIDEREAL_TRACKING_SPEED;
-    self->_.track_rate_y = 0.;
-    self->_.slew_speed_x = SIDEREAL_TRACKING_SPEED * 1200.;
-    self->_.slew_speed_y = SIDEREAL_TRACKING_SPEED * 1200.;
-    self->_.move_speed = SIDEREAL_TRACKING_SPEED * 1200.;
+    self->_.t_param.track_rate_x = SIDEREAL_TRACKING_SPEED;
+    self->_.t_param.track_rate_y = 0.;
+    self->_.t_param.slew_speed_x = SIDEREAL_TRACKING_SPEED * 1200.;
+    self->_.t_param.slew_speed_y = SIDEREAL_TRACKING_SPEED * 1200.;
+    self->_.t_param.move_speed = SIDEREAL_TRACKING_SPEED * 1200.;
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
     unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
@@ -1701,6 +2376,7 @@ VirtualTelescope_init(void *_self)
     switch (state) {
         case TELESCOPE_STATE_UNINITIALIZED:
             self->_.t_state.state = TELESCOPE_STATE_PARKED | flag;
+	    self->_.t_param.last_park_begin_time = get_current_time();
             break;
         default:
             Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -1717,6 +2393,8 @@ VirtualTelescope_stop(void *_self)
 {
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
     
+    double ra, dec, az, alt;
+    
     Pthread_mutex_lock(&self->_.t_state.mtx);
     unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
     unsigned int flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
@@ -1724,7 +2402,7 @@ VirtualTelescope_stop(void *_self)
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
-    VirtualTelescope_get_current_postion(self);
+    //VirtualTelescope_get_current_postion(self);
     switch (state) {
         case TELESCOPE_STATE_UNINITIALIZED:
             Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -1734,14 +2412,22 @@ VirtualTelescope_stop(void *_self)
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_EPWROFF;
             break;
-        case TELESCOPE_STATE_PARKED:
         case TELESCOPE_STATE_TRACKING:
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_OK;
             break;
+        case TELESCOPE_STATE_PARKED:
         case TELESCOPE_STATE_MOVING:
         case TELESCOPE_STATE_SLEWING:
         case TELESCOPE_STATE_TRACKING_WAIT:
+            VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+            Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+            self->_.t_param.ra = ra;
+            self->_.t_param.dec = dec;
+            self->_.t_param.az = az;
+            self->_.t_param.alt = alt;
+            Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
+            
             Pthread_cancel(self->_.tid);
             self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
             Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -1759,6 +2445,8 @@ static int
 VirtualTelescope_move(void *_self, unsigned int direction, double duration)
 {
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
+    
+    double ra, dec, az, alt;
     void *value = NULL;
     
     if (direction != TELESCOPE_MOVE_EAST || direction != TELESCOPE_MOVE_WEST || direction != TELESCOPE_MOVE_NORTH || direction != TELESCOPE_MOVE_SOUTH || duration <= 0.) {
@@ -1772,6 +2460,7 @@ VirtualTelescope_move(void *_self, unsigned int direction, double duration)
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
+    
     switch (state) {
         case TELESCOPE_STATE_SLEWING:
         case TELESCOPE_STATE_MOVING:
@@ -1799,7 +2488,13 @@ VirtualTelescope_move(void *_self, unsigned int direction, double duration)
                     return AAOS_EUNINIT;
                     break;
                 case TELESCOPE_STATE_PARKED:
-                    VirtualTelescope_get_current_postion(self);
+                    VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+                    Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+                    self->_.t_param.ra = ra;
+                    self->_.t_param.dec = dec;
+                    self->_.t_param.az = az;
+                    self->_.t_param.alt = alt;
+                    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
                     break;
                 case TELESCOPE_STATE_TRACKING:
                     break;
@@ -1826,8 +2521,10 @@ VirtualTelescope_move(void *_self, unsigned int direction, double duration)
         default:
             break;
     }
-    self->_.last_move_begin_time = get_current_time();
-    self->_.move_direction = direction;
+    Pthread_rwlock_wrlock(&self->_.t_param.move_begin_rwlock);
+    self->_.t_param.last_move_begin_time = get_current_time();
+    self->_.t_param.move_direction = direction;
+    Pthread_rwlock_unlock(&self->_.t_param.move_begin_rwlock);
     self->_.t_state.state = TELESCOPE_STATE_MOVING | flag;
     Pthread_create(&self->_.tid, NULL, motor_thr, &duration);
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -1840,8 +2537,16 @@ VirtualTelescope_move(void *_self, unsigned int direction, double duration)
      * sleeping, update ra and dec, update current position, last tracking begin time.
      */
     Pthread_mutex_lock(&self->_.t_state.mtx);
-    self->_.last_track_begin_time = get_current_time();
-    VirtualTelescope_get_current_postion(self);
+    Pthread_rwlock_wrlock(&self->_.t_param.track_begin_rwlock);
+    self->_.t_param.last_track_begin_time = get_current_time();
+    Pthread_rwlock_unlock(&self->_.t_param.track_begin_rwlock);
+    VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+    Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+    self->_.t_param.ra = ra;
+    self->_.t_param.dec = dec;
+    self->_.t_param.az = az;
+    self->_.t_param.alt = alt;
+    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
     self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
@@ -1853,6 +2558,8 @@ static int
 VirtualTelescope_try_move(void *_self, unsigned int direction, double duration)
 {
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
+    
+    double ra, dec, az, alt;
     void *value = NULL;
     
     if (direction != TELESCOPE_MOVE_EAST || direction != TELESCOPE_MOVE_WEST || direction != TELESCOPE_MOVE_NORTH || direction != TELESCOPE_MOVE_SOUTH || duration <= 0.) {
@@ -1884,14 +2591,23 @@ VirtualTelescope_try_move(void *_self, unsigned int direction, double duration)
             return AAOS_EUNINIT;
             break;
         case TELESCOPE_STATE_PARKED:
+            VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+            Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+            self->_.t_param.ra = ra;
+            self->_.t_param.dec = dec;
+            self->_.t_param.az = az;
+            self->_.t_param.alt = alt;
+            Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
             break;
         case TELESCOPE_STATE_TRACKING:
             break;
         default:
             break;
     }
-    self->_.last_move_begin_time = get_current_time();
-    self->_.move_direction = direction;
+    Pthread_rwlock_wrlock(&self->_.t_param.move_begin_rwlock);
+    self->_.t_param.last_move_begin_time = get_current_time();
+    self->_.t_param.move_direction = direction;
+    Pthread_rwlock_unlock(&self->_.t_param.move_begin_rwlock);
     self->_.t_state.state = TELESCOPE_STATE_MOVING | flag;
     Pthread_create(&self->_.tid, NULL, motor_thr, &duration);
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -1904,8 +2620,16 @@ VirtualTelescope_try_move(void *_self, unsigned int direction, double duration)
      * sleeping, update ra and dec, update current position, last tracking begin time.
      */
     Pthread_mutex_lock(&self->_.t_state.mtx);
-    self->_.last_track_begin_time = get_current_time();
-    VirtualTelescope_get_current_postion(self);
+    Pthread_rwlock_wrlock(&self->_.t_param.track_begin_rwlock);
+    self->_.t_param.last_track_begin_time = get_current_time();
+    Pthread_rwlock_unlock(&self->_.t_param.track_begin_rwlock);
+    VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+    Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+    self->_.t_param.ra = ra;
+    self->_.t_param.dec = dec;
+    self->_.t_param.az = az;
+    self->_.t_param.alt = alt;
+    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
     self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
@@ -1917,6 +2641,8 @@ static int
 VirtualTelescope_timed_move(void *_self, unsigned int direction, double duration, double timeout)
 {
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
+    
+    double ra, dec, az, alt;
     void *value = NULL;
     struct timespec tp;
     int ret;
@@ -1984,14 +2710,23 @@ VirtualTelescope_timed_move(void *_self, unsigned int direction, double duration
             return AAOS_EUNINIT;
             break;
         case TELESCOPE_STATE_PARKED:
+            VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+            Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+            self->_.t_param.ra = ra;
+            self->_.t_param.dec = dec;
+            self->_.t_param.az = az;
+            self->_.t_param.alt = alt;
+            Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
             break;
         case TELESCOPE_STATE_TRACKING:
             break;
         default:
             break;
     }
-    self->_.last_move_begin_time = get_current_time();
-    self->_.move_direction = direction;
+    Pthread_rwlock_wrlock(&self->_.t_param.move_begin_rwlock);
+    self->_.t_param.last_move_begin_time = get_current_time();
+    self->_.t_param.move_direction = direction;
+    Pthread_rwlock_unlock(&self->_.t_param.move_begin_rwlock);
     self->_.t_state.state = TELESCOPE_STATE_MOVING | flag;
     Pthread_create(&self->_.tid, NULL, motor_thr, &duration);
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2004,8 +2739,16 @@ VirtualTelescope_timed_move(void *_self, unsigned int direction, double duration
      * sleeping, update ra and dec, update current position, last tracking begin time.
      */
     Pthread_mutex_lock(&self->_.t_state.mtx);
-    self->_.last_track_begin_time = get_current_time();
-    VirtualTelescope_get_current_postion(self);
+    Pthread_rwlock_wrlock(&self->_.t_param.track_begin_rwlock);
+    self->_.t_param.last_track_begin_time = get_current_time();
+    Pthread_rwlock_unlock(&self->_.t_param.track_begin_rwlock);
+    VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+    Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+    self->_.t_param.ra = ra;
+    self->_.t_param.dec = dec;
+    self->_.t_param.az = az;
+    self->_.t_param.alt = alt;
+    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
     self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
@@ -2019,6 +2762,8 @@ VirtualTelescope_slew(void *_self, double ra, double dec)
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
     
     double time_diff_ra, time_diff_dec, time_diff, ra_diff;
+    double slew_speed_x, slew_speed_y;
+    double ra_, dec_, az, alt;
     void *value = NULL;
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
@@ -2086,23 +2831,36 @@ VirtualTelescope_slew(void *_self, double ra, double dec)
         default:
             break;
     }
-    VirtualTelescope_get_current_postion(self);
-    self->_.ra_from = self->_.ra;
-    self->_.dec_from = self->_.dec;
-    self->_.t_state.state = TELESCOPE_STATE_SLEWING;
-    self->_.ra_to = ra;
-    self->_.dec_to = dec;
-    if ((self->_.ra_to - self->_.ra_from > 0. && self->_.ra_to - self->_.ra_from  <= 180.) || (self->_.ra_to - self->_.ra_from  <= -180.)) {
+    self->_.t_state.state = TELESCOPE_STATE_SLEWING | flag;
+    
+    VirtualTelescope_get_current_postion_r(self, &ra_, &dec_, &alt, &az);
+    Pthread_rwlock_wrlock(&self->_.t_param.slew_rwlock);
+    self->_.t_param.ra_from = ra_;
+    self->_.t_param.dec_from = dec_;
+    self->_.t_param.ra_to = ra;
+    self->_.t_param.dec_to = dec;
+    if ((ra - ra_ > 0. && ra - ra_  <= 180.) || (ra - ra_ <= -180.)) {
         self->_.slew_direction_x = 1;
     } else {
         self->_.slew_direction_x = -1;
     }
-    self->_.slew_direction_y = (self->_.dec_to > self->_.dec_from) ? 1 : -1;
+    self->_.slew_direction_y = (dec > dec_) ? 1 : -1;
+    Pthread_rwlock_unlock(&self->_.t_param.slew_rwlock);
+    
+    Pthread_rwlock_wrlock(&self->_.t_param.slew_begin_rwlock);
     self->_.last_slew_begin_time = get_current_time();
-    ra_diff = fabs(self->_.ra_to - self->_.ra_from);
+    Pthread_rwlock_unlock(&self->_.t_param.slew_begin_rwlock);
+    
+    Pthread_rwlock_rdlock(&self->_.t_param.slew_speed_rwlock);
+    slew_speed_x = self->_.slew_speed_x;
+    slew_speed_y = self->_.slew_speed_y;
+    Pthread_rwlock_unlock(&self->_.t_param.slew_speed_rwlock);
+    
+    
+    ra_diff = fabs(ra - ra_);
     ra_diff = ra_diff < 180. ? ra_diff : 360. - ra_diff;
-    time_diff_ra = ra_diff / (self->_.slew_speed_x - self->_.slew_speed_x * SIDEREAL_TRACKING_SPEED);
-    time_diff_dec = fabs(self->_.dec_to - fabs(self->_.dec_from)) / self->_.slew_speed_y;
+    time_diff_ra = ra_diff / (slew_speed_x - slew_speed_x * SIDEREAL_TRACKING_SPEED);
+    time_diff_dec = fabs(dec - dec_) / slew_speed_y;
     time_diff = max(time_diff_ra, time_diff_dec);
     Pthread_create(&self->_.tid, NULL, motor_thr, &time_diff);
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2114,14 +2872,19 @@ VirtualTelescope_slew(void *_self, double ra, double dec)
     /*
      * sleeping, update ra and dec, update last_park_off time 
      */
+    Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+    self->_.t_param.ra = ra;
+    self->_.t_param.dec = dec;
+    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
+    Pthread_rwlock_wrlock(&self->_.t_param.track_begin_rwlock);
+    self->_.t_param.last_track_begin_time = get_current_time();
+    Pthread_rwlock_unlock(&self->_.t_param.track_begin_rwlock);
+    
     Pthread_mutex_lock(&self->_.t_state.mtx);
     self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
-    self->_.ra = ra;
-    self->_.dec = dec;
-    self->_.last_track_begin_time = get_current_time();
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
-    
+
     return AAOS_OK;
 }
 
@@ -2131,6 +2894,8 @@ VirtualTelescope_try_slew(void *_self, double ra, double dec)
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
     
     double time_diff_ra, time_diff_dec, time_diff, ra_diff;
+    double slew_speed_x, slew_speed_y;
+    double ra_, dec_, az, alt;
     void *value = NULL;
     
     if (Pthread_mutex_trylock(&self->_.t_state.mtx) != 0) {
@@ -2168,23 +2933,36 @@ VirtualTelescope_try_slew(void *_self, double ra, double dec)
         default:
             break;
     }
-    VirtualTelescope_get_current_postion(self);
-    self->_.ra_from = self->_.ra;
-    self->_.dec_from = self->_.dec;
-    self->_.t_state.state = TELESCOPE_STATE_SLEWING;
-    self->_.ra_to = ra;
-    self->_.dec_to = dec;
-    if ((self->_.ra_to - self->_.ra_from > 0. && self->_.ra_to - self->_.ra_from  <= 180.) || (self->_.ra_to - self->_.ra_from  <= -180.)) {
+    self->_.t_state.state = TELESCOPE_STATE_SLEWING | flag;
+    
+    VirtualTelescope_get_current_postion_r(self, &ra_, &dec_, &alt, &az);
+    Pthread_rwlock_wrlock(&self->_.t_param.slew_rwlock);
+    self->_.t_param.ra_from = ra_;
+    self->_.t_param.dec_from = dec_;
+    self->_.t_param.ra_to = ra;
+    self->_.t_param.dec_to = dec;
+    if ((ra - ra_ > 0. && ra - ra_  <= 180.) || (ra - ra_ <= -180.)) {
         self->_.slew_direction_x = 1;
     } else {
         self->_.slew_direction_x = -1;
     }
-    self->_.slew_direction_y = (self->_.dec_to > self->_.dec_from) ? 1 : -1;
+    self->_.slew_direction_y = (dec > dec_) ? 1 : -1;
+    Pthread_rwlock_unlock(&self->_.t_param.slew_rwlock);
+    
+    Pthread_rwlock_wrlock(&self->_.t_param.slew_begin_rwlock);
     self->_.last_slew_begin_time = get_current_time();
-    ra_diff = fabs(self->_.ra_to - self->_.ra_from);
+    Pthread_rwlock_unlock(&self->_.t_param.slew_begin_rwlock);
+    
+    Pthread_rwlock_rdlock(&self->_.t_param.slew_speed_rwlock);
+    slew_speed_x = self->_.slew_speed_x;
+    slew_speed_y = self->_.slew_speed_y;
+    Pthread_rwlock_unlock(&self->_.t_param.slew_speed_rwlock);
+    
+    
+    ra_diff = fabs(ra - ra_);
     ra_diff = ra_diff < 180. ? ra_diff : 360. - ra_diff;
-    time_diff_ra = ra_diff / (self->_.slew_speed_x - self->_.slew_speed_x * SIDEREAL_TRACKING_SPEED);
-    time_diff_dec = fabs(self->_.dec_to - fabs(self->_.dec_from)) / self->_.slew_speed_y;
+    time_diff_ra = ra_diff / (slew_speed_x - slew_speed_x * SIDEREAL_TRACKING_SPEED);
+    time_diff_dec = fabs(dec - dec_) / slew_speed_y;
     time_diff = max(time_diff_ra, time_diff_dec);
     Pthread_create(&self->_.tid, NULL, motor_thr, &time_diff);
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2196,12 +2974,16 @@ VirtualTelescope_try_slew(void *_self, double ra, double dec)
     /*
      * sleeping, update ra and dec, update last_park_off time
      */
+    Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+    self->_.t_param.ra = ra;
+    self->_.t_param.dec = dec;
+    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
+    Pthread_rwlock_wrlock(&self->_.t_param.track_begin_rwlock);
+    self->_.t_param.last_track_begin_time = get_current_time();
+    Pthread_rwlock_unlock(&self->_.t_param.track_begin_rwlock);
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
     self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
-    self->_.ra = ra;
-    self->_.dec = dec;
-    self->_.last_track_begin_time = get_current_time();
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
     
@@ -2214,6 +2996,8 @@ VirtualTelescope_timed_slew(void *_self, double ra, double dec, double timeout)
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
     
     double time_diff_ra, time_diff_dec, time_diff, ra_diff;
+    double slew_speed_x, slew_speed_y;
+    double ra_, dec_, az, alt;
     void *value = NULL;
     struct timespec tp;
     
@@ -2290,23 +3074,36 @@ VirtualTelescope_timed_slew(void *_self, double ra, double dec, double timeout)
         default:
             break;
     }
-    VirtualTelescope_get_current_postion(self);
-    self->_.ra_from = self->_.ra;
-    self->_.dec_from = self->_.dec;
     self->_.t_state.state = TELESCOPE_STATE_SLEWING | flag;
-    self->_.ra_to = ra;
-    self->_.dec_to = dec;
-    if ((self->_.ra_to - self->_.ra_from > 0. && self->_.ra_to - self->_.ra_from  <= 180.) || (self->_.ra_to - self->_.ra_from  <= -180.)) {
+    
+    VirtualTelescope_get_current_postion_r(self, &ra_, &dec_, &alt, &az);
+    Pthread_rwlock_wrlock(&self->_.t_param.slew_rwlock);
+    self->_.t_param.ra_from = ra_;
+    self->_.t_param.dec_from = dec_;
+    self->_.t_param.ra_to = ra;
+    self->_.t_param.dec_to = dec;
+    if ((ra - ra_ > 0. && ra - ra_  <= 180.) || (ra - ra_ <= -180.)) {
         self->_.slew_direction_x = 1;
     } else {
         self->_.slew_direction_x = -1;
     }
-    self->_.slew_direction_y = (self->_.dec_to > self->_.dec_from) ? 1 : -1;
+    self->_.slew_direction_y = (dec > dec_) ? 1 : -1;
+    Pthread_rwlock_unlock(&self->_.t_param.slew_rwlock);
+    
+    Pthread_rwlock_wrlock(&self->_.t_param.slew_begin_rwlock);
     self->_.last_slew_begin_time = get_current_time();
-    ra_diff = fabs(self->_.ra_to - self->_.ra_from);
+    Pthread_rwlock_unlock(&self->_.t_param.slew_begin_rwlock);
+    
+    Pthread_rwlock_rdlock(&self->_.t_param.slew_speed_rwlock);
+    slew_speed_x = self->_.slew_speed_x;
+    slew_speed_y = self->_.slew_speed_y;
+    Pthread_rwlock_unlock(&self->_.t_param.slew_speed_rwlock);
+    
+    
+    ra_diff = fabs(ra - ra_);
     ra_diff = ra_diff < 180. ? ra_diff : 360. - ra_diff;
-    time_diff_ra = ra_diff / (self->_.slew_speed_x - self->_.slew_speed_x * SIDEREAL_TRACKING_SPEED);
-    time_diff_dec = fabs(self->_.dec_to - fabs(self->_.dec_from)) / self->_.slew_speed_y;
+    time_diff_ra = ra_diff / (slew_speed_x - slew_speed_x * SIDEREAL_TRACKING_SPEED);
+    time_diff_dec = fabs(dec - dec_) / slew_speed_y;
     time_diff = max(time_diff_ra, time_diff_dec);
     Pthread_create(&self->_.tid, NULL, motor_thr, &time_diff);
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2315,16 +3112,19 @@ VirtualTelescope_timed_slew(void *_self, double ra, double dec, double timeout)
     if (value == PTHREAD_CANCELED) {
         return AAOS_ECANCELED;
     }
-    
     /*
      * sleeping, update ra and dec, update last_park_off time
      */
+    Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+    self->_.t_param.ra = ra;
+    self->_.t_param.dec = dec;
+    Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
+    Pthread_rwlock_wrlock(&self->_.t_param.track_begin_rwlock);
+    self->_.t_param.last_track_begin_time = get_current_time();
+    Pthread_rwlock_unlock(&self->_.t_param.track_begin_rwlock);
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
     self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
-    self->_.ra = ra;
-    self->_.dec = dec;
-    self->_.last_track_begin_time = get_current_time();
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
     
@@ -2335,6 +3135,8 @@ static int
 VirtualTelescope_park(void *_self)
 {
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
+    
+    double ra, dec, alt, az;
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
     unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
@@ -2350,7 +3152,9 @@ VirtualTelescope_park(void *_self)
             break;
         case TELESCOPE_STATE_TRACKING:
             self->_.t_state.state = TELESCOPE_STATE_PARKED | flag;
+            Pthread_rwlock_wrlock(&self->_.t_param.park_begin_rwlock);
             self->_.last_park_begin_time = get_current_time();
+            Pthread_rwlock_unlock(&self->_.t_param.park_begin_rwlock);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_OK;
             break;
@@ -2373,10 +3177,18 @@ VirtualTelescope_park(void *_self)
             return AAOS_OK;
         case TELESCOPE_STATE_MOVING:
         case TELESCOPE_STATE_SLEWING:
+            VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
             Pthread_cancel(self->_.tid);
-            VirtualTelescope_get_current_postion(self);
-            self->_.last_park_begin_time = get_current_time();
             self->_.t_state.state = TELESCOPE_STATE_PARKED | flag;
+            Pthread_rwlock_wrlock(&self->_.t_param.park_begin_rwlock);
+            self->_.t_param.last_park_begin_time = get_current_time();
+            Pthread_rwlock_unlock(&self->_.t_param.park_begin_rwlock);
+            Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+            self->_.t_param.ra = ra;
+            self->_.t_param.dec = dec;
+            self->_.t_param.az = az;
+            self->_.t_param.alt = alt;
+            Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             Pthread_cond_broadcast(&self->_.t_state.cond);
             return AAOS_OK;
@@ -2391,6 +3203,8 @@ VirtualTelescope_park_off(void *_self)
 {
     struct VirtualTelescope *self = cast(VirtualTelescope(), _self);
     
+    double ra, dec, az, alt;
+    
     Pthread_mutex_lock(&self->_.t_state.mtx);
     unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
     unsigned int flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
@@ -2400,7 +3214,13 @@ VirtualTelescope_park_off(void *_self)
     }
     switch (state) {
         case TELESCOPE_STATE_PARKED:
-            VirtualTelescope_get_current_postion(self);
+            VirtualTelescope_get_current_postion_r(self, &ra, &dec, &alt, &az);
+            Pthread_rwlock_wrlock(&self->_.t_param.position_rwlock);
+            self->_.t_param.ra = ra;
+            self->_.t_param.dec = dec;
+            self->_.t_param.az = az;
+            self->_.t_param.alt = alt;
+            Pthread_rwlock_unlock(&self->_.t_param.position_rwlock);
             self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
             break;
         default:
@@ -2463,7 +3283,9 @@ VirtualTelescope_set_move_speed(void *_self, double move_speed)
                         return AAOS_EDEVMAL;
                     }
                     ret = AAOS_OK;
-                    self->_.move_speed = move_speed;
+                    Pthread_rwlock_wrlock(&self->_.t_param.move_speed_rwlock);
+                    self->_.t_param.move_speed = move_speed;
+                    Pthread_rwlock_unlock(&self->_.t_param.move_speed_rwlock);
                     break;
             }
             break;
@@ -2473,7 +3295,9 @@ VirtualTelescope_set_move_speed(void *_self, double move_speed)
                 return AAOS_EDEVMAL;
             }
             ret = AAOS_OK;
-            self->_.move_speed = move_speed;
+            Pthread_rwlock_wrlock(&self->_.t_param.move_speed_rwlock);
+            self->_.t_param.move_speed = move_speed;
+            Pthread_rwlock_unlock(&self->_.t_param.move_speed_rwlock);
             break;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2504,7 +3328,9 @@ VirtualTelescope_get_move_speed(void *_self, double *move_speed)
             break;
         default:
             ret = AAOS_OK;
+            Pthread_rwlock_rdlock(&self->_.t_param.move_speed_rwlock);
             *move_speed = self->_.move_speed;
+            Pthread_rwlock_unlock(&self->_.t_param.move_speed_rwlock);
             break;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2566,8 +3392,10 @@ VirtualTelescope_set_slew_speed(void *_self, double slew_speed_x, double slew_sp
                 return AAOS_EDEVMAL;
             }
             ret = AAOS_OK;
-            self->_.slew_speed_x = slew_speed_x;
-            self->_.slew_speed_y = slew_speed_y;
+            Pthread_rwlock_wrlock(&self->_.t_param.slew_speed_rwlock);
+            self->_.t_param.slew_speed_x = slew_speed_x;
+            self->_.t_param.slew_speed_y = slew_speed_y;
+            Pthread_rwlock_unlock(&self->_.t_param.slew_speed_rwlock);
             break;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2599,8 +3427,10 @@ VirtualTelescope_get_slew_speed(void *_self, double *slew_speed_x, double *slew_
             break;
         default:
             ret = AAOS_OK;
-            *slew_speed_x = self->_.slew_speed_x;
-            *slew_speed_y = self->_.slew_speed_y;
+            Pthread_rwlock_rdlock(&self->_.t_param.slew_speed_rwlock);
+            *slew_speed_x = self->_.t_param.slew_speed_x;
+            *slew_speed_y = self->_.t_param.slew_speed_y;
+            Pthread_rwlock_unlock(&self->_.t_param.slew_speed_rwlock);
             break;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2631,8 +3461,10 @@ VirtualTelescope_set_track_rate(void *_self, double track_rate_x, double track_r
             break;
         default:
             ret = AAOS_OK;
-            self->_.track_rate_x = track_rate_x;
-            self->_.track_rate_y = track_rate_y;
+            Pthread_rwlock_wrlock(&self->_.t_param.track_rate_rwlock);
+            self->_.t_param.track_rate_x = track_rate_x;
+            self->_.t_param.track_rate_y = track_rate_y;
+            Pthread_rwlock_unlock(&self->_.t_param.track_rate_rwlock);
             break;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2663,8 +3495,10 @@ VirtualTelescope_get_track_rate(void *_self, double *track_rate_x, double *track
             break;
         default:
             ret = AAOS_OK;
-            *track_rate_x = self->_.track_rate_x;
-            *track_rate_y = self->_.track_rate_y;
+            Pthread_rwlock_rdlock(&self->_.t_param.track_rate_rwlock);
+            *track_rate_x = self->_.t_param.track_rate_x;
+            *track_rate_y = self->_.t_param.track_rate_y;
+            Pthread_rwlock_unlock(&self->_.t_param.track_rate_rwlock);
             break;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -2676,6 +3510,13 @@ static void *
 VirtualTelescope_ctor(void *_self, va_list *app)
 {
     struct VirtualTelescope *self = super_ctor(VirtualTelescope(), _self, app);
+    
+    self->_.t_cap.slew_available = true;
+    self->_.t_cap.slew_speed_available = true;
+    self->_.t_cap.track_available = true;
+    self->_.t_cap.track_rate_available = false;
+    self->_.t_cap.move_available = true;
+    self->_.t_cap.move_speed_available = true;
     
     self->_._vtab = virtual_telescope_virtual_table();
     
@@ -2692,6 +3533,17 @@ static void *
 VirtualTelescopeClass_ctor(void *_self, va_list *app)
 {
     struct VirtualTelescopeClass *self = super_ctor(VirtualTelescopeClass(), _self, app);
+
+    self->_.raw.method = (Method) 0;
+    self->_.inspect.method = (Method) 0;
+    self->_.switch_instrument.method = (Method) 0;
+    self->_.switch_filter.method = (Method) 0;
+    self->_.focus.method = (Method) 0;
+    self->_.power_on.method = (Method) 0;
+    self->_.power_off.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.open_cover.method = (Method) 0;
+    self->_.close_cover.method = (Method) 0;
 
     return self;
 }
@@ -2774,6 +3626,7 @@ virtual_telescope_virtual_table_initialize(void)
 {
     _virtual_telescope_virtual_table = new(__TelescopeVirtualTable(),
                                            __telescope_status, "status", VirtualTelescope_status,
+                                           __telescope_info, "info", VirtualTelescope_info,
                                            __telescope_power_on, "power_on", VirtualTelescope_power_on,
                                            __telescope_power_off, "power_off", VirtualTelescope_power_off,
                                            __telescope_init, "init", VirtualTelescope_init,
@@ -2814,6 +3667,13 @@ virtual_telescope_virtual_table(void)
  * Driver for AIC equatorial mount. http://aic-optics.com
  */
 
+static const char *sitech_pattern = "^((ReadScopeStatus)|(ReadScopeDestination)|(RotatorComms [01] [+-]?[0-9]*.?[0-9]*)|(SiteLocations)|(GoToAltAz [+-]?[0-9]*.?[0-9]* [+-]?[0-9]*.?[0-9]*)|(GoTo [+-]?[0-9]*.?[0-9]* [+-]?[0-9]*.?[0-9]*( J2K)?)|(CookCoordinates [+-]?[0-9]*.?[0-9]* [+-]?[0-9]*.?[0-9]*)|(UnCookCoordinates [+-]?[0-9]*.?[0-9]* [+-]?[0-9]*.?[0-9]*)|(SyncToAltAz [+-]?[0-9]*.?[0-9]* [+-]?[0-9]*.?[0-9]*)|(Sync [+-]?[0-9]*.?[0-9]* [+-]?[0-9]*.?[0-9]*( [012])?( J2K)?)|(Park)|(UnPark)|(Abort)|(SetTrackMode [01] [01] [+-]?[0-9]*.?[0-9]* [+-]?[0-9]*.?[0-9]*)|(PulseGuide [0-3] [0-9]+)|(MotorsToBlinky)|(MotorsToAuto)|(CookCoordinates [0-9]{,2} [0-9]{,2})|(JogArcSeconds [NSEW] [+-]?[0-9]*.?[0-9]*))\n$";
+static regex_t preg_sitech;
+static const char *aux_pattern = "^AIC_((GetMountAuxStatus)|(GetFocuserStatus)|(SetFocuserPos=[0-9]*.?[0-9]*)|(GetCoverStatus)|(SetCoverAll=[012])|(GetHeaterStatus)|(SetHeater=[01])|(GetFanStatus)|(SetFan=[01]))\n$";
+static regex_t preg_aux;
+static const char *spectro_pattern = "^((ReadSpectroStatus)|(ShiftMirror ((in)|(out)))|(FilterChange [uigr])|(GrismChange [rgbc])|(SlitChange [123c])|(FlatFieldLight ((on)|(off)))|(CalibLight ((on)|(off)))|(Shutter ((on)|(off))))\n$";
+static regex_t preg_spectro;
+
 union AICMountResponse {
     struct SiTechStandardResponse {
         unsigned int boolParams;
@@ -2833,9 +3693,53 @@ union AICMountResponse {
         double siteLatitude;
         double siteLongitude;
         double siteElevation;
-    } locations_response;
+    } locations_response; 
 };
-    
+
+union AICMountAuxResponse {
+    struct AICMountAuxStatusResponse {
+        char *DateTime[TIMESTAMPSIZE];
+        double Ra;
+        double Dec;
+        double PriMot;
+        double SecMot;
+        double PriScp;
+        double SecScp;
+        double ScpMilSecs;
+        double PriPErr;
+        double SecPErr;
+        double PriPWM;
+        double SecPWM;
+        double PriCur;
+        double SecCur;
+        double PriErrBits;
+        double SecErrBits;
+        double PriVolts;
+        double SecVolts;
+    } status_response;
+    struct FocuserStatusResponse {
+        double CurPos;
+        double MinPos;
+        double MaxPos;
+    } focuser_status;
+    struct CoverStatusResponse {
+        unsigned int x0;
+        unsigned int x1;
+        unsigned int x2;
+        unsigned int x3;
+        unsigned int x4;
+        unsigned int x5;
+        unsigned int x6;
+        unsigned int x7;
+        unsigned int x8;
+    } cover_status;
+    struct HeaterFanStatus {
+        unsigned int CurStatus;
+    } heater_or_fan_status;
+    struct SetResponse {
+        char response[BUFSIZE];
+    } set_response;
+};
 
 static int
 aic_mount_response_parse(const char *string, union AICMountResponse *response)
@@ -2849,7 +3753,7 @@ aic_mount_response_parse(const char *string, union AICMountResponse *response)
     field1 = strsep(&buffer, "_");
     field2 = strsep(&buffer, "_");
     
-    if (field2 != NULL && strcmp(field2, "SiteLocations") == 0) {
+    if (field2 != NULL && strcmp(field2, "SiteLocations\n") == 0) {
         for (i = 0; (tok = strsep(&field1, "_")); i++) {
             switch (i) {
                 case 0:
@@ -2867,6 +3771,7 @@ aic_mount_response_parse(const char *string, union AICMountResponse *response)
         }
         if (i < 2) {
             ret = AAOS_EBADMSG;
+            goto error;
         }
     } else {
         for (i = 0; (tok = strsep(&field1, ";")); i++) {
@@ -2910,14 +3815,214 @@ aic_mount_response_parse(const char *string, union AICMountResponse *response)
         }
         if (i < 10) {
             ret = AAOS_EBADMSG;
+            goto error;
         }
         memset(response->standard_response.extra, '\0', 256);
         if (field2 != NULL && *field2 != '\0') {
             snprintf(response->standard_response.extra, 256, "%s", field2);
         }
     }
+error:
+    free(buffer);
     
-    return AAOS_OK;
+    return ret;
+}
+
+static int
+aic_mount_aux_response_parse(const char *string, union AICMountAuxResponse *response)
+{
+    int ret = AAOS_OK;
+    char field[COMMANDSIZE];
+    const char *s = string, *s2;
+    
+    if (strncmp(string, "AIC_MountAux", 12) == 0) {
+        if ((s = strstr(string, "DateTime=")) != NULL) {
+            s2 = s + 9;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(response->status_response.DateTime, '\0', TIMESTAMPSIZE);
+                memcpy(response->status_response.DateTime, s + 10, min(TIMESTAMPSIZE, s2 - s - 12));
+            }
+        }
+        if ((s = strstr(string, "Ra=")) != NULL) {
+            s2 = s + 3;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 3, min(TIMESTAMPSIZE, s2 - s - 4));
+                response->status_response.Ra = atof(field);
+            }
+        }
+        if ((s = strstr(string, "Dec=")) != NULL) {
+            s2 = s + 4;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 4, min(COMMANDSIZE, s2 - s - 5));
+                response->status_response.Dec = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriMot=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.PriMot = atof(field);
+            }
+        }
+        if ((s = strstr(string, "SecMot=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.SecMot = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriScp=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.PriScp = atof(field);
+            }
+        }
+        if ((s = strstr(string, "SecScp=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.SecScp = atof(field);
+            }
+        }
+        if ((s = strstr(string, "ScpMilSecs=")) != NULL) {
+            s2 = s + 11;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 11, min(COMMANDSIZE, s2 - s - 12));
+                response->status_response.ScpMilSecs = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriPErr=")) != NULL) {
+            s2 = s + 8;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 8, min(COMMANDSIZE, s2 - s - 9));
+                response->status_response.PriPErr = atof(field);
+            }
+        }
+        if ((s = strstr(string, "SecPErr=")) != NULL) {
+            s2 = s + 8;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 8, min(COMMANDSIZE, s2 - s - 9));
+                response->status_response.SecPErr = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriPWM=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.PriPWM = atof(field);
+            }
+        }
+        if ((s = strstr(string, "SecPWM=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.SecPWM = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriCur=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.PriCur = atof(field);
+            }
+        }
+        if ((s = strstr(string, "SecCur=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->status_response.SecCur = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriErrBits=")) != NULL) {
+            s2 = s + 11;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 11, min(COMMANDSIZE, s2 - s - 12));
+                response->status_response.PriErrBits = atof(field);
+            }
+        }
+        if ((s = strstr(string, "SecErrBits=")) != NULL) {
+            s2 = s + 11;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 11, min(COMMANDSIZE, s2 - s - 12));
+                response->status_response.SecErrBits = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriVolts=")) != NULL) {
+            s2 = s + 9;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 9, min(COMMANDSIZE, s2 - s - 10));
+                response->status_response.PriVolts = atof(field);
+            }
+        }
+        if ((s = strstr(string, "PriVolts=")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, '}')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 9, min(COMMANDSIZE, s2 - s - 10));
+                response->status_response.PriVolts = atof(field);
+            }
+        }
+    } else if (strncmp(string, "AIC_Foc", 7) == 0) {
+        if ((s = strstr(string, "CurPos:")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->focuser_status.CurPos = atof(field);
+            }
+        }
+        if ((s = strstr(string, "MinPos:")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->focuser_status.MinPos = atof(field);
+            }
+        }
+        if ((s = strstr(string, "MaxPos:")) != NULL) {
+            s2 = s + 7;
+            if ((s2 = strchr(s2, ',')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 7, min(COMMANDSIZE, s2 - s - 8));
+                response->focuser_status.MaxPos = atof(field);
+            }
+        }
+        
+    } else if (strncmp(string, "AIC_Cov", 7) == 0) {
+        
+    } else if (strncmp(string, "AIC_Heater", 10) == 0 || strncmp(string, "AIC_Fan", 7) == 0) {
+        if ((s = strstr(string, "CurStatus:")) != NULL) {
+            s2 = s + 10;
+            if ((s2 = strchr(s2, '}')) != NULL) {
+                memset(field, '\0', COMMANDSIZE);
+                memcpy(field, s + 10, min(COMMANDSIZE, s2 - s - 11));
+                response->heater_or_fan_status.CurStatus = atoi(field);
+            }
+        }
+    } else if (strncmp(string, "AIC_Accepted", 12) == 0 || strncmp(string, "AIC_Denied", 10) == 0) {
+        snprintf(response->set_response.response, COMMANDSIZE, "%s", string);
+    } else {
+        ret = AAOS_EBADMSG;
+    }
+    
+    return ret;
 }
 
 static int
@@ -2925,14 +4030,26 @@ AICMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_si
 {
     struct AICMount *self = cast(AICMount(), _self);
     
+    const char *s = raw_command;
+    char command[COMMANDSIZE];
     int cfd, ret = AAOS_OK;
     ssize_t nwrite, nread;
     
+    if (s[size - 2] != '\n') {
+        snprintf(command, COMMANDSIZE, "%s\n", (const char *) raw_command);
+        s = command;
+    }
+    
     Pthread_mutex_lock(&self->mtx);
-    if (strncmp(raw_command, "AIC", 3) == 0) {
-        cfd = Tcp_connect(self->address, self->port2, NULL, NULL);
-    } else {
+    if (regexec(&preg_sitech, s, 0, NULL, 0) == 0) {
         cfd = Tcp_connect(self->address, self->port, NULL, NULL);
+    } else if (regexec(&preg_aux, s, 0, NULL, 0) == 0) {
+        cfd = Tcp_connect(self->address2, self->port2, NULL, NULL);
+    } else if (regexec(&preg_spectro, s, 0, NULL, 0) == 0) {
+        cfd = Tcp_connect(self->address3, self->port3, NULL, NULL);
+    } else {
+        ret = AAOS_EBADCMD;
+        goto error;
     }
     if (cfd < 0) {
         switch (errno) {
@@ -2948,7 +4065,7 @@ AICMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_si
         }
         goto error;
     }
-    if ((nwrite = Writen(cfd, raw_command, size)) < 0) {
+    if ((nwrite = Writen(cfd, s, strlen(s))) < 0) {
         Close(cfd);
         if (write_size) {
             *write_size = 0;
@@ -2988,9 +4105,50 @@ AICMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_si
             *return_size = nread;
         }
     }
+
 error:
     Pthread_mutex_unlock(&self->mtx);
     return ret;
+}
+
+static int
+AICMount_power_on(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    if (self->_.t_state.state == TELESCOPE_STATE_POWERED_OFF) {
+        self->_.t_state.state = TELESCOPE_STATE_UNINITIALIZED;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+AICMount_power_off(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    self->_.t_state.state = TELESCOPE_STATE_POWERED_OFF;
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+AICMount_init(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    if (self->_.t_state.state == TELESCOPE_STATE_UNINITIALIZED) {
+        self->_.t_state.state = TELESCOPE_STATE_PARKED;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    return AAOS_OK;
 }
 
 static int
@@ -3022,7 +4180,7 @@ AICMount_slew_altaz(void *_self, double alt, double az)
     //self->_.dec_to = dec;
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     
-    snprintf(command, COMMANDSIZE, "GoToAltAxz %.6f %.6f J2K\n", alt, az);
+    snprintf(command, COMMANDSIZE, "GoToAltAz %.6f %.6f\n", alt, az);
     
     if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
         return ret;
@@ -3072,6 +4230,130 @@ AICMount_slew_altaz(void *_self, double alt, double az)
         }
     }
 
+    return ret;
+}
+
+static int
+AICMount_status(void *_self, char *status_buffer, size_t status_buffer_size)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    union AICMountResponse response;
+    cJSON *root_json;
+    char *string;
+    int ret = AAOS_OK;
+    
+    if ((ret = AICMount_raw(self, "ReadScopeStatus\n", 17, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto error;
+    }
+    root_json = cJSON_CreateObject();
+    aic_mount_response_parse(buf, &response);
+    if (response.standard_response.boolParams&0x00000002 && !(response.standard_response.boolParams&0x00000004)) {
+        cJSON_AddStringToObject(root_json, "status", "tracking");
+    } else if (response.standard_response.boolParams&0x00000002 && response.standard_response.boolParams&0x00000004) {
+        cJSON_AddStringToObject(root_json, "status", "slewing");
+    } else if (response.standard_response.boolParams&0x00000008) {
+        cJSON_AddStringToObject(root_json, "status", "parking");
+    } else if (response.standard_response.boolParams&0x00000010) {
+        cJSON_AddStringToObject(root_json, "status", "parked");
+    }
+    if (response.standard_response.boolParams&0x00000020) {
+        cJSON_AddStringToObject(root_json, "pier", "east");
+    } else {
+        cJSON_AddStringToObject(root_json, "pier", "west");
+    }
+    if (response.standard_response.boolParams&0x00000040) {
+        cJSON_AddStringToObject(root_json, "manual-mode", "true");
+    } else {
+        cJSON_AddStringToObject(root_json, "manual-mode", "false");
+    }
+    if (response.standard_response.boolParams&0x00000080) {
+        cJSON_AddStringToObject(root_json, "plus-p-axis-actived", "true");
+    } else {
+        cJSON_AddStringToObject(root_json, "plus-p-axis-actived", "false");
+    }
+    if (response.standard_response.boolParams&0x00000100) {
+        cJSON_AddStringToObject(root_json, "minus-p-axis-actived", "true");
+    } else {
+        cJSON_AddStringToObject(root_json, "minus-p-axis-actived", "false");
+    }
+    if (response.standard_response.boolParams&0x00000200) {
+        cJSON_AddStringToObject(root_json, "plus-s-axis-actived", "true");
+    } else {
+        cJSON_AddStringToObject(root_json, "plus-s-axis-actived", "false");
+    }
+    if (response.standard_response.boolParams&0x00000400) {
+        cJSON_AddStringToObject(root_json, "minus-s-axis-actived", "true");
+    } else {
+        cJSON_AddStringToObject(root_json, "minus-s-axis-actived", "false");
+    }
+    cJSON_AddNumberToObject(root_json, "hour-angle", response.standard_response.RightAsc);
+    cJSON_AddNumberToObject(root_json, "declination", response.standard_response.Declination);
+    cJSON_AddNumberToObject(root_json, "altitude", response.standard_response.ScopeAlititude);
+    cJSON_AddNumberToObject(root_json, "azumith", response.standard_response.ScopeAzimuth);
+    cJSON_AddNumberToObject(root_json, "jd", response.standard_response.ScopeJulianDay);
+    cJSON_AddNumberToObject(root_json, "sidereal-time", response.standard_response.ScopeSiderealTime);
+    cJSON_AddNumberToObject(root_json, "time", response.standard_response.ScopeTime);
+    cJSON_AddNumberToObject(root_json, "x-angle", response.standard_response.PrimaryAxisAngle);
+    cJSON_AddNumberToObject(root_json, "y-angle", response.standard_response.SecondaryAxisAngle);
+    cJSON_AddNumberToObject(root_json, "airmass", response.standard_response.AirMass);
+
+    string = cJSON_Print(root_json);
+    cJSON_Delete(root_json);
+    snprintf(status_buffer, status_buffer_size, "%s", string);
+    free(string);
+    
+error:
+    return ret;
+}
+
+static int
+AICMount_inspect(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    int ret;
+    char buf[BUFSIZE];
+    
+    if ((ret = AICMount_raw(_self, "ReadScopeStatus\n", 17, NULL, buf, BUFSIZE, NULL)) == AAOS_OK) {
+        Pthread_mutex_lock(&self->_.t_state.mtx);
+        self->_.t_state.state &= ~TELESCOPE_STATE_MALFUNCTION;
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        Pthread_cond_broadcast(&self->_.t_state.cond);
+    } else {
+        Pthread_mutex_lock(&self->_.t_state.mtx);
+        self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+    }
+    
+    return ret;
+}
+
+static int
+AICMount_wait(void *_self, double timeout)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    struct timespec tp;
+    int ret = AAOS_OK;
+    
+    if (timeout < 0) {
+        Pthread_mutex_lock(&self->_.t_state.mtx);
+        while (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) {
+            Pthread_cond_wait(&self->_.t_state.cond, &self->_.t_state.mtx);
+        }
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+    } else {
+        tp.tv_sec = floor(timeout);
+        tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000;
+        Pthread_mutex_lock(&self->_.t_state.mtx);
+        if (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) {
+            Pthread_cond_timedwait(&self->_.t_state.cond, &self->_.t_state.mtx, &tp);
+        }
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+    }
+    
     return ret;
 }
 
@@ -3253,6 +4535,7 @@ AICMount_go_home(void *_self)
     } else {
         ret = AICMount_slew(self, self->home_ra, self->home_dec);
     }
+    
     ret = AICMount_park(self);
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
@@ -3279,16 +4562,16 @@ AICMount_move(void *_self, int direction, double duration)
     
     switch (direction) {
         case TELESCOPE_MOVE_EAST:
-            snprintf(command, COMMANDSIZE, "PulseGuide 2 %d", (int) duration * 1000);
+            snprintf(command, COMMANDSIZE, "PulseGuide 2 %d\n", (int) duration * 1000);
             break;
         case TELESCOPE_MOVE_WEST:
-            snprintf(command, COMMANDSIZE, "PulseGuide 3 %d", (int) duration * 1000);
+            snprintf(command, COMMANDSIZE, "PulseGuide 3 %d\n", (int) duration * 1000);
             break;
         case TELESCOPE_MOVE_NORTH:
-            snprintf(command, COMMANDSIZE, "PulseGuide 0 %d", (int) duration * 1000);
+            snprintf(command, COMMANDSIZE, "PulseGuide 0 %d\n", (int) duration * 1000);
             break;
         case TELESCOPE_MOVE_SOUTH:
-            snprintf(command, COMMANDSIZE, "PulseGuide 1 %d", (int) duration * 1000);
+            snprintf(command, COMMANDSIZE, "PulseGuide 1 %d\n", (int) duration * 1000);
             break;
         default:
             return AAOS_EINVAL;
@@ -3327,8 +4610,6 @@ AICMount_move(void *_self, int direction, double duration)
     self->_.t_state.state = (self->_.t_state.state&TELESCOPE_STATE_MALFUNCTION) | TELESCOPE_STATE_TRACKING;
     Pthread_mutex_unlock(&self->_.t_state.mtx);
 	
-	
-    
     return ret;
 }
 
@@ -3369,6 +4650,344 @@ AICMount_set_move_speed(void *_self, double move_speed)
 {
 	return AAOS_ENOTSUP;
 }
+
+static int
+AICMount_get_move_speed(void *_self, double *move_speed)
+{
+    return AAOS_ENOTSUP;
+}
+
+static int
+AICMount_set_slew_speed(void *_self, double slew_speed_x, double slew_speed_y)
+{
+    return AAOS_ENOTSUP;
+}
+
+static int
+AICMount_get_slew_speed(void *_self, double *slew_speed_x, double *slew_speed_y)
+{
+    return AAOS_ENOTSUP;
+}
+
+static int
+AICMount_switch_instrument(void *_self, const char *instrument)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    size_t i;
+    int ret = AAOS_OK;
+    
+    for (i = 0; i < self->_.t_cap.n_instrument; i++) {
+        if (strcmp(instrument, self->_.t_cap.instruments[i]) == 0) {
+            self->_.t_param.instrument = i + 1;
+            break;
+        }
+    }
+    if (i == self->_.t_cap.n_instrument) {
+        ret = AAOS_ENOTFOUND;
+        goto error;
+    }
+    
+error:
+    return ret;
+}
+
+static int
+AICMount_switch_detector(void *_self, const char *detector)
+{
+    return AAOS_ENOTSUP;
+}
+
+static int
+AICMount_switch_filter(void *_self, const char *filter)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    size_t i;
+    int ret = AAOS_OK;
+    
+    if (self->_.t_param.instrument == 0 || self->_.t_param.detector == 0 || self->_.t_cap.filters_3d == NULL || self->_.t_cap.filters_3d[self->_.t_param.instrument - 1] == NULL || self->_.t_cap.filters_3d[self->_.t_param.instrument - 1][self->_.t_param.detector - 1] == NULL || self->_.t_cap.n_filter == NULL || self->_.t_cap.n_filter[self->_.t_param.instrument - 1] == NULL) {
+        ret = AAOS_ENOTFOUND;
+        goto error;
+    }
+    
+    for (i = 0; i < self->_.t_cap.n_filter[self->_.t_param.instrument - 1][self->_.t_param.detector - 1]; i++) {
+        if (strcmp(filter, self->_.t_cap.filters_3d[self->_.t_param.instrument - 1][self->_.t_param.detector - 1][i]) == 0) {
+            self->_.t_param.filter = i + 1;
+            break;
+        }
+    }
+    if (i == self->_.t_cap.n_filter[self->_.t_param.instrument - 1][self->_.t_param.detector - 1]) {
+        ret = AAOS_ENOTFOUND;
+        goto error;
+    }
+    
+error:
+    return ret;
+}
+
+static int
+AICMount_focus(void *_self, unsigned int absolute, double position)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    int i, ret = AAOS_OK;
+    double current_position;
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    union AICMountAuxResponse response;
+    
+    snprintf(command, COMMANDSIZE, "AIC_SetFocuserPos=%.2lf\n", position);
+    
+    if ((ret = AICMount_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto error;
+    }
+    if (strcmp(buf, "AIC_Accepted\n") != 0) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    ret = AAOS_ETIMEDOUT;
+    for (i = 0; i < self->max_focus_polling_times; i++) {
+        Nanosleep(self->focus_polling_interval);
+        if ((ret = AICMount_raw(self, "AIC_GetFocuserStatus\n", 22, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            goto error;
+        }
+        aic_mount_aux_response_parse(buf, &response);
+        current_position = response.focuser_status.CurPos;
+        if (fabs(current_position - position) < self->focus_threshold) {
+            ret = AAOS_OK;
+            break;
+        }
+    }
+    
+error:
+    return ret;
+}
+
+static const void *aic_mount_virtual_table(void);
+
+static void *
+AICMount_ctor(void *_self, va_list *app)
+{
+    struct AICMount *self = super_ctor(AICMount(), _self, app);
+
+    const char *s, *name;
+    s = va_arg(*app, const char *);
+    if (s != NULL) {
+        self->address = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->address, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, const char *);
+    if (s != NULL) {
+        self->port = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->port, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, const char *);
+    if (s != NULL) {
+        self->address2 = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->address2, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, const char *);
+    if (s != NULL) {
+        self->port2 = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->port2, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, const char *);
+    if (s != NULL) {
+        self->address3 = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->address3, strlen(s) + 1, "%s", s);
+    }
+    s = va_arg(*app, const char *);
+    if (s != NULL) {
+        self->port3 = (char *) Malloc(strlen(s) + 1);
+        snprintf(self->port3, strlen(s) + 1, "%s", s);
+    }
+    while ((s = va_arg(*app, const char *))) {
+        if (strcmp(s, "home_ra") == 0) {
+            self->home_ra = va_arg(*app, double);
+            continue;
+        }
+        if (strcmp(s, "home_dec") == 0) {
+            self->home_dec = va_arg(*app, double);
+            continue;
+        }
+        if (strcmp(s, "polling_interval") == 0) {
+            self->polling_interval = va_arg(*app, double);
+            continue;
+        }
+        if (strcmp(s, "max_polling_times") == 0) {
+            self->polling_interval = va_arg(*app, unsigned int);
+            continue;
+        }
+        if (strcmp(s, "focus_polling_interval") == 0) {
+            self->focus_polling_interval = va_arg(*app, double);
+            continue;
+        }
+        if (strcmp(s, "max_focus_polling_times") == 0) {
+            self->max_focus_polling_times = va_arg(*app, unsigned int);
+            continue;
+        }
+        if (strcmp(s, "focus_threshold") == 0) {
+            self->focus_threshold = va_arg(*app, double);
+            continue;
+        }
+        
+    }
+    
+    self->_.t_state.state = TELESCOPE_STATE_POWERED_OFF;
+    
+    self->_._vtab = aic_mount_virtual_table();
+
+    
+    return (void *) self;
+}
+
+static void *
+AICMount_dtor(void *_self)
+{
+    struct AICMount *self = cast(AICMount(), _self);
+    
+    free(self->address);
+    free(self->port);
+    free(self->address2);
+    free(self->port2);
+    free(self->address3);
+    free(self->port3);
+
+    return super_dtor(AICMount(), _self);
+}
+
+static void *
+AICMountClass_ctor(void *_self, va_list *app)
+{
+    struct AICMountClass *self = super_ctor(AICMountClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.inspect.method = (Method) 0;
+    self->_.switch_instrument.method = (Method) 0;
+    self->_.switch_filter.method = (Method) 0;
+    self->_.focus.method = (Method) 0;
+    self->_.power_on.method = (Method) 0;
+    self->_.power_off.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.open_cover.method = (Method) 0;
+    self->_.close_cover.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_AICMountClass;
+
+static void
+AICMountClass_destroy(void)
+{
+    free((void *)_AICMountClass);
+}
+
+static void
+AICMountClass_initialize(void)
+{
+    _AICMountClass = new(__TelescopeClass(), "AICMountClass", __TelescopeClass(), sizeof(struct AICMountClass),
+                         ctor, "", AICMountClass_ctor,
+                         (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(AICMountClass_destroy);
+#endif
+}
+
+const void *
+AICMountClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, AICMountClass_initialize);
+#endif
+    
+    return _AICMountClass;
+}
+
+static const void *_AICMount;
+
+static void
+AICMount_destroy(void)
+{
+    regfree(&preg_spectro);
+    regfree(&preg_aux);
+    regfree(&preg_sitech);
+    
+    free((void *)_AICMount);
+}
+
+static void
+AICMount_initialize(void)
+{
+    _AICMount = new(AICMountClass(), "AICMount", __Telescope(), sizeof(struct AICMount),
+                    ctor, "ctor", AICMount_ctor,
+                    dtor, "dtor", AICMount_dtor,
+                    (void *) 0);
+    regcomp(&preg_sitech, sitech_pattern, REG_EXTENDED | REG_NOSUB | REG_NEWLINE);
+    regcomp(&preg_aux, aux_pattern, REG_EXTENDED | REG_NOSUB | REG_NEWLINE);
+    regcomp(&preg_spectro, spectro_pattern, REG_EXTENDED | REG_NOSUB | REG_NEWLINE);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(AICMount_destroy);
+#endif
+}
+
+const void *
+AICMount(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, AICMount_initialize);
+#endif
+    
+    return _AICMount;
+}
+
+const static void * _aic_mount_virtual_table;
+
+static void
+aic_mount_virtual_table_destroy(void)
+{
+    delete((void *) _aic_mount_virtual_table);
+}
+
+static void
+aic_mount_virtual_table_initialize(void)
+{
+    _aic_mount_virtual_table = new(__TelescopeVirtualTable(),
+                                   __telescope_status, "status", AICMount_status,
+                                   __telescope_power_on, "power_on", AICMount_power_on,
+                                   __telescope_power_off, "power_off", AICMount_power_off,
+                                   __telescope_init, "init", AICMount_init,
+                                   __telescope_park, "park", AICMount_park,
+                                   __telescope_park_off, "park_off", AICMount_park_off,
+                                   __telescope_go_home, "go_home", AICMount_go_home,
+                                   __telescope_slew, "slew", AICMount_slew,
+                                   __telescope_move, "move", AICMount_move,
+                                   __telescope_raw, "raw", AICMount_raw,
+                                   __telescope_switch_instrument, "switch_instrument", AICMount_switch_instrument,
+                                   __telescope_switch_detector, "switch_detector", AICMount_switch_detector,
+                                   __telescope_switch_filter, "switch_filter", AICMount_switch_filter,
+                                   __telescope_focus, "focus", AICMount_focus,
+                                   __telescope_inspect, "inspect", AICMount_inspect,
+                                   __telescope_wait, "wait", AICMount_wait,
+                                   (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(aic_mount_virtual_table_destroy);
+#endif
+}
+
+static const void *
+aic_mount_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, aic_mount_virtual_table_initialize);
+#endif
+    
+    return _aic_mount_virtual_table;
+}
+
 
 /*
  * Driver for Shuangyashan Daxue's 80cm telescope.
@@ -4090,6 +5709,19 @@ SYSU80_mirror_lid(void *_self, unsigned int op)
 }
 
 static int
+SYSU80_open_cover(void *_self)
+{
+    return SYSU80_mirror_lid(_self, 1);
+}
+
+static int
+SYSU80_close_cover(void *_self)
+{
+    return SYSU80_mirror_lid(_self, 0);
+}
+
+
+static int
 SYSU80_derotator(void *_self, unsigned int id, unsigned int op)
 // op -- 0:关闭 1:打开
 // id -- 0:J波段消旋, 1:K波段消旋
@@ -4227,6 +5859,8 @@ SYSU80_init(void *_self)
     return AAOS_OK;
 }
 
+
+
 static const void *sysu80_virtual_table(void);
 
 static void *
@@ -4300,7 +5934,9 @@ SYSU80Class_ctor(void *_self, va_list *app)
     self->_.raw.method = (Method) 0;
     self->_.inspect.method = (Method) 0;
     self->_.switch_instrument.method = (Method) 0;
-    self->_.focus.method = (Method) 0; 
+    self->_.focus.method = (Method) 0;
+    self->_.open_cover.method = (Method) 0;
+    self->_.close_cover.method = (Method) 0;
     
     return self;
 }
@@ -4387,6 +6023,9 @@ sysu80_virtual_table_initialize(void)
                                 __telescope_raw, "raw", SYSU80_raw,
                                 __telescope_focus, "focus", SYSU80_focus,
                                 __telescope_inspect, "inspect", SYSU80_inspect,
+                                __telescope_open_cover, "open_cover", SYSU80_open_cover,
+                                __telescope_close_cover, "close_cover", SYSU80_close_cover,
+                                
                                 (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(sysu80_virtual_table_destroy);
@@ -4416,6 +6055,59 @@ sysu80_virtual_table(void)
 #define APMOUNT_THRESHOLD_RETURN        0.5
 #define APMOUNT_CHECK_PARK_INTERVAL     2.5
 #define APMOUNT_MAX_TRY_PARK            3
+
+
+static int
+APMount_get_current_postion_r(struct APMount *self, double *ra, double *dec, double *az, double *alt)
+{
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    size_t size;
+    int ret;
+    
+    if (ra == NULL || dec == NULL || az == NULL || alt == NULL) {
+        return AAOS_EINVAL;
+    }
+    
+    snprintf(command, COMMANDSIZE, ":GR#");
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+        return AAOS_EDEVMAL;
+    }
+    if (buf[size - 1] == '#') {
+        buf[size - 1] = '\0';
+    }
+    *ra = hms2deg(buf);
+    
+    snprintf(command, COMMANDSIZE, ":GD#");
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+        return AAOS_EDEVMAL;
+    }
+    if (buf[size - 1] == '#') {
+        buf[size - 1] = '\0';
+    }
+    *dec = dms2deg(buf);
+    
+    snprintf(command, COMMANDSIZE, ":GZ#");
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+        return AAOS_EDEVMAL;
+    }
+    if (buf[size - 1] == '#') {
+        buf[size - 1] = '\0';
+    }
+    *az = dms2deg(buf);
+    
+    snprintf(command, COMMANDSIZE, ":GA#");
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+        return AAOS_EDEVMAL;
+    }
+    if (buf[size - 1] == '#') {
+        buf[size - 1] = '\0';
+    }
+    *alt = dms2deg(buf);
+    
+    return AAOS_OK;
+}
+
+
 
 static int
 APMount_get_current_postion(struct APMount *self)
@@ -4504,9 +6196,163 @@ APMount_really_parked(struct APMount *self)
 }
 
 static int
+APMount_status_json(struct APMount *self, char *status_buffer, size_t status_buffer_size)
+{
+    cJSON *root_json;
+    
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    if (self->_.name != NULL) {
+        cJSON_AddStringToObject(root_json, "name", self->_.name);
+    } else {
+        cJSON_AddStringToObject(root_json, "name", "null");
+    }
+    
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "description", self->_.description);
+    } else {
+        cJSON_AddStringToObject(root_json, "description", "null");
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    unsigned int flag = state & TELESCOPE_STATE_MALFUNCTION;
+    if (flag) {
+        cJSON_AddStringToObject(root_json, "state", "malfunction");
+    } else {
+        switch (state) {
+            case TELESCOPE_STATE_POWERED_OFF:
+                cJSON_AddStringToObject(root_json, "state", "powered_off");
+                break;
+            case TELESCOPE_STATE_UNINITIALIZED:
+                cJSON_AddStringToObject(root_json, "state", "uninitialized");
+                break;
+            case TELESCOPE_STATE_PARKED:
+                cJSON_AddStringToObject(root_json, "state", "parked");
+                break;
+            case TELESCOPE_STATE_TRACKING:
+                cJSON_AddStringToObject(root_json, "state", "tracking");
+                break;
+            case TELESCOPE_STATE_MOVING:
+                cJSON_AddStringToObject(root_json, "state", "moving");
+                break;
+            case TELESCOPE_STATE_SLEWING:
+                cJSON_AddStringToObject(root_json, "state", "slewing");
+                break;
+            case TELESCOPE_STATE_TRACKING_WAIT:
+                cJSON_AddStringToObject(root_json, "state", "tracking_wait");
+                break;
+            default:
+                break;
+        }
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    double ra, dec, alt, az;
+    APMount_get_current_postion_r(self, &ra, &dec, &az, &alt);
+    cJSON_AddNumberToObject(root_json, "ra", ra);
+    cJSON_AddNumberToObject(root_json, "dec", dec);
+    cJSON_AddNumberToObject(root_json, "az", az);
+    cJSON_AddNumberToObject(root_json, "alt", alt);
+    
+    if (self->_.t_cap.move_available) {
+        double move_speed;
+        if (self->_.t_cap.move_speed_available) {
+            Pthread_rwlock_rdlock(&self->_.t_param.move_speed_rwlock);
+            move_speed = self->_.t_param.move_speed;
+            Pthread_rwlock_unlock(&self->_.t_param.move_speed_rwlock);
+        } else {
+            move_speed = self->_.t_param.move_speed;
+        }
+        cJSON_AddNumberToObject(root_json, "move_speed", move_speed);
+    }
+    
+    if (self->_.t_cap.slew_available) {
+        double slew_speed_x, slew_speed_y;
+        if (self->_.t_cap.slew_speed_available) {
+            Pthread_rwlock_rdlock(&self->_.t_param.slew_speed_rwlock);
+            slew_speed_x = self->_.t_param.slew_speed_x;
+            slew_speed_y = self->_.t_param.slew_speed_y;
+            Pthread_rwlock_unlock(&self->_.t_param.slew_speed_rwlock);
+        } else {
+            slew_speed_x = self->_.t_param.slew_speed_x;
+            slew_speed_y = self->_.t_param.slew_speed_y;
+        }
+        cJSON_AddNumberToObject(root_json, "slew_speed_x", slew_speed_x);
+        cJSON_AddNumberToObject(root_json, "slew_speed_y", slew_speed_y);
+    }
+    
+    if (self->_.t_cap.track_available) {
+        double track_rate_x, track_rate_y;
+        if (self->_.t_cap.track_rate_available) {
+            Pthread_rwlock_rdlock(&self->_.t_param.track_rate_rwlock);
+            track_rate_x = self->_.t_param.track_rate_x;
+            track_rate_y = self->_.t_param.track_rate_y;
+            Pthread_rwlock_unlock(&self->_.t_param.track_rate_rwlock);
+        } else {
+            track_rate_x = self->_.t_param.track_rate_x;
+            track_rate_y = self->_.t_param.track_rate_y;
+        }
+        cJSON_AddNumberToObject(root_json, "track_rate_x", track_rate_x);
+        cJSON_AddNumberToObject(root_json, "track_rate_x", track_rate_y);
+    }
+    
+    if (self->_.t_cap.cover_available) {
+        bool is_cover_opened;
+        Pthread_rwlock_rdlock(&self->_.t_param.cover_rwlock);
+        is_cover_opened = self->_.t_param.is_cover_opened;
+        Pthread_rwlock_unlock(&self->_.t_param.cover_rwlock);
+        if (is_cover_opened) {
+            cJSON_AddStringToObject(root_json, "cover", "opened");
+        } else {
+            cJSON_AddStringToObject(root_json, "cover", "closed");
+        }
+    }
+    
+    if (self->_.t_cap.focus_available) {
+        double focus_position;
+        Pthread_rwlock_rdlock(&self->_.t_param.focus_rwlock);
+        focus_position = self->_.t_param.focus_position;
+        Pthread_rwlock_unlock(&self->_.t_param.focus_rwlock);
+        cJSON_AddNumberToObject(root_json, "focus", focus_position);
+    }
+    
+    size_t instrument = 0, detector = 0, filter = 0;
+    if (self->_.t_cap.switch_instrument_available) {
+        Pthread_rwlock_rdlock(&self->_.t_param.instrument_rwlock);
+        instrument = self->_.t_param.instrument;
+        Pthread_rwlock_unlock(&self->_.t_param.instrument_rwlock);
+        cJSON_AddStringToObject(root_json, "instrument", self->_.t_cap.instruments[instrument]);
+    }
+    if (self->_.t_cap.switch_instrument_available) {
+        Pthread_rwlock_rdlock(&self->_.t_param.detector_rwlock);
+        detector = self->_.t_param.detector;
+        Pthread_rwlock_unlock(&self->_.t_param.detector_rwlock);
+        cJSON_AddStringToObject(root_json, "detector", self->_.t_cap.detectors_2d[instrument][detector]);
+    }
+    if (self->_.t_cap.switch_filter_available) {
+        Pthread_rwlock_rdlock(&self->_.t_param.filter_rwlock);
+        filter = self->_.t_param.filter;
+        Pthread_rwlock_unlock(&self->_.t_param.filter_rwlock);
+        cJSON_AddStringToObject(root_json, "filter", self->_.t_cap.filters_3d[instrument][detector][filter]);
+    }
+    
+    cJSON_PrintPreallocated(root_json, status_buffer, (int) status_buffer_size, 1);
+    cJSON_Delete(root_json);
+    
+    return AAOS_OK;
+}
+
+static int
 APMount_status(void *_self, char *status_buffer, size_t status_buffer_size)
 {
     struct APMount *self = cast(APMount(), _self);
+    
+    return APMount_status_json(self, status_buffer, status_buffer_size);
+    
+    /*
     FILE *fp;
     char buf[BUFSIZE];
     
@@ -4580,6 +6426,7 @@ APMount_status(void *_self, char *status_buffer, size_t status_buffer_size)
 error:
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     fclose(fp);
+     */
     return AAOS_OK;
 }
 
@@ -6217,6 +8064,137 @@ APMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_siz
     return ret;
 }
 
+
+static int
+APMount_info_json(struct APMount *self, char *info_buffer, size_t info_buffer_size)
+{
+    cJSON *root_json, *capbility_json;
+    size_t i, j, k, l, m, n;
+    
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    if ((capbility_json = cJSON_CreateObject()) == NULL) {
+        cJSON_Delete(root_json);
+        return AAOS_ENOMEM;
+    }
+    
+    cJSON_AddItemToObject(root_json, "capbility", capbility_json);
+    
+    if (self->_.t_cap.move_available) {
+        cJSON_AddStringToObject(capbility_json, "move_available", "true");
+    } else {
+        cJSON_AddStringToObject(capbility_json, "move_available", "false");
+    }
+    
+    if (self->_.t_cap.move_speed_available) {
+        cJSON_AddStringToObject(capbility_json, "move_speed_available", "true");
+        cJSON_AddNumberToObject(capbility_json, "max_track_rat", self->_.t_cap.max_track_rate_x);
+        cJSON_AddNumberToObject(capbility_json, "min_track_rate_x", self->_.t_cap.min_track_rate_x);
+        cJSON_AddNumberToObject(capbility_json, "max_track_rate_y", self->_.t_cap.max_track_rate_y);
+        cJSON_AddNumberToObject(capbility_json, "min_track_rate_y", self->_.t_cap.min_track_rate_y);
+    } else {
+        cJSON_AddStringToObject(capbility_json, "move_speed_available", "false");
+    }
+    
+    if (self->_.t_cap.slew_speed_available) {
+        cJSON_AddStringToObject(capbility_json, "slew_speed_available", "true");
+        cJSON_AddNumberToObject(capbility_json, "max_slew_speed_x", self->_.t_cap.max_slew_speed_x);
+        cJSON_AddNumberToObject(capbility_json, "min_slew_speed_x", self->_.t_cap.min_slew_speed_x);
+        cJSON_AddNumberToObject(capbility_json, "max_slew_speed_y", self->_.t_cap.max_slew_speed_y);
+        cJSON_AddNumberToObject(capbility_json, "min_slew_speed_y", self->_.t_cap.min_slew_speed_y);
+    } else {
+        cJSON_AddStringToObject(capbility_json, "slew_speed_available", "false");
+    }
+
+    if (self->_.t_cap.track_rate_available) {
+        cJSON_AddStringToObject(capbility_json, "track_rate_available", "true");
+        cJSON_AddNumberToObject(capbility_json, "max_track_rate_x", self->_.t_cap.max_track_rate_x);
+        cJSON_AddNumberToObject(capbility_json, "min_track_rate_x", self->_.t_cap.min_track_rate_x);
+        cJSON_AddNumberToObject(capbility_json, "max_track_rate_y", self->_.t_cap.max_track_rate_y);
+        cJSON_AddNumberToObject(capbility_json, "min_track_rate_y", self->_.t_cap.min_track_rate_y);
+    } else {
+        cJSON_AddStringToObject(capbility_json, "track_rate_available", "true");
+    }
+
+    if (self->_.t_cap.cover_available) {
+        cJSON_AddStringToObject(capbility_json, "cover_available", "true");
+    } else {
+        cJSON_AddStringToObject(capbility_json, "cover_available", "false");
+    }
+    
+    if (self->_.t_cap.derotator_available) {
+        cJSON_AddStringToObject(capbility_json, "derotator_available", "true");
+    } else {
+        cJSON_AddStringToObject(capbility_json, "derotator_available", "false");
+    }
+    
+    if (self->_.t_cap.switch_instrument_available) {
+        cJSON_AddStringToObject(capbility_json, "instrument_available", "true");
+        cJSON *instrument_array_json = cJSON_CreateArray();
+        n = self->_.t_cap.n_instrument;
+        for (i = 0; i < n; i++) {
+            cJSON_AddItemToArray(instrument_array_json, cJSON_CreateString(self->_.t_cap.instruments[i]));
+        }
+        cJSON_AddItemToObject(capbility_json, "instrument", instrument_array_json);
+    } else {
+        cJSON_AddStringToObject(capbility_json, "instrument_available", "false");
+    }
+    
+    if (self->_.t_cap.switch_detector_available) {
+        cJSON_AddStringToObject(capbility_json, "detector_available", "true");
+        n = self->_.t_cap.n_instrument;
+        cJSON *detector_array_json =  cJSON_CreateArray();
+        for (i = 0; i < n; i ++) {
+            cJSON *detector_array_2d_json = cJSON_CreateArray();
+            m = self->_.t_cap.n_detector[i];
+            for (j = 0; j < m; j++) {
+                cJSON_AddItemToArray(detector_array_2d_json, cJSON_CreateString(self->_.t_cap.detectors_2d[i][j]));
+            }
+            cJSON_AddItemToArray(detector_array_json, detector_array_2d_json);
+        }
+        cJSON_AddItemToObject(capbility_json, "detector", detector_array_json);
+    } else {
+        cJSON_AddStringToObject(capbility_json, "detector_available", "false");
+    }
+    
+    if (self->_.t_cap.switch_filter_available) {
+        cJSON_AddStringToObject(capbility_json, "filter_available", "true");
+        n = self->_.t_cap.n_instrument;
+        cJSON *filter_array_json =  cJSON_CreateArray();
+        for (i = 0; i < n; i++) {
+            cJSON *filter_array_2d_json = cJSON_CreateArray();
+            m = self->_.t_cap.n_detector[i];
+            for (j = 0; j < m; j++) {
+                cJSON *filter_array_3d_json = cJSON_CreateArray();
+                l = self->_.t_cap.n_filter[i][j];
+                for (k = 0; k < l; k++) {
+                    cJSON_AddItemToArray(filter_array_3d_json, cJSON_CreateString(self->_.t_cap.filters_3d[i][j][k]));
+                }
+                cJSON_AddItemToArray(filter_array_2d_json, filter_array_3d_json);
+            }
+            cJSON_AddItemToArray(filter_array_json, filter_array_2d_json);
+        }
+        cJSON_AddItemToObject(capbility_json, "filter", filter_array_json);
+    } else {
+        cJSON_AddStringToObject(capbility_json, "filter_available", "false");
+    }
+    
+    cJSON_PrintPreallocated(root_json, info_buffer, (int) info_buffer_size, 1);
+    cJSON_Delete(root_json);
+    
+    return AAOS_OK;
+}
+
+static int
+APMount_info(void *_self, char *info_buffer, size_t info_buffer_size)
+{
+    struct APMount *self = cast(APMount(), _self);
+    
+    return APMount_info_json(self, info_buffer, info_buffer_size);
+}
+
 static int
 APMount_inspect(void *_self)
 {
@@ -6356,6 +8334,9 @@ APMount_ctor(void *_self, va_list *app)
     
 error:
     delete(client);
+    
+    self->_.t_cap.move_available = true;
+    self->_.t_cap.slew_available = true;
     
     self->_.move_speed = 600. * SIDEREAL_TRACKING_SPEED;
     self->_.slew_speed_x = 1200. * SIDEREAL_TRACKING_SPEED;
@@ -8221,6 +10202,10 @@ __destructor__(void)
     APMountClass_destroy();
     ap_mount_virtual_table_destroy();
     
+    AICMount_destroy();
+    AICMountClass_destroy();
+    aic_mount_virtual_table_destroy();
+    
     VirtualTelescope_destroy();
     VirtualTelescopeClass_destroy();
     virtual_telescope_virtual_table_destroy();
@@ -8244,6 +10229,10 @@ __constructor__(void)
     virtual_telescope_virtual_table();
     VirtualTelescopeClass_initializ();
     VirtualTelescope_initialize();
+    
+    aic_mount_virtual_table();
+    AICMountClass_initialize();
+    AICMountClass_initialize();
     
     sysu80_virtual_table();
     SYSU80Class_initialize();

@@ -242,6 +242,142 @@ Telescope_switch_detector(void *_self, const char *name)
 }
 
 int
+telescope_open_cover(void *_self)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->open_cover.method) {
+        return ((int (*)(void *)) class->open_cover.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_open_cover, "open_cover", _self);
+        return result;
+    }
+}
+
+static int
+Telescope_open_cover(void *_self)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_OPEN_COVER);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+telescope_close_cover(void *_self)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->close_cover.method) {
+        return ((int (*)(void *)) class->close_cover.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_close_cover, "close_cover", _self);
+        return result;
+    }
+}
+
+static int
+Telescope_close_cover(void *_self)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_CLOSE_COVER);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+telescope_enable_derotator(void *_self)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->enable_derotator.method) {
+        return ((int (*)(void *)) class->enable_derotator.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_enable_derotator, "enable_derotator", _self);
+        return result;
+    }
+}
+
+static int
+Telescope_enable_derotator(void *_self)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_ENABLE_DEROTATOR);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+telescope_disable_derotator(void *_self)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->disable_derotator.method) {
+        return ((int (*)(void *)) class->disable_derotator.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_disable_derotator, "disable_derotator", _self);
+        return result;
+    }
+}
+
+static int
+Telescope_disable_derotator(void *_self)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_DISABLE_DEROTATOR);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+telescope_get_derotator_angle(void *_self, double *angle)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->get_derotator_angle.method) {
+        return ((int (*)(void *, double *)) class->get_derotator_angle.method)(_self, angle);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_get_derotator_angle, "get_derotator_angle", _self, angle);
+        return result;
+    }
+}
+
+static int
+Telescope_get_derotator_angle(void *_self, double *angle)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    int ret;
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_GET_DEROTATOR_ANGLE);
+    
+    if ((ret = rpc_call(self)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_get(self, PACKET_DF0, angle);
+    
+    return AAOS_OK;
+}
+
+int
 telescope_focus(void *_self, unsigned int absolute, double step)
 {
     const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
@@ -295,6 +431,61 @@ Telescope_status(void *_self, char *res, size_t res_size, size_t *res_len)
     
     protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
     protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_STATUS);
+    
+    if ((ret = rpc_call(self)) == AAOS_OK) {
+        uint32_t length;
+        protobuf_get(self, PACKET_LENGTH, &length);
+        if (length == 0) {
+            char *s;
+            protobuf_get(self, PACKET_STR, &s);
+            if (s != res) {
+                snprintf(res, res_size, "%s", s);
+                if (res_len != NULL) {
+                    *res_len = strlen(res) + 1;
+                }
+            }
+        } else {
+            char *buf;
+            protobuf_get(self, PACKET_BUF, &buf, NULL);
+            if (buf != res) {
+                snprintf(res, res_size, "%s", buf);
+            }
+            if (res_len != NULL) {
+                *res_len = strlen(res) + 1;
+            }
+        }
+    }
+    
+    return ret;
+}
+
+
+int
+telescope_info(void *_self, char *res, size_t res_size, size_t *res_len)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->info.method) {
+        return ((int (*)(void *, char *, size_t, size_t *)) class->info.method)(_self, res, res_size, res_len);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_info, "info", _self, res, res_size, res_len);
+        return result;
+    }
+}
+
+static int
+Telescope_info(void *_self, char *res, size_t res_size, size_t *res_len)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    int ret;
+    
+    if (res == NULL) {
+        return -1 * AAOS_EINVAL;
+    }
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_INFO);
     
     if ((ret = rpc_call(self)) == AAOS_OK) {
         uint32_t length;
@@ -1170,6 +1361,53 @@ Telescope_execute_status(struct Telescope *self)
 }
 
 static int
+Telescope_execute_info(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    void *buf;
+    size_t payload;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        char *name;
+        int idx;
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &name);
+        } else {
+            protobuf_get(self, PACKET_BUF, &name, NULL);
+        }
+        if ((ret = get_index_by_name(name, &idx)) != AAOS_OK) {
+            return ret;
+        }
+        index = (int) idx;
+        protobuf_set(self, PACKET_INDEX, index);
+    }
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    protobuf_get(self, PACKET_BUF, &buf, NULL);
+    payload = protobuf_payload(self);
+    
+    ret = __telescope_info(telescope, buf, payload);
+
+    if (ret != AAOS_OK) {
+        protobuf_set(self, PACKET_LENGTH, 0);
+    } else {
+        length = (uint32_t) strlen(buf);
+        protobuf_set(self, PACKET_LENGTH, length);
+    }
+    
+    return ret;
+}
+
+static int
 Telescope_execute_power_on(struct Telescope *self)
 {
     int ret;
@@ -1866,6 +2104,144 @@ Telescope_execute_register(struct Telescope *self)
 }
 
 static int
+Telescope_execute_open_cover(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        char *name;
+        int idx;
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &name);
+        } else {
+            protobuf_get(self, PACKET_BUF, &name, NULL);
+        }
+        if ((ret = get_index_by_name(name, &idx)) != AAOS_OK) {
+            return ret;
+        }
+        index = (int) idx;
+        protobuf_set(self, PACKET_INDEX, index);
+    }
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    ret = __telescope_open_cover(telescope);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
+Telescope_execute_close_cover(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if (index == 0) {
+        char *name;
+        int idx;
+        if (length == 0) {
+            protobuf_get(self, PACKET_STR, &name);
+        } else {
+            protobuf_get(self, PACKET_BUF, &name, NULL);
+        }
+        if ((ret = get_index_by_name(name, &idx)) != AAOS_OK) {
+            return ret;
+        }
+        index = (int) idx;
+        protobuf_set(self, PACKET_INDEX, index);
+    }
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    ret = __telescope_close_cover(telescope);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
+Telescope_execute_enable_derotator(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    ret = __telescope_enable_derotator(telescope);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
+Telescope_execute_disable_derotator(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    ret = __telescope_disable_derotator(telescope);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
+Telescope_execute_get_derotator_angle(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    double angle;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    ret = __telescope_get_derotator_angle(telescope, &angle);
+    protobuf_set(self, PACKET_DF0, angle);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+
+static int
 Telescope_execute_default(struct Telescope *self)
 {
     return AAOS_EBADCMD;
@@ -1890,6 +2266,9 @@ Telescope_execute(void *_self)
             break;
         case TELESCOPE_COMMAND_STATUS:
             ret = Telescope_execute_status(self);
+            break;
+        case TELESCOPE_COMMAND_INFO:
+            ret = Telescope_execute_info(self);
             break;
         case TELESCOPE_COMMAND_POWER_ON:
             ret = Telescope_execute_power_on(self);
@@ -1972,6 +2351,21 @@ Telescope_execute(void *_self)
         case TELESCOPE_COMMAND_FOCUS:
             ret = Telescope_execute_focus(self);
             break;
+        case TELESCOPE_COMMAND_OPEN_COVER:
+            ret = Telescope_execute_open_cover(self);
+            break;
+        case TELESCOPE_COMMAND_CLOSE_COVER:
+            ret = Telescope_execute_close_cover(self);
+            break;
+        case TELESCOPE_COMMAND_ENABLE_DEROTATOR:
+            ret = Telescope_execute_enable_derotator(self);
+            break;
+        case TELESCOPE_COMMAND_DISABLE_DEROTATOR:
+            ret = Telescope_execute_disable_derotator(self);
+            break;
+        case TELESCOPE_COMMAND_GET_DEROTATOR_ANGLE:
+            ret = Telescope_execute_get_derotator_angle(self);
+            break;
         default:
             return Telescope_execute_default(self);
             break;
@@ -2025,6 +2419,14 @@ TelescopeClass_ctor(void *_self, va_list *app)
                 self->status.selector = selector;
             }
             self->status.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_info) {
+            if (tag) {
+                self->info.tag = tag;
+                self->info.selector = selector;
+            }
+            self->info.method = method;
             continue;
         }
         if (selector == (Method) telescope_get_index_by_name) {
@@ -2251,7 +2653,46 @@ TelescopeClass_ctor(void *_self, va_list *app)
             self->focus.method = method;
             continue;
         }
-        
+        if (selector == (Method) telescope_open_cover) {
+            if (tag) {
+                self->open_cover.tag = tag;
+                self->open_cover.selector = selector;
+            }
+            self->open_cover.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_close_cover) {
+            if (tag) {
+                self->close_cover.tag = tag;
+                self->close_cover.selector = selector;
+            }
+            self->close_cover.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_enable_derotator) {
+            if (tag) {
+                self->enable_derotator.tag = tag;
+                self->enable_derotator.selector = selector;
+            }
+            self->enable_derotator.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_disable_derotator) {
+            if (tag) {
+                self->disable_derotator.tag = tag;
+                self->disable_derotator.selector = selector;
+            }
+            self->disable_derotator.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_get_derotator_angle) {
+            if (tag) {
+                self->get_derotator_angle.tag = tag;
+                self->get_derotator_angle.selector = selector;
+            }
+            self->get_derotator_angle.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -2310,6 +2751,7 @@ Telescope_initialize(void)
                      telescope_get_index_by_name, "get_index_by_name", Telescope_get_index_by_name,
                      telescope_raw, "raw", Telescope_raw,
                      telescope_status, "status", Telescope_status,
+                     telescope_info, "info", Telescope_info,
                      telescope_power_on, "power_on", Telescope_power_on,
                      telescope_power_off, "power_off", Telescope_power_off,
                      telescope_init, "init", Telescope_init,
@@ -2336,6 +2778,11 @@ Telescope_initialize(void)
                      telescope_switch_filter, "switch_filter", Telescope_switch_filter,
                      telescope_switch_detector, "switch_detector", Telescope_switch_detector,
                      telescope_focus, "focus", Telescope_focus,
+                     telescope_open_cover, "open_cover", Telescope_open_cover,
+                     telescope_close_cover, "close_cover", Telescope_close_cover,
+                     telescope_get_derotator_angle, "get_derotator_angle", Telescope_get_derotator_angle,
+                     telescope_enable_derotator, "enable_derotator", Telescope_enable_derotator,
+                     telescope_disable_derotator, "disable_derotator", Telescope_disable_derotator,
                      
                      (void *) 0);
     

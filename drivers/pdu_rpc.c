@@ -51,7 +51,6 @@ get_channel_by_name(const char *name, int index, unsigned int *channel)
 
 }
 
-
 inline static int
 PDU_protocol_check(void *_self)
 {
@@ -180,7 +179,6 @@ PDU_turn_on(void *_self)
     protobuf_set(self, PACKET_LENGTH, 0);
     
     return rpc_call(self);
-    
 }
 
 int

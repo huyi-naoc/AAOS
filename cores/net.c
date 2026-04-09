@@ -146,6 +146,68 @@ TCPSocket_read(const void *_self, void *read_buffer, size_t request_size, size_t
 }
 
 int
+tcp_socket_read_nb(void *_self, void *read_buffer, size_t request_size, size_t *read_size)
+{
+    const struct TCPSocketClass *class = (const struct TCPSocketClass*) classOf(_self);
+    int result;
+    
+    if (isOf(class, TCPSocketClass()) && class->read_nb.method) {
+        result = ((int (*)(void *, void *, size_t, size_t *)) class->read_nb.method)( _self, read_buffer, request_size, read_size);
+    } else {
+        forward(_self, &result, (Method) tcp_socket_read_nb, "read_nb", _self, read_buffer, request_size, read_size);
+    }
+    
+    return result;
+}
+
+static int
+TCPSocket_read_nb(const void *_self, void *read_buffer, size_t request_size, size_t *read_size)
+{
+    struct TCPSocket *self = cast(TCPSocket(), _self);
+    ssize_t n;
+    
+    if (self->option & TCPSOCKET_OPTION_DO_NOT_RESTART_ON_SIGNAL) {
+        n = Readn2(self->sockfd, read_buffer, request_size);
+    } else {
+        n = Readn(self->sockfd, read_buffer, request_size);
+    }
+    
+    if (n > 0) {
+        if (read_size) {
+            *read_size = n;
+        }
+        return AAOS_OK;
+    } else if (n == 0) {
+        if (read_size) {
+            *read_size = 0;
+        }
+        return AAOS_ECLOSED;
+    } else {
+        if (read_size) {
+            *read_size = 0;
+        }
+        switch (errno) {
+            case EINTR:
+                return AAOS_EINTR;
+                break;
+            case ECONNRESET:
+                return AAOS_ECONNRESET;
+                break;
+            case ETIMEDOUT:
+                return AAOS_ETIMEDOUT;
+                break;
+            case EAGAIN:
+                return AAOS_EAGAIN;
+                break;
+            default:
+                return AAOS_ERROR;
+                break;
+        }
+    }
+}
+
+
+int
 tcp_socket_read_until(void *_self, void *read_buffer, size_t request_size, size_t *read_size, const char *delim)
 {
     const struct TCPSocketClass *class = (const struct TCPSocketClass*) classOf(_self);

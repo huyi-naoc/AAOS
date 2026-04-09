@@ -49,6 +49,8 @@ struct TelescopeInfo {
     double dec;
     char *name;
     char *description; /* JSON */
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
     void *rpc;
 };
 
@@ -80,16 +82,13 @@ global_register_thread(void *arg, va_list *app)
 
     uint64_t identifier = va_arg(*app, uint64_t);
     void *rpc = va_arg(*app, void *);
-
-    if (site->rpc != NULL) {
-        delete(site->rpc);
-    }
     
+    Pthread_mutex_lock(&site->mtx);
 #ifdef DEBUG
     fprintf(stderr, "%s %s %d: register a site thread to the global thread.\n", __FILE__, __func__, __LINE__);
 #endif
-    
     site->rpc = rpc;
+    Pthread_mutex_unlock(&site->mtx);
 }
 
 static void
@@ -104,15 +103,17 @@ global_push_task_block_to_site(void *arg, va_list *app)
     int ret;
 
     option = type;
+    
+    Pthread_mutex_lock(&site->mtx);
     if (site->rpc != NULL) {
         protobuf_set(site->rpc, PACKET_COMMAND, SCHEDULER_POP_TASK_BLOCK);
         protobuf_set(site->rpc, PACKET_BUF, block_buf, strlen(block_buf) + 1);
         protobuf_set(site->rpc, PACKET_OPTION, option);
         if ((ret = rpc_call(site->rpc)) != AAOS_OK) {
-            delete(site->rpc);
             site->rpc = NULL;
         }
     }
+    Pthread_mutex_unlock(&site->mtx);
 }
 
 static void
@@ -122,12 +123,15 @@ site_register_thread(void *arg, va_list *app)
 
     uint64_t identifier = va_arg(*app, uint64_t);
     void *rpc = va_arg(*app, void *);
-
+    
+    Pthread_mutex_lock(&telescope->mtx);
     if (telescope->rpc != NULL) {
         delete(telescope->rpc);
     }
-
     telescope->rpc = rpc;
+    Pthread_mutex_unlock(&telescope->mtx);
+
+    
 }
 
 static uint64_t 
@@ -839,13 +843,15 @@ cleanup_site_info(void *site)
 {
     struct SiteInfo *site_ = (struct SiteInfo *) site;
 
-    free(site_->name);
-    
+    Pthread_mutex_lock(&site_->mtx);
     if (site_->rpc != NULL) {
         delete(site_->rpc);
     }
+    Pthread_mutex_unlock(&site_->mtx);
+    
     Pthread_mutex_destroy(&site_->mtx);
     Pthread_cond_destroy(&site_->cond);
+    free(site_->name);
     free(site);
 }
 
@@ -854,12 +860,16 @@ cleanup_telescope_info(void *telescope)
 {
     struct TelescopeInfo *telescope_ = (struct TelescopeInfo *) telescope;
 
-    free(telescope_->name);
-    free(telescope_->description);
-
+    Pthread_mutex_lock(&telescope_->mtx);
     if (telescope_->rpc != NULL) {
         delete(telescope_->rpc);
     }
+    Pthread_mutex_lock(&telescope_->mtx);
+    
+    Pthread_mutex_destroy(&telescope_->mtx);
+    Pthread_cond_destroy(&telescope_->cond);
+    free(telescope_->name);
+    free(telescope_->description);
     free(telescope_);
 }
 
@@ -896,46 +906,48 @@ __Scheduler_site_init_cb(struct __Scheduler *self, MYSQL_RES *res)
     self->site_list = new(ThreadsafeList(), cleanup_site_info);
 
     n_rows = mysql_num_rows(res);
-    identifiers = (uint64_t *) Malloc(sizeof(uint64_t) * n_rows);
-
-    while ((row = mysql_fetch_row(res))) {
-        site = (struct SiteInfo *) Malloc(sizeof(struct SiteInfo));
-        Pthread_mutex_init(&site->mtx, NULL);
-        Pthread_cond_init(&site->cond, NULL);
-        memset(site, '\0', sizeof(struct SiteInfo));
-        lengths = mysql_fetch_lengths(res);
-        if (lengths[0] != 0) {
-            site->name = (char *) Malloc(lengths[0] + 1);
-            snprintf(site->name, lengths[0] + 1, "%s", row[0]);
+    
+    if (n_rows > 0) {
+        identifiers = (uint64_t *) Malloc(sizeof(uint64_t) * n_rows);
+        while ((row = mysql_fetch_row(res))) {
+            site = (struct SiteInfo *) Malloc(sizeof(struct SiteInfo));
+            Pthread_mutex_init(&site->mtx, NULL);
+            Pthread_cond_init(&site->cond, NULL);
+            memset(site, '\0', sizeof(struct SiteInfo));
+            lengths = mysql_fetch_lengths(res);
+            if (lengths[0] != 0) {
+                site->name = (char *) Malloc(lengths[0] + 1);
+                snprintf(site->name, lengths[0] + 1, "%s", row[0]);
+            }
+            if (lengths[1] != 0) {
+                site->identifier = strtoull(row[1], NULL, 0);
+                identifiers[cnt] = site->identifier;
+            }
+            if (lengths[2] != 0) {
+                site->status = atoi(row[2]);
+            }
+            if (lengths[3] != 0) {
+                site->site_lon = atof(row[3]);
+            }
+            if (lengths[4] != 0) {
+                site->site_lat = atof(row[4]);
+            }
+            if (lengths[5] != 0) {
+                site->site_alt = atof(row[5]);
+            }
+            cnt++;
+            threadsafe_list_push_front(self->site_list, site);
         }
-        if (lengths[1] != 0) {
-            site->identifier = strtoull(row[1], NULL, 0);
-            identifiers[cnt] = site->identifier;
-        }
-        if (lengths[2] != 0) {
-            site->status = atoi(row[2]);
-        }
-        if (lengths[3] != 0) {
-            site->site_lon = atof(row[3]);
-        }
-        if (lengths[4] != 0) {
-            site->site_lat = atof(row[4]);
-        }
-        if (lengths[5] != 0) {
-            site->site_alt = atof(row[5]);
-        }
-        cnt++;
-        threadsafe_list_push_front(self->site_list, site);
-    }
-    if (cnt > 0) {
-        self->max_site_id = identifiers[0];
-        for (i = 1; i < cnt; i++) {
-            if (self->max_site_id < identifiers[i]) {
-                self->max_site_id = identifiers[i];
+        if (cnt > 0) {
+            self->max_site_id = identifiers[0];
+            for (i = 1; i < cnt; i++) {
+                if (self->max_site_id < identifiers[i]) {
+                    self->max_site_id = identifiers[i];
+                }
             }
         }
+        free(identifiers);
     }
-    free(identifiers);
     return AAOS_OK;
 } 
 
@@ -952,44 +964,48 @@ __Scheduler_telescope_init_cb(struct __Scheduler *self, MYSQL_RES *res)
     self->telescope_list = new(ThreadsafeList(), cleanup_telescope_info);
 
     n_rows = mysql_num_rows(res);
-    identifiers = (uint64_t *) Malloc(sizeof(uint64_t) * n_rows);
-
-    while ((row = mysql_fetch_row(res))) {
-        telescope = (struct TelescopeInfo *) Malloc(sizeof(struct TelescopeInfo));
-        memset(telescope, '\0', sizeof(struct TelescopeInfo));
-        lengths = mysql_fetch_lengths(res);
-        if (lengths[0] != 0) {
-            telescope->name = (char *) Malloc(lengths[0] + 1);
-            snprintf(telescope->name, lengths[0] + 1, "%s", row[0]);
+    
+    if (n_rows > 0) {
+        identifiers = (uint64_t *) Malloc(sizeof(uint64_t) * n_rows);
+        while ((row = mysql_fetch_row(res))) {
+            telescope = (struct TelescopeInfo *) Malloc(sizeof(struct TelescopeInfo));
+            memset(telescope, '\0', sizeof(struct TelescopeInfo));
+            Pthread_mutex_init(&telescope->mtx, NULL);
+            Pthread_cond_init(&telescope->cond, NULL);
+            lengths = mysql_fetch_lengths(res);
+            if (lengths[0] != 0) {
+                telescope->name = (char *) Malloc(lengths[0] + 1);
+                snprintf(telescope->name, lengths[0] + 1, "%s", row[0]);
+            }
+            if (lengths[1] != 0) {
+                telescope->identifier = strtoull(row[1], NULL, 0);
+                identifiers[cnt] = telescope->identifier;
+            }
+            if (lengths[2] != 0) {
+                telescope->site_id = strtoull(row[2], NULL, 0);
+            }
+            if (lengths[3] != 0) {
+                telescope->status = atoi(row[3]);
+            }
+            if (lengths[4] != 0) {
+                telescope->description = (char *) Malloc(lengths[4] + 1);
+                snprintf(telescope->description, lengths[4] + 1, "%s", row[4]);
+            }
+            threadsafe_list_push_front(self->telescope_list, telescope);
+            cnt++;
         }
-        if (lengths[1] != 0) {
-            telescope->identifier = strtoull(row[1], NULL, 0);
-            identifiers[cnt] = telescope->identifier;
-        }
-        if (lengths[2] != 0) {
-            telescope->site_id = strtoull(row[2], NULL, 0);
-        }
-        if (lengths[3] != 0) {
-            telescope->status = atoi(row[3]);
-        }       
-        if (lengths[4] != 0) {
-            telescope->description = (char *) Malloc(lengths[4] + 1);
-            snprintf(telescope->description, lengths[4] + 1, "%s", row[4]);
-        }
-        threadsafe_list_push_front(self->telescope_list, telescope);
-        cnt++;
-    }
-
-    if (cnt > 0 && self->type == SCHEDULER_TYPE_SITE) {
-        self->max_telescope_id = identifiers[0]&(~(0xFFFFULL<<16));
-        for (i = 1; i < cnt; i++) {
-            if (self->max_telescope_id < (identifiers[i]&(~(0xFFFFULL<<16)))) {
-                self->max_telescope_id = identifiers[i]&(~(0xFFFFULL<<16));
+        
+        if (cnt > 0 && self->type == SCHEDULER_TYPE_SITE) {
+            self->max_telescope_id = identifiers[0]&(~(0xFFFFULL<<16));
+            for (i = 1; i < cnt; i++) {
+                if (self->max_telescope_id < (identifiers[i]&(~(0xFFFFULL<<16)))) {
+                    self->max_telescope_id = identifiers[i]&(~(0xFFFFULL<<16));
+                }
             }
         }
-    }
 
-    free(identifiers);
+        free(identifiers);
+    }
 
     return AAOS_OK;
 }
@@ -1045,11 +1061,12 @@ __Scheduler_task_init_cb(struct __Scheduler *self, MYSQL_RES *res)
     unsigned long *lengths;
 
     n_rows = mysql_num_rows(res);
+    
     if (n_rows > 0) {
         identifiers = (uint64_t *) Malloc(sizeof(uint64_t) * n_rows);
-	while ((row = mysql_fetch_row(res))) {
+        while ((row = mysql_fetch_row(res))) {
             lengths = mysql_fetch_lengths(res);
-	    if (lengths[0] != 0) {
+            if (lengths[0] != 0) {
                 identifiers[cnt] = strtoull(row[0], NULL, 0);
                 identifiers[cnt] = identifiers[cnt]&(~(0xFFFFFFFFULL<<32));
                 cnt++;
@@ -1066,7 +1083,6 @@ __Scheduler_task_init_cb(struct __Scheduler *self, MYSQL_RES *res)
 
     return AAOS_OK;
 } 
-
 
  static int
  __Scheduler_database_query(struct __Scheduler *self, const char *stmt_str, database_cb_t cb)
@@ -1176,8 +1192,9 @@ __Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *res
     char *json_string;
     int ret = AAOS_ERROR;
     uint64_t task_id;
-    cJSON *root_json, *general_json;
+    cJSON *root_json, *general_json, *timestam_json;
     struct SiteInfo *site = self->site;
+    char timestamp[TIMESTAMPSIZE];
 	    
     if (self->type == SCHEDULER_TYPE_SITE) {
         telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_id, identifier);
@@ -1192,6 +1209,13 @@ __Scheduler_get_task_by_telescope_id(void *_self, uint64_t identifier, char *res
                 return ret;
             }
             if ((root_json = cJSON_Parse(result)) != NULL && (general_json = cJSON_GetObjectItemCaseSensitive(root_json, "GENERAL-INFO")) != NULL) {
+                if ((timestam_json = cJSON_GetObjectItemCaseSensitive(general_json, "timestam")) != NULL) {
+                    ct_to_iso_str(timestamp, TIMESTAMPSIZE);
+                    cJSON_SetValuestring(timestam_json, timestamp);
+                } else {
+                    ct_to_iso_str(timestamp, TIMESTAMPSIZE);
+                    cJSON_AddStringToObject(general_json, "timestam", timestamp);
+                }
                 task_id = __Scheduler_generate_unique_task_id(self, site->identifier, identifier);
                 cJSON_AddNumberToObject(general_json, "task_id", task_id);
                 json_string = cJSON_Print(root_json);
@@ -1236,8 +1260,9 @@ __Scheduler_get_task_by_telescope_name(void *_self, const char *name, char *resu
     char *json_string;
     int ret = AAOS_ERROR;
     uint64_t identifier, task_id;
-    cJSON *root_json, *general_json;
+    cJSON *root_json, *general_json, *timestam_json;
     struct SiteInfo *site = self->site;
+    char timestamp[TIMESTAMPSIZE];
 
     if (self->type == SCHEDULER_TYPE_SITE) {
         telescope = threadsafe_list_find_first_if(self->telescope_list, telescope_by_name, name);
@@ -1250,6 +1275,14 @@ __Scheduler_get_task_by_telescope_name(void *_self, const char *name, char *resu
             ret = __Scheduler_ipc_write_and_read(self, json_string, result, size, length);
             free(json_string);
             if ((root_json = cJSON_Parse(result)) != NULL && (general_json = cJSON_GetObjectItemCaseSensitive(root_json, "GENERAL-INFO")) != NULL) {
+                
+                if ((timestam_json = cJSON_GetObjectItemCaseSensitive(general_json, "timestam")) != NULL) {
+                    ct_to_iso_str(timestamp, TIMESTAMPSIZE);
+                    cJSON_SetValuestring(timestam_json, timestamp);
+                } else {
+                    ct_to_iso_str(timestamp, TIMESTAMPSIZE);
+                    cJSON_AddStringToObject(general_json, "timestam", timestamp);
+                }
                 task_id = __Scheduler_generate_unique_task_id(self, site->identifier, identifier);
                 cJSON_AddNumberToObject(general_json, "task_id", task_id);
                 json_string = cJSON_Print(root_json);
@@ -3364,7 +3397,6 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
                     fprintf(stderr, "%s %s %d: register site thread failed.\n", __FILE__, __func__, __LINE__);
 #endif
                 }
-                
             } else {
 #ifdef DEBUG
                 fprintf(stderr, "%s %s %d: site scheduler connect global scheduler faild.\n", __FILE__, __func__, __LINE__);
@@ -3389,10 +3421,11 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
         struct TelescopeInfo *telescope = self->telescope;
         if (self->site_addr != NULL && self->site_port != NULL && telescope != NULL) {
             int ret;
-	    if (telescope->rpc != NULL) {
-	        delete(telescope->rpc);
-	        telescope->rpc = NULL;
-	    }
+            Pthread_mutex_lock(&telescope->mtx);
+            if (telescope->rpc != NULL) {
+                delete(telescope->rpc);
+                telescope->rpc = NULL;
+            }
             void *client = new(SchedulerClient(), self->site_addr, self->site_port);
             ret = rpc_client_connect(client, &telescope->rpc);
             if (ret == AAOS_OK) {
@@ -3403,6 +3436,7 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
 #endif
             }
             delete(client);
+            Pthread_mutex_unlock(&telescope->mtx);
         }
     } else if (strcmp(name, "tel_id") == 0) {
         struct TelescopeInfo *telescope= self->telescope;
@@ -3483,12 +3517,16 @@ __Scheduler_set_member(void *_self, const char *name, va_list *app)
         if (self->type == SCHEDULER_TYPE_GLOBAL) {
             struct SiteInfo *site; 
             if ((site = threadsafe_list_find_first_if(self->site_list, site_by_id, identifier)) != NULL && value != NULL) {
+                Pthread_mutex_lock(&site->mtx);
                 site->rpc = *value;
+                Pthread_mutex_unlock(&site->mtx);
             }
         } else if (self->type == SCHEDULER_TYPE_SITE) {
             struct TelescopeInfo *telescope; 
             if ((telescope = threadsafe_list_find_first_if(self->site_list, telescope_by_id, identifier)) != NULL && value != NULL) {
+                Pthread_mutex_lock(&telescope->mtx);
                 telescope->rpc = *value;
+                Pthread_mutex_unlock(&telescope->mtx);
             }
         } else {
             if (value != NULL && *value != NULL) {
@@ -3529,9 +3567,11 @@ __Scheduler_register_thread(void *_self, uint64_t identifier, void *thread)
         site = threadsafe_list_find_first_if(self->site_list, site_by_id, identifier);
         if (site != NULL) {
             Pthread_mutex_lock(&site->mtx);
-            if (site->rpc != NULL) {
+            /*
+            if (site->rpc != NULL && site->rpc != thread) {
                 delete(site->rpc);
             }
+            */
             site->rpc = thread;
             Pthread_mutex_unlock(&site->mtx);
         } else {
@@ -3546,7 +3586,6 @@ __Scheduler_register_thread(void *_self, uint64_t identifier, void *thread)
         }
         //threadsafe_list_operate_first_if(self->site_list, site_by_id, global_register_thread, identifier, thread);
     }
-
     return AAOS_OK;
 }
 

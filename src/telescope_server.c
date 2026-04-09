@@ -68,7 +68,7 @@ read_daemon(void)
 static void
 read_configuration(void)
 {
-    config_setting_t *setting, *telescope_setting;
+    config_setting_t *setting, *telescope_setting, *instruments_setting, *instrument_setting, *detectors_setting, *detector_setting, *filters_setting, *filter_setting;
     
     size_t i;
     
@@ -95,7 +95,9 @@ read_configuration(void)
         }
         for (i = 0; i < n_telescope; i++) {
             telescope_setting = config_setting_get_elem(setting, (unsigned int) i);
-            const char *name = NULL, *description = NULL, *type = NULL;
+            const char *name = NULL, *description = NULL, *type = NULL, *instrument = NULL, *detector = NULL, *filter = NULL;
+            char **instruments = NULL, ***detectors = NULL, ****filters = NULL;
+            size_t n_instrument, *n_detector = NULL, **n_filter = NULL, j, k, l;
             double lon, lat, ele, gmt_offset = -8.;
             config_setting_lookup_string(telescope_setting, "name", &name);
             config_setting_lookup_string(telescope_setting, "type", &type);
@@ -108,6 +110,60 @@ read_configuration(void)
                 telescopes[i] = NULL;
                 break;
             }
+            if ((instruments_setting = config_setting_lookup(telescope_setting, "instruments")) != NULL) {
+                if ((n_instrument = config_setting_length(instruments_setting)) > 0) {
+                    instruments = (char **) Malloc(n_instrument * sizeof(char *));
+                    memset(instruments, '\0', n_instrument * sizeof(char *));
+                    detectors = (char ***) Malloc(n_instrument * sizeof(char **));
+                    memset(detectors, '\0', n_instrument * sizeof(char **));
+                    filters =  (char ****) Malloc(n_instrument * sizeof(char ***));
+                    memset(filters, '\0', n_instrument * sizeof(char ***));
+                    n_detector = (size_t *) Malloc( n_instrument * sizeof(size_t));
+                    memset(n_detector, '\0', n_instrument * sizeof(size_t));
+                    n_filter = (size_t **) Malloc(n_instrument * sizeof(size_t *));
+                    memset(n_filter, '\0', n_instrument * sizeof(size_t *));
+                    for (j = 0; j < n_instrument; j++) {
+                        if ((instrument_setting = config_setting_get_elem(instruments_setting, (unsigned int) j)) != NULL) {
+                            config_setting_lookup_string(instrument_setting, "name", &instrument);
+                            if (instrument != NULL) {
+                                instruments[j] = (char *) Malloc(strlen(instrument) + 1);
+                                snprintf(instruments[j], strlen(instrument) + 1, "%s", instrument);
+                            }
+                            if ((detectors_setting = config_setting_lookup(instrument_setting, "detectors")) != NULL) {
+                                if ((n_detector[j] = config_setting_length(detectors_setting)) > 0) {
+                                    detectors[j] = (char **) Malloc(n_detector[j] * sizeof(char *));
+                                    filters[j] = (char ***) Malloc(n_detector[j] * sizeof(char **));
+                                    n_filter[j] = (size_t *) Malloc(n_detector[j] * sizeof(size_t));
+                                    memset(n_filter[j], '\0', n_detector[j] * sizeof(size_t));
+                                    for (k = 0; k < n_detector[j]; k++) {
+                                        if ((detector_setting = config_setting_get_elem(detectors_setting, (unsigned int) k)) != NULL) {
+                                             config_setting_lookup_string(detector_setting, "name", &detector);
+                                             if (detector != NULL) {
+                                                detectors[j][k] = (char *) Malloc(strlen(detector) + 1);
+                                                snprintf(detectors[j][k], strlen(detector) + 1, "%s", detector);
+                                                if ((filters_setting = config_setting_lookup(detector_setting, "filters")) != NULL) {
+                                                    if ((n_filter[j][k] = config_setting_length(filters_setting)) > 0) {
+                                                        filters[j][k] = (char **) Malloc(n_filter[j][k] * sizeof(char *));
+                                                        for (l = 0; l < n_filter[j][k]; l++) {
+                                                            filter = config_setting_get_string_elem(filters_setting, (unsigned int) l);
+                                                            if (filter != NULL) {
+                                                                filters[j][k][l] = (char *) Malloc(strlen(filter) + 1);
+                                                                snprintf(filters[j][k][l], strlen(filter) + 1, "%s", filter);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+
             if (strcmp(type, "VIRTUAL") == 0) {
                 telescopes[i] = new(VirtualTelescope(), name, "description", description, "longitude", lon, "latitude", lat, "gmt_offset", gmt_offset, '\0');
             } else if (strcmp(type, "APMOUNT") == 0){
@@ -159,6 +215,32 @@ read_configuration(void)
                     }
                 }
                 telescopes[i] = new(SYSU80(), name, "description", description, "longitude", lon, "latitude", lat,  "elevation", ele, (void *) 0, windows_address, windows_port, "instruments", instruments, "n_instrument", n_instrument, "default_instrument", default_instrument, "home_ra", home_ra, "home_dec", home_dec, (void *) 0);
+            } else if (strcmp(type, "AICMOUNT") == 0) {
+                config_setting_t *aic_mount_setting;
+                const char *mount_address = NULL, *mount_port = NULL, *aux_address = NULL, *aux_port = NULL, *spectra_address = NULL, *spectra_port = NULL;
+                double home_ra = 37.95, home_dec = 89.26;
+                double polling_interval = 2.;
+                int max_polling_times = 200;
+                double focus_polling_interval = 1;
+                int max_focus_polling_times = 20;
+                double focus_threshold = 0.0001;
+                
+                if ((aic_mount_setting = config_setting_lookup(telescope_setting, "aic_mount")) != NULL) {
+                    config_setting_lookup_string(aic_mount_setting, "mount_address", &mount_address);
+                    config_setting_lookup_string(aic_mount_setting, "mount_port", &mount_port);
+                    config_setting_lookup_string(aic_mount_setting, "aux_address", &aux_address);
+                    config_setting_lookup_string(aic_mount_setting, "aux_port", &aux_port);
+                    config_setting_lookup_string(aic_mount_setting, "spectra_address", &spectra_address);
+                    config_setting_lookup_string(aic_mount_setting, "spectra_port", &spectra_port);
+                    config_setting_lookup_float(aic_mount_setting, "home_ra", &home_ra);
+                    config_setting_lookup_float(aic_mount_setting, "home_dec", &home_dec);
+                    config_setting_lookup_float(aic_mount_setting, "polling_interval", &polling_interval);
+                    config_setting_lookup_int(aic_mount_setting, "max_polling_times", &max_polling_times);
+                    config_setting_lookup_float(aic_mount_setting, "focus_polling_interval", &focus_polling_interval);
+                    config_setting_lookup_int(aic_mount_setting, "max_focus_polling_times", &max_focus_polling_times);
+                    config_setting_lookup_float(aic_mount_setting, "focus_threshold", &focus_threshold);
+                }
+                telescopes[i] = new(AICMount(), name, "description", description, "longitude", lon, "latitude", lat,  "elevation", ele, (void *) 0, mount_address, mount_port, aux_address, aux_port, spectra_address, spectra_port, "home_ra", home_ra, "home_dec", home_dec, "polling_interval", polling_interval, "max_polling_times", max_polling_times, "focus_polling_interval", focus_polling_interval, "max_focus_polling_times", max_focus_polling_times, "focus_threshold", focus_threshold, (void *) 0);
             } else {
                 
             }

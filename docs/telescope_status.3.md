@@ -2,13 +2,12 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
+
 
 telescope\_status - retrieve the telescope status
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <telescope_rpc.h>**  
 
@@ -17,60 +16,61 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_status**() function retrieve the status of the telescope referenced by *\*\_self*. The content of status is filled in *res* pointer provided by the user, and its size in bytes is *res_size*. The length of the content is returned in *res_len*. If the actual length of the status content is larger than *res_size*, only the first *res_size* bytes will be filled in. If *res_len* is **NULL**, the length content will not be returned.
+**telescope_status()** function retrieves the current status of the telescope referenced by *\_self*.  The caller supplies a destination buffer (*res*) and its capacity in bytes (*res\_size*). On success the function copies the information into the buffer. If *res\_len* is not *NULL*, the total length of the information (in bytes) is stored at *res\_len*.  When the actual data size exceeds *res\_size*, only the first *res\_size* bytes are written; *res\_len* (when reported) still contains the full length of the data.
 
-The content must include the current telescope position and state. If **telescope_get_move_speed**(), **telescope_get_slew_speed**(), **telescope_get_track_rate**() do not return *AAOS\_ENOTSUP*, those values should also be filled in *res*.  
+The status must contain at least the telescope’s current position and state. If **telescope_get_detector**(), **telescope_get_filter**(), **telescope_get_instrument**(), **telescope_get_move_speed**(), **telescope_get_slew_speed**(), or **telescope_get_track_rate**() succeed (i.e., they do not return **AAOS_ENOTSUP**), their values should also be included in the status data.
 
-RETURN VALUE
-============
+## Parameters
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*\_self*
+:   Pointer to the telescope instance whose status is to be retrieved.
 
-ERRORS
-======
+*res*
+:   Destination buffer that receives the information.
 
-These functions shall fail if:
+*res\_size*
+:   Size of *res* in bytes.
 
-AAOS\_EDEVMAL
-------------
+*res\_len*
+:   If non‑*NULL*, receives the total length of the information. May be *NULL* if the length is not needed.
 
-The underline telescope is in *MALFUNCTION* state.
+# RETURN VALUE
 
-AAOS\_EPWROFF
-------------
+On success, *telescope_status*() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS**
+section.
 
-The underline telescope is not powered.
+# ERRORS
 
-AAOS\_EUNINT
------------
+The function may fail with the following error codes:
 
-The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+## AAOS\_EDEVMAL
 
-CONFORMING TO
-=============
+The underlying telescope is in *malfunction* state.
+
+## AAOS\_EPWROFF
+
+The underlying telescope is not powered.
+
+## AAOS\_EUNINT
+
+The underlying telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+  
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_status**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
-
-**telescope_get_move_speed**(3), **telescope_get_slew_speed**(3), **telescope_get_track_rate**(3)
-
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

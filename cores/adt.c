@@ -546,7 +546,7 @@ ThreadsafeCircularQueue_initialize(void)
                                    dtor, "dtor", ThreadsafeCircularQueue_dtor,
                                    threadsafe_circular_queue_push, "push", ThreadsafeCircularQueue_push,
                                    threadsafe_circular_queue_pop, "pop", ThreadsafeCircularQueue_pop,
-                                   threadsafe_circular_queue_timed_pop, "pop", ThreadsafeCircularQueue_timed_pop,
+                                   threadsafe_circular_queue_timed_pop, "timed_pop", ThreadsafeCircularQueue_timed_pop,
                                    (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(ThreadsafeCircularQueue_destroy);
@@ -564,6 +564,41 @@ ThreadsafeCircularQueue(void)
     return _ThreadsafeCircularQueue;
 }
 
+/*
+ * Threadsafe priority queue
+ 
+
+
+
+void
+threadsafe_priority_queue_push(void *_self, void *data)
+{
+    const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
+    
+    
+    if (isOf(class, ThreadsafeCircularQueueClass()) && class->push.method) {
+        return ((void (*)(void *, void *)) class->push.method)(_self, data);
+    } else {
+       
+        forward(_self, 0, (Method) threadsafe_circular_queue_push, "push", _self, data);
+    
+    }
+}
+
+static void
+ThreadsafePriorityQueue_push(void *_self, void *data, ssize_t priority)
+{
+
+    struct ThreadsafeCircularQueue *self = cast(ThreadsafeCircularQueue(), _self);
+    Pthread_mutex_lock(&self->mtx);
+    memcpy((char *)self->data + self->put * self->length, data, self->length);
+    if (++(self->put) == self->size) {
+        self->put = 0;
+    }
+    Pthread_cond_signal(&self->cond);
+    Pthread_mutex_unlock(&self->mtx);
+}
+*/
 
 /*
  * Threadsafe list
@@ -1037,7 +1072,6 @@ ThreadsafeList(void)
     
     return _ThreadsafeList;
 }
-
 
 #ifdef _USE_COMPILER_ATTRIBUTION_
 static void __destructor__(void) __attribute__ ((destructor(_ADT_PRIORITY_)));

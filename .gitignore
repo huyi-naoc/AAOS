@@ -6,6 +6,7 @@ autom4te.cache/
 compile
 conf/
 confdefs.h
+config.h
 config.*
 configure*
 !configure.ac
@@ -41,6 +42,8 @@ src/telescope
 src/telescoped
 src/thermal
 src/thermald
+src/thread
+src/threadd
 stamp-h1
 test/
 thirdparty/

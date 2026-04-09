@@ -32,6 +32,8 @@ struct TCPSocketClass {
     struct Class _;
     struct Method read;
     struct Method write;
+    struct Method read_nb;
+    struct Method write_nb;
     struct Method read_until;
     struct Method get_sockfd;
     struct Method set_option;

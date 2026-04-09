@@ -98,6 +98,12 @@ __Log_write(void *_self, unsigned int level, const char *message)
     return AAOS_OK;
 }
 
+static int
+__Log_rotate(void *_self)
+{
+    return AAOS_OK;
+}
+
 static void *
 __Log_ctor(void *_self, va_list *app)
 {

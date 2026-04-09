@@ -102,7 +102,7 @@ extern "C" {
  * @retval AAOS_EDEVMAL
  * Detector is in MALFUNCTION state.
  */
-int detector_expose(void *_self, double exposure_time, uint32_t n_frames, void (*image_callback)(void *_self, const char *pathname, ...), ...);
+int detector_expose(void *_self, double exposure_time, uint32_t n_frames, void (*image_callback)(void *_self, const char *pathname, va_list *app), ...);
 
 /**
  * Wait for last frame completion method of detector object.
@@ -629,8 +629,38 @@ int detector_raw(void *_self, const void *cmd, size_t cmd_size, void *res, size_
  */
 int detector_get_index_by_name(void *_self, const char *name);
 
+/**
+ * Set capture mode method of detector object.
+ * @param[in,out] _self detector object.
+ * @param[in] capture_mode capture mode, can be DETECTOR_CAPTURE_MODE_SINGLE, DETECTOR_CAPTURE_MODE_MULTIFRAME, or DETECTOR_CAPTURE_MODE_VIDEO.
+ * @retval AAOS_OK
+ * No errors.
+ * @retval AAOS_ENOTDOUND
+ * Detector is not found.
+ * @retval AAOS_ENOTSUP
+ * Set capture mode is not supported by the underline detector.
+ */
+int detector_set_capture_mode(void *_self, uint32_t capture_mode);
+
+/**
+ * Get capture mode method of detector object.
+ * @param[in] _self detector object.
+ * @param[out] capture_mode capture mode, can be DETECTOR_CAPTURE_MODE_SINGLE, DETECTOR_CAPTURE_MODE_MULTIFRAME, or DETECTOR_CAPTURE_MODE_VIDEO.
+ * @retval AAOS_OK
+ * No errors.
+ * @retval AAOS_ENOTDOUND
+ * Detector is not found.
+ * @retval AAOS_ENOTSUP
+ * Set capture mode is not supported by the underline detector.
+ */
+int detector_get_capture_mode(void *_self, uint32_t *capture_mode);
+
 int detector_set_pixel_format(void *_self, uint32_t pixel_format);
 int detector_get_pixel_format(void *_self, uint32_t *pixel_format);
+int detector_set_trigger_mode(void *_self, uint32_t trigger_mode);
+int detector_get_trigger_mode(void *_self, uint32_t *trigger_mode);
+int detector_set_overscan(void *_self, uint32_t x_overscan, uint32_t y_overscan);
+int detector_get_overscan(void *_self, uint32_t *x_overscan, uint32_t *y_overscan);
 
 int detetcor_register(void *_self, double timeout);
 int detector_inspect(void *_self);
@@ -650,8 +680,8 @@ extern const void *DetectorServerClass(void);
 }
 #endif
 
-void **detectors;
-size_t n_detector;
-void *detector_list;
+extern void **detectors;
+extern size_t n_detector;
+extern void *detector_list;
 
 #endif /* detector_rpc_h */

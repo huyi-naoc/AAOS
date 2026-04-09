@@ -26,7 +26,13 @@
 #define DOME_COMMAND_SET_WINDOW_OPEN_SPEED		12
 #define DOME_COMMAND_GET_WINDOW_CLOSE_SPEED		13
 #define DOME_COMMAND_SET_WINDOW_CLOSE_SPEED		14
-#define DOME_COMMAND_RAW						15
+#define DOME_COMMAND_SLEW                       15
+#define DOME_COMMAND_PARK                       16
+#define DOME_COMMAND_PARK_OFF                   17
+#define DOME_COMMAND_STOP                       18
+#define DOME_COMMAND_ABORT                      19
+#define DOME_COMMAND_RAW						20
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,6 +50,11 @@ int dome_get_window_open_speed(void *_self, double *speed);
 int dome_set_window_open_speed(void *_self, double speed);
 int dome_get_window_close_speed(void *_self, double *speed);
 int dome_set_window_close_speed(void *_self, double speed);
+int dome_slew(void *_self, double ra, double dec);
+int dome_park(void *_self);
+int dome_park_off(void *_self);
+int dome_abort(void *_self);
+int dome_stop(void *_self);
 int dome_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size);
 int dome_get_index_by_name(void *_self, const char *name);
 int dome_get_name_by_index(void *_self, uint16_t index, char *name, size_t size);
@@ -61,8 +72,8 @@ extern const void *DomeServerClass(void);
 }
 #endif
 
-void **domes;
-size_t n_dome;
-void *dome_list;
+extern void **domes;
+extern size_t n_dome;
+extern void *dome_list;
 
 #endif /* dome_rpc_h */

@@ -17,8 +17,8 @@
 #include <libconfig.h>
 
 
-void **domes;
-size_t n_dome;
+extern void **domes;
+extern size_t n_dome;
 static void *d;
 static void *server;
 static const char *config_path = "/opt/aaos/etc/domed.cfg";

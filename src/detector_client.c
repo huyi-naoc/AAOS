@@ -53,6 +53,9 @@ error_handler(int e)
         case AAOS_ENOTSUP:
             fprintf(stderr, "Operation is NOT supported.\n");
             break;
+        case AAOS_ENOTFOUND:
+            fprintf(stderr, "Detector is not found.\n");
+            break;
         default:
             fprintf(stderr, "Unknown error happened.\n");
             break;

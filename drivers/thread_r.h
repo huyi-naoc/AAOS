@@ -16,7 +16,10 @@
 struct __ObservationThread {
     struct Object _;
 
-    uint64_t tel_id;
+    
+
+    char *name;
+    char *description;
 
     char *scheduler_addr;
     char *scheduler_port;
@@ -58,11 +61,24 @@ struct __ObservationThread {
 
     char *aws_addr;
     char *aws_port;
-    char *aws_client;
+    char *aws_name;
+    void *aws_client;
     void *aws;
+    char **aws_keyname;
+    char **aws_keyvalue;
+    size_t n_aws_keypair;
     bool has_aws;
     
+    pthread_rwlock_t scheduler_rwlock;
+    pthread_rwlock_t dome_rwlock;
+    pthread_rwlock_t telescope_rwlock;
+    pthread_rwlock_t detector_rwlock;
+    pthread_rwlock_t aws_rwlock;
+    pthread_rwlock_t pipeline_rwlock;
+
+
     unsigned int state;
+    unsigned int flag;
     pthread_mutex_t mtx;
     pthread_cond_t cond;
 
@@ -77,9 +93,10 @@ struct __ObservationThreadClass {
     struct Method stop;
     struct Method cancel;
     struct Method resume;
+    struct Method terminate;
     struct Method set_member;
     struct Method get_member;
-
     struct Method cycle;
+    struct Method get_name;
 };
 #endif /* thread_r_h */

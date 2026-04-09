@@ -83,6 +83,10 @@ extern const void *SMSSerialClass(void);
 extern const void *KLTPSerial(void);
 extern const void *KLTPSerialClass(void);
 
+extern const void *YNAOIRCameraSerial(void);
+extern const void *YNAOIRCameraSerialClass(void);
+
+
 #ifdef __cplusplus
 }
 #endif

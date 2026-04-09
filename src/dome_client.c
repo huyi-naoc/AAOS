@@ -298,6 +298,63 @@ main(int argc, char *argv[])
     }
     
     while (argc != 0) {
+        if (strcmp(argv[0], "slew") == 0) {
+            if (argc < 3) {
+                fprintf(stderr, "slew command needs two parameters.\n");
+                exit(EXIT_FAILURE);
+            }
+            double ra, dec;
+            ra = atof(argv[1]);
+            dec = atof(argv[2]);
+            if ((ret = dome_slew(dome, ra, dec)) == AAOS_OK) {
+                fprintf(stderr, "slew dome success.\n");
+            } else {
+                error_handler(ret);
+            }
+            argc -= 3;
+            argv += 3;
+            continue;
+        }
+        if (strcmp(argv[0], "park") == 0) {
+            if ((ret = dome_park(dome)) == AAOS_OK) {
+                fprintf(stderr, "park dome success.\n");
+            } else {
+                error_handler(ret);
+            }
+            argc--;
+            argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "park_off") == 0) {
+            if ((ret = dome_park_off(dome)) == AAOS_OK) {
+                fprintf(stderr, "park off dome success.\n");
+            } else {
+                error_handler(ret);
+            }
+            argc--;
+            argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "abort") == 0) {
+            if ((ret = dome_abort(dome)) == AAOS_OK) {
+                fprintf(stderr, "abort dome success.\n");
+            } else {
+                error_handler(ret);
+            }
+            argc--;
+            argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "stop") == 0) {
+            if ((ret = dome_stop(dome)) == AAOS_OK) {
+                fprintf(stderr, "stop dome success.\n");
+            } else {
+                error_handler(ret);
+            }
+            argc--;
+            argv++;
+            continue;
+        }
         if (strcmp(argv[0], "open_window") == 0) {
             if ((ret = dome_open_window(dome)) == AAOS_OK) {
                 fprintf(stderr, "open dome's window success.\n");
@@ -380,7 +437,7 @@ main(int argc, char *argv[])
                 fprintf(stderr, "get command needs one parameter.\n");
                 exit(EXIT_FAILURE);
             }
-            if (strcmp(argv[1], "open_speed") == 0) {
+            if (strcmp(argv[1], "window_open_speed") == 0) {
                 double speed;
                 if ((ret = dome_get_window_open_speed(dome, &speed)) == AAOS_OK) {
                     printf("%.4f\n", speed);

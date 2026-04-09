@@ -118,6 +118,9 @@ extern const void *QHYCamera(void);
 extern const void *QHYCameraClass(void);
 #endif
 
+extern const void *YNAOIRCamera(void);
+extern const void *YNAOIRCameraClass(void);
+
 #ifdef __cplusplus
 }
 #endif

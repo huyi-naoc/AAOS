@@ -1240,14 +1240,22 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
 #ifdef LINUX
                 int efd, i, n;
                 struct epoll_event ev, events[8];
-                if ((efd = epoll_create(1)) < 0)
+                if ((efd = epoll_create(1)) < 0) {
+                    close(sockfd);
                     continue;
+                }
                 ev.events = EPOLLOUT | EPOLLET | EPOLLONESHOT;
                 ev.data.fd = sockfd;
-                if ((epoll_ctl(efd, EPOLL_CTL_ADD, sockfd, &ev)) < 0)
+                if ((epoll_ctl(efd, EPOLL_CTL_ADD, sockfd, &ev)) < 0) {
+                    close(efd);
+                    close(sockfd);
                     continue;
-                if ((n = epoll_wait(efd, events, 8, (int) timeout*1000)) < 0)
+                }
+                if ((n = epoll_wait(efd, events, 8, (int) timeout*1000)) < 0) {
+                    close(efd);
+                    close(sockfd);
                     continue;
+                }
                 if (n == 0)
                     errno = ETIMEDOUT;
                 for (i = 0; i < n; i++) {
@@ -1255,10 +1263,13 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                         unsigned int optval;
                         socklen_t optlen;
                         getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
-                        if (optval == 0)
+                        if (optval == 0) {
+                            close(efd);
                             return sockfd;
+                        }
                     }
                 }
+                close(efd);
 #endif
 #ifdef MACOSX
                 int kq, i, n;
@@ -1269,20 +1280,27 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                     continue;
                 struct kevent kev, events[8];
                 EV_SET(&kev, sockfd, EVFILT_WRITE, EV_ADD|EV_ONESHOT, 0, 0, NULL);
-                if ((n = kevent(kq, &kev, 1, events, 8, &tp)) < 0)
+                if ((n = kevent(kq, &kev, 1, events, 8, &tp)) < 0) {
+                    close(kq);
                     continue;
+                }
                 if (n == 0)
                     errno = ETIMEDOUT;
                 for (i = 0; i < n; i++) {
                     if (events[i].ident == sockfd) {
+                        close(kq);
+                        return sockfd;
+                        /*
                         unsigned int optval;
                         socklen_t optlen;                       
                         getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
                         if (optval == 0) {
                             return sockfd;
                         }
+                        */
                     }
                 }
+                close(kq);
 #endif
             }
         }
@@ -1486,6 +1504,87 @@ Un_stream_connect(const char *path)
         close(sockfd);
         sockfd = -1;
     }
+
+    return sockfd;
+}
+
+int
+Un_stream_connect_nb(const char *path, double timeout)
+{
+    int sockfd, s;
+    struct sockaddr_un addr;
+    
+    if (strlen(path) > sizeof(addr) - SUN_LEN(&addr)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+
+    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        err_warn("un_stream_connect", errno);
+        return sockfd;
+    }
+
+    if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0) {
+        err_warn("un_stream_connect", errno);
+        close(sockfd);
+        return -1;
+    }
+
+    memset(&addr, '\0', sizeof(addr));
+    addr.sun_family  = AF_UNIX;
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
+
+    s = connect(sockfd, (const struct sockaddr *) &addr, sizeof(addr));
+    
+    if (s < 0) { 
+        if (errno == EAGAIN) {
+#ifdef LINUX
+            int efd, i, n;
+            struct epoll_event ev, events[8];
+            if ((efd = epoll_create(1)) < 0) {
+                close(sockfd);
+                return -1;
+            }
+            ev.events = EPOLLOUT | EPOLLET | EPOLLONESHOT;
+            ev.data.fd = sockfd;
+            if ((epoll_ctl(efd, EPOLL_CTL_ADD, sockfd, &ev)) < 0) {
+                close(efd);
+                close(sockfd);
+                return -1;
+            }
+            if ((n = epoll_wait(efd, events, 8, (int) timeout*1000)) < 0) {
+                close(efd);
+                close(sockfd);
+                errno = ETIMEDOUT;
+                return -1;
+            }
+            for (i = 0; i < n; i++) {
+                if (events[i].data.fd == sockfd) {
+                    unsigned int optval;
+                    socklen_t optlen;
+                    getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
+                    if (optval == 0) {
+                        close(efd);
+                        return sockfd;
+                    }
+                }
+            }
+            close(efd);
+#else
+
+#ifdef MACOSX
+            
+#endif
+
+#endif 
+
+        } else {
+            err_warn("un_stream_connect", errno);
+            close(sockfd);
+            sockfd = -1;
+        }
+    }
+    
     return sockfd;
 }
 

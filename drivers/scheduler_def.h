@@ -12,6 +12,7 @@
 #define SCHEDULER_STATUS_OK             0
 #define SCHEDULER_STATUS_DELETE         1
 #define SCHEDULER_STATUS_MASKED         2
+
 #define SCHEDULER_STATUS_SUCCESS        0
 #define SCHEDULER_STATUS_FAIL           1
 #define SCHEDULER_STATUS_COMPLETE       2

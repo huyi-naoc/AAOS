@@ -2,13 +2,15 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-telescope\_slew - slew the telescope
+telescope\_slew - slew the telescope to a celestial target
 
-SYNOPSIS
-========
+telescope\_timed\_slew - slew a telescope with a timeout 
+
+telescope\_try\_slew - attemp a slew
+
+# SYNOPSIS
 
 **#include <telescope_rpc.h>**
 
@@ -22,91 +24,90 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_slew**(), **telescope_timed_slew**() and **telescope_try_slew** functions slew the telescope referenced by *\*\_self* to the celetial target (*ra*, *dec*). The functions will block the calling thread until it returns. 
+All three functions slew the telescope referenced by *\_self* to the celestial target specified by *ra* (right‑ascension‑like coordinate) and *dec* (declination‑like coordinate).  The coordinates are expressed in **degrees**. 
 
-*ra* and *dec* are both in degree unit. *ra* is from 0 to 360, and *dec* is from -90 to 90. However, since every telescope has hardware and/or software limits for the safety, the range of *ra* and *dec* will be much smaller in practice. *ra* does not necessarily mean **Right Ascension**. Neither, *dec* must mean **Declination**.  
+**telescope_slew**() blocks the calling thread until the slew finishes (or fails). If the telescope is already in a slewing or moving state, the call aborts the previous any **telescope_move**() or **telescope_slew**() family function. If the telescope is parked, it will be automatically un‑parked before the slew begins. During the slewing period the telescope is in a slewing state.  After a successful completion the telescope resumes normal tracking. 
 
-The slewing speed can be retrieved and set by **telescope_get_slew_speed**() and **telescope_set_slew_speed**().
+**telescope_timed_slew**()  works like **telescope_slew**() but returns immediately if it does not complete within *timeout* seconds.  The function returns an error if the timeout expires. If *timeout* is negative, the behavior is identical to telescope_slew().
 
-RETURN VALUE
-============
+**telescope_try_slew**() attempts to start a slew; if the telescope is already moving or slewing the call fails immediately with **AAOS_EBUSY**. 
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+## Parameters
+*\_self*
+:   Pointer to the telescope instance.
 
-ERRORS
-======
+*ra*
+:   Right ascension of the target in degrees, 0 ≤ ra < 360. In practice the usable range may be narrower because each instrument has hardware and/or software limits for safety.
 
-These functions shall fail if:
+*dec*
+:   Declination of the target in degrees, –90 ≤ dec ≤ +90. In practice the usable range may be narrower because each instrument has hardware and/or software limits for safety.
 
-AAOS\_ECANCELED
---------------
+*timeout*
+:   Expired time in seconds. If timeout less than zero, the behavior of **telescope_timed_slew**() is the same as **telescope_slew**()
 
-The current execution is cancelled by a new call of *telescope_go_home*(), *telescope_move*(), *telescope_park*(), *telescope_slew*(), and *telescope_stop*() that operate the same underline telescope. 
+# RETURN VALUE
 
-AAOS\_EDEVMAL
-------------
+On success, *telescope_status*() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-The underline telescope is in *MALFUNCTION* state.
+# ERRORS
 
-AAOS\_EINVAL
------------
+The functions may fail with any of the following error codes:
 
-The value of *ra* and/or *dec* value is out of their definition range or the underline telescope's setting limits.
+## AAOS\_ECANCELED
 
-AAOS\_EPWROFF
-------------
+The operation was cancelled because another function call of *telescope_go_home*(), *telescope_move*(), *telescope_park*(), *telescope_slew*(), or *telescope_stop*() by another thread on the same physical telescope was invoked for the same underlying telescope. The state of the telescope depends on how the slew operation was canceled.  
 
-The underline telescope is not powered.
+## AAOS\_EDEVMAL
 
-AAOS\_ETIMEDOUT
---------------
+The underlying telescope is in a *malfunction* state.
 
-The execution timed out, usually means the telescope is in trouble.
+## AAOS\_EINVAL
 
-AAOS\_EUNINT
------------
+The supplied *ra* and/or *dec* values are outside the defined range or exceed the telescope’s safety limits.
 
-The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+## AAOS\_EPWROFF
+
+The underlying telescope is not powered.
+
+## AAOS\_ETIMEDOUT
+
+The execution time of these functions exceeds the maximum telescope slew time (i.e., the duration of traversing longest slew path). 
+
+## AAOS\_EUNINT
+
+The underlying telescope has not been initialized (e.g. its clock time or location has not been set via *telescope_init*()).
 
 *telescope_timed_slew*() function shall also fail if:
 
-AAOS\_ETIMEDOUT
---------------
+## AAOS\_ETIMEDOUT
 
-The telescope is still moving or slewing until *timeout*.
+The slew does not finish before *timeout* seconds elapse.
 
 *telescope_try_slew*() function shall also fail if:
 
-AAOS\_EBUSY
-----------
+## AAOS\_EBUSY
 
-The telescope is moving or slewing now.
+The telescope is already moving or slewing.
 
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-These functions are thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+*telescope_slew*(), *telescope_slew*(), and *telescope_timed_slew*() are all thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_get_slew_speed**(3), **telescope_init**(3), **telescope_move**(3), **telescope_park**(3), **telescope_power_off**(3), **telescope_power_on**(3), **telescope_set_slew_speed**(3), **telescope_stop**(3)
+**telescope_get_slew_speed**(3), **telescope_init**(3), **telescope_move**(3), **telescope_park**(3), **telescope_power_off**(3), **telescope_power_on**(3), **telescope_set_slew_speed**(3), **telescope_status**(3), **telescope_stop**(3)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

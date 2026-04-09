@@ -49,6 +49,13 @@ int __telescope_switch_instrument(void *_self, const char *name);
 int __telescope_switch_filter(void *_self, const char *name);
 int __telescope_switch_detector(void *_self, const char *name);
 int __telescope_focus(void *_self, unsigned int absolute, double step);
+int __telescope_open_cover(void *_self);
+int __telescope_close_cover(void *_self);
+int __telescope_info(void *_self, char *info_buffer, size_t info_buffer_size);
+int __telescope_enable_derotator(void *_self);
+int __telescope_disable_derotator(void *_self);
+int __telescope_get_derotator_angle(void *_self, double *angle);
+
 
 const char *__telescope_get_name(const void *_self);
 

@@ -13,6 +13,9 @@
 #include "dome_rpc_r.h"
 #include "wrapper.h"
 
+void **domes;
+size_t n_dome;
+void *dome_list;
 
 static bool
 dome_find_by_name_if(void *dome, va_list *app)
@@ -526,6 +529,138 @@ Dome_set_window_close_speed(void *_self, double speed)
 }
 
 int
+dome_slew(void *_self, double ra, double dec)
+{
+    const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
+    
+    if (isOf(class, DomeClass()) && class->slew.method) {
+        return ((int (*)(void *, double, double)) class->slew.method)(_self, ra, dec);
+    } else {
+        int result;
+        forward(_self, &result, (Method) dome_slew, "slew", _self, ra, dec);
+        return result;
+    }
+}
+
+static int
+Dome_slew(void *_self, double ra, double dec)
+{
+    struct Dome *self = cast(Dome(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_SLEW);
+    protobuf_set(self, PACKET_DF0, ra);
+    protobuf_set(self, PACKET_DF1, dec);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+dome_park(void *_self)
+{
+    const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
+    
+    if (isOf(class, DomeClass()) && class->park.method) {
+        return ((int (*)(void *)) class->park.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) dome_park, "park", _self);
+        return result;
+    }
+}
+
+static int
+Dome_park(void *_self)
+{
+    struct Dome *self = cast(Dome(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_PARK);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+dome_park_off(void *_self)
+{
+    const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
+    
+    if (isOf(class, DomeClass()) && class->park_off.method) {
+        return ((int (*)(void *)) class->park_off.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) dome_park_off, "park_off", _self);
+        return result;
+    }
+}
+
+static int
+Dome_park_off(void *_self)
+{
+    struct Dome *self = cast(Dome(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_PARK_OFF);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+dome_abort(void *_self)
+{
+    const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
+    
+    if (isOf(class, DomeClass()) && class->abort.method) {
+        return ((int (*)(void *)) class->abort.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) dome_abort, "abort", _self);
+        return result;
+    }
+}
+
+static int
+Dome_abort(void *_self)
+{
+    struct Dome *self = cast(Dome(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_ABORT);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
+dome_stop(void *_self)
+{
+    const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
+    
+    if (isOf(class, DomeClass()) && class->stop.method) {
+        return ((int (*)(void *)) class->stop.method)(_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) dome_stop, "stop", _self);
+        return result;
+    }
+}
+
+static int
+Dome_stop(void *_self)
+{
+    struct Dome *self = cast(Dome(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_DOME);
+    protobuf_set(self, PACKET_COMMAND, DOME_COMMAND_STOP);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return rpc_call(self);
+}
+
+int
 dome_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
 {
 	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
@@ -931,6 +1066,103 @@ Dome_execute_set_window_close_speed(struct Dome *self)
 }
 
 static int
+Dome_execute_slew(struct Dome *self)
+{
+    int ret;
+    void *dome;
+    double ra, dec;
+    uint16_t index;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((dome = get_dome_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+
+    protobuf_get(self, PACKET_DF0, &ra);
+    protobuf_get(self, PACKET_DF0, &dec);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return __dome_slew(dome, ra, dec);
+}
+
+static int
+Dome_execute_park(struct Dome *self)
+{
+    int ret;
+    void *dome;
+    double ra, dec;
+    uint16_t index;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((dome = get_dome_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return __dome_park(dome);
+}
+
+static int
+Dome_execute_park_off(struct Dome *self)
+{
+    int ret;
+    void *dome;
+    double ra, dec;
+    uint16_t index;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((dome = get_dome_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return __dome_park_off(dome);
+}
+
+static int
+Dome_execute_abort(struct Dome *self)
+{
+    int ret;
+    void *dome;
+    double ra, dec;
+    uint16_t index;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((dome = get_dome_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return __dome_abort(dome);
+}
+
+static int
+Dome_execute_stop(struct Dome *self)
+{
+    int ret;
+    void *dome;
+    double ra, dec;
+    uint16_t index;
+    
+    protobuf_get(self, PACKET_INDEX, &index);
+
+    if ((dome = get_dome_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return __dome_stop(dome);
+}
+
+static int
 Dome_execute_get_name_by_index(struct Dome *self)
 {
     const char *name;
@@ -1021,6 +1253,21 @@ Dome_execute(void *_self)
             break;
         case DOME_COMMAND_RAW:
             ret = Dome_execute_raw(self);
+            break;
+        case DOME_COMMAND_SLEW:
+            ret = Dome_execute_raw(self);
+            break;
+        case DOME_COMMAND_PARK:
+            ret = Dome_execute_park(self);
+            break;
+        case DOME_COMMAND_PARK_OFF:
+            ret = Dome_execute_park_off(self);
+            break;
+        case DOME_COMMAND_ABORT:
+            ret = Dome_execute_abort(self);
+            break;
+        case DOME_COMMAND_STOP:
+            ret = Dome_execute_stop(self);
             break;
         default:
             return Dome_execute_default(self);
@@ -1181,6 +1428,46 @@ DomeClass_ctor(void *_self, va_list *app)
             self->reg.method = method;
             continue;
         }
+        if (selector == (Method) dome_slew) {
+            if (tag) {
+                self->slew.tag = tag;
+                self->slew.selector = selector;
+            }
+            self->slew.method = method;
+            continue;
+        }
+        if (selector == (Method) dome_park) {
+            if (tag) {
+                self->park.tag = tag;
+                self->park.selector = selector;
+            }
+            self->park.method = method;
+            continue;
+        }
+        if (selector == (Method) dome_park_off) {
+            if (tag) {
+                self->park_off.tag = tag;
+                self->park_off.selector = selector;
+            }
+            self->park_off.method = method;
+            continue;
+        }
+        if (selector == (Method) dome_abort) {
+            if (tag) {
+                self->abort.tag = tag;
+                self->abort.selector = selector;
+            }
+            self->abort.method = method;
+            continue;
+        }
+        if (selector == (Method) dome_stop) {
+            if (tag) {
+                self->stop.tag = tag;
+                self->stop.selector = selector;
+            }
+            self->stop.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -1240,8 +1527,8 @@ Dome_initialize(void)
                 dome_get_name_by_index, "get_name_by_index", Dome_get_name_by_index,
                 dome_init, "init", Dome_init,
                 dome_open_window, "open_window", Dome_open_window,
-                dome_close_window, "close", Dome_close_window,
-                dome_stop_window, "stop", Dome_stop_window,
+                dome_close_window, "close_window", Dome_close_window,
+                dome_stop_window, "stop_window", Dome_stop_window,
                 dome_inspect, "inspect", Dome_inspect,
                 dome_register, "register", Dome_register,
                 dome_get_window_position, "get_window_position", Dome_get_window_position,
@@ -1250,6 +1537,12 @@ Dome_initialize(void)
                 dome_get_window_close_speed, "get_window_close_speed", Dome_get_window_close_speed,
                 dome_set_window_close_speed, "set_window_close_speed", Dome_set_window_close_speed,
                 dome_status, "status", Dome_status,
+                dome_slew, "slew", Dome_slew,
+                dome_park, "park", Dome_park,
+                dome_park_off, "park_off", Dome_park_off,
+                dome_abort, "abort", Dome_abort,
+                dome_stop, "stop", Dome_stop,
+                
                 (void *) 0);
     
 #ifndef _USE_COMPILER_ATTRIBUTION_

@@ -28,6 +28,11 @@ int __dome_get_window_open_speed(void *_self, double *speed);
 int __dome_set_window_open_speed(void *_self, double speed);
 int __dome_get_window_close_speed(void *_self, double *speed);
 int __dome_set_window_close_speed(void *_self, double speed);
+int __dome_slew(void *_self, double ra, double dec);
+int __dome_park(void *_self);
+int __dome_park_off(void *_self);
+int __dome_stop(void *_self);
+int __dome_abort(void *_self);
 int __dome_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size);
 const char *__dome_get_name(const void *_self);
 

@@ -17,36 +17,42 @@
 #include "telescope_def.h"
 #include <stdint.h>
 
-#define TELESCOPE_COMMAND_RAW               1
-#define TELESCOPE_COMMAND_STATUS            2
-#define TELESCOPE_COMMAND_POWER_ON          3
-#define TELESCOPE_COMMAND_POWER_OFF         4
-#define TELESCOPE_COMMAND_INIT              5
-#define TELESCOPE_COMMAND_PARK              6
-#define TELESCOPE_COMMAND_PARK_OFF          7
-#define TELESCOPE_COMMAND_STOP              8
-#define TELESCOPE_COMMAND_GO_HOME           9
-#define TELESCOPE_COMMAND_MOVE              10
-#define TELESCOPE_COMMAND_TRY_MOVE          11
-#define TELESCOPE_COMMAND_TIMED_MOVE        12
-#define TELESCOPE_COMMAND_SLEW              13
-#define TELESCOPE_COMMAND_TRY_SLEW          14
-#define TELESCOPE_COMMAND_TIMED_SLEW        15
-#define TELESCOPE_COMMAND_RELEASE           16
-#define TELESCOPE_COMMAND_SET_MOVE_SPEED    17
-#define TELESCOPE_COMMAND_GET_MOVE_SPEED    18
-#define TELESCOPE_COMMAND_SET_SLEW_SPEED    19
-#define TELESCOPE_COMMAND_GET_SLEW_SPEED    20
-#define TELESCOPE_COMMAND_SET_TRACK_RATE    21
-#define TELESCOPE_COMMAND_GET_TRACK_RATE    22
-#define TELESCOPE_COMMAND_GET_INDEX_BY_NAME 23
-#define TELESCOPE_COMMAND_SET_OPTION        24
-#define TELESCOPE_COMMAND_INSPECT           25
-#define TELESCOPE_COMMAND_REGISTER          26
-#define TELESCOPE_COMMAND_SWITCH_INSTRUMENT 27
-#define TELESCOPE_COMMAND_SWITCH_FILTER     28
-#define TELESCOPE_COMMAND_SWITCH_DETECTOR   29
-#define TELESCOPE_COMMAND_FOCUS             30
+#define TELESCOPE_COMMAND_RAW                   1
+#define TELESCOPE_COMMAND_STATUS                2
+#define TELESCOPE_COMMAND_POWER_ON              3
+#define TELESCOPE_COMMAND_POWER_OFF             4
+#define TELESCOPE_COMMAND_INIT                  5
+#define TELESCOPE_COMMAND_PARK                  6
+#define TELESCOPE_COMMAND_PARK_OFF              7
+#define TELESCOPE_COMMAND_STOP                  8
+#define TELESCOPE_COMMAND_GO_HOME               9
+#define TELESCOPE_COMMAND_MOVE                  10
+#define TELESCOPE_COMMAND_TRY_MOVE              11
+#define TELESCOPE_COMMAND_TIMED_MOVE            12
+#define TELESCOPE_COMMAND_SLEW                  13
+#define TELESCOPE_COMMAND_TRY_SLEW              14
+#define TELESCOPE_COMMAND_TIMED_SLEW            15
+#define TELESCOPE_COMMAND_RELEASE               16
+#define TELESCOPE_COMMAND_SET_MOVE_SPEED        17
+#define TELESCOPE_COMMAND_GET_MOVE_SPEED        18
+#define TELESCOPE_COMMAND_SET_SLEW_SPEED        19
+#define TELESCOPE_COMMAND_GET_SLEW_SPEED        20
+#define TELESCOPE_COMMAND_SET_TRACK_RATE        21
+#define TELESCOPE_COMMAND_GET_TRACK_RATE        22
+#define TELESCOPE_COMMAND_GET_INDEX_BY_NAME     23
+#define TELESCOPE_COMMAND_SET_OPTION            24
+#define TELESCOPE_COMMAND_INSPECT               25
+#define TELESCOPE_COMMAND_REGISTER              26
+#define TELESCOPE_COMMAND_SWITCH_INSTRUMENT     27
+#define TELESCOPE_COMMAND_SWITCH_FILTER         28
+#define TELESCOPE_COMMAND_SWITCH_DETECTOR       29
+#define TELESCOPE_COMMAND_FOCUS                 30
+#define TELESCOPE_COMMAND_OPEN_COVER            31
+#define TELESCOPE_COMMAND_CLOSE_COVER           32
+#define TELESCOPE_COMMAND_INFO                  33
+#define TELESCOPE_COMMAND_ENABLE_DEROTATOR      34
+#define TELESCOPE_COMMAND_DISABLE_DEROTATOR     35
+#define TELESCOPE_COMMAND_GET_DEROTATOR_ANGLE   36
 
 #ifdef __cplusplus
 extern "C" {
@@ -415,6 +421,12 @@ int telescope_switch_instrument(void *_self, const char *name);
 int telescope_switch_filter(void *_self, const char *name);
 int telescope_switch_detector(void *_self, const char *name);
 int telescope_focus(void *_self, unsigned int absolute, double step);
+int telescope_open_cover(void *_self);
+int telescope_close_cover(void *_self);
+int telescope_enable_derotator(void *_self);
+int telescope_disable_derotator(void *_self);
+int telescope_get_derotator_angle(void *_self, double *angle);
+int telescope_info(void *_self, char *res, size_t res_size, size_t *return_size);
 
 
 extern const void *Telescope(void);

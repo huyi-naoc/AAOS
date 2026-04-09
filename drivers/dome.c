@@ -133,6 +133,46 @@ __DomeVirtualTable_ctor(void *_self, va_list *app)
             self->set_window_close_speed.method = method;
             continue;
         }
+        if (selector == (Method) __dome_slew) {
+            if (tag) {
+                self->slew.tag = tag;
+                self->slew.selector = selector;
+            }
+            self->slew.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_park) {
+            if (tag) {
+                self->park.tag = tag;
+                self->park.selector = selector;
+            }
+            self->park.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_park_off) {
+            if (tag) {
+                self->park_off.tag = tag;
+                self->park_off.selector = selector;
+            }
+            self->park_off.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_abort) {
+            if (tag) {
+                self->abort.tag = tag;
+                self->abort.selector = selector;
+            }
+            self->abort.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_stop) {
+            if (tag) {
+                self->stop.tag = tag;
+                self->stop.selector = selector;
+            }
+            self->stop.method = method;
+            continue;
+        }
     }
     
     return _self;
@@ -239,7 +279,245 @@ __Dome_register(void *_self, double timeout)
 }
 
 /*
- * pure virtual functions of Dome class.
+ * Virtual functions, optional functionalities
+ */
+
+int
+__dome_inspect(void *_self)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->inspect.method) {
+        return ((int (*)(void *)) class->inspect.method) (_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_inspect, "inspect", _self);
+        return result;
+    }
+}
+
+static int
+__Dome_inspect(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_get_window_position(void *_self, double *position)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->get_window_position.method) {
+        return ((int (*)(void *, double *)) class->get_window_position.method) (_self, position);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_get_window_position, "get_window_position", _self, position);
+        return result;
+    }
+}
+
+static int
+__Dome_get_window_position(void *_self, double *position)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_get_window_open_speed(void *_self, double *speed)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->get_window_open_speed.method) {
+        return ((int (*)(void *, double *)) class->get_window_open_speed.method) (_self, speed);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_get_window_open_speed, "get_window_open_speed", _self, speed);
+        return result;
+    }
+}
+
+static int
+__Dome_get_window_open_speed(void *_self, double *speed)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_set_window_open_speed(void *_self, double speed)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->set_window_open_speed.method) {
+        return ((int (*)(void *, double )) class->set_window_open_speed.method) (_self, speed);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_set_window_open_speed, "set_window_open_speed", _self, speed);
+        return result;
+    }
+}
+
+static int
+__Dome_set_window_open_speed(void *_self, double speed)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_get_window_close_speed(void *_self, double *speed)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->get_window_close_speed.method) {
+        return ((int (*)(void *, double *)) class->get_window_close_speed.method) (_self, speed);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_get_window_close_speed, "get_window_close_speed", _self, speed);
+        return result;
+    }
+}
+
+int
+__Dome_get_window_close_speed(void *_self, double *speed)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_set_window_close_speed(void *_self, double speed)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->set_window_close_speed.method) {
+        return ((int (*)(void *, double )) class->set_window_close_speed.method) (_self, speed);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_set_window_close_speed, "set_window_close_speed", _self, speed);
+        return result;
+    }
+}
+
+int
+__dome_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->raw.method) {
+        return ((int (*)(void *, const void *, size_t, size_t *, void *, size_t, size_t *)) class->raw.method)(_self, write_buffer, write_buffer_size, write_size, read_buffer, read_buffer_size, read_size);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_raw, "raw", _self, write_buffer, write_buffer_size, write_size, read_buffer, read_buffer_size, read_size);
+        return result;
+    }
+}
+
+static int
+__Dome_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_slew(void *_self, double ra, double dec)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->slew.method) {
+        return ((int (*)(void *, double, double)) class->slew.method) (_self, ra, dec);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_slew, "slew", _self, ra, dec);
+        return result;
+    }
+}
+
+static int
+__Dome_slew(void *_self, double ra, double dec)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_park(void *_self)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->park.method) {
+        return ((int (*)(void *)) class->park.method) (_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_park, "park", _self);
+        return result;
+    }
+}
+
+static int
+__Dome_park(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_park_off(void *_self)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->park_off.method) {
+        return ((int (*)(void *)) class->park_off.method) (_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_park_off, "park_off", _self);
+        return result;
+    }
+}
+
+static int
+__Dome_park_off(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_abort(void *_self)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->abort.method) {
+        return ((int (*)(void *)) class->abort.method) (_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_abort, "abort", _self);
+        return result;
+    }
+}
+
+static int
+__Dome_abort(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+int
+__dome_stop(void *_self)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->stop.method) {
+        return ((int (*)(void *)) class->stop.method) (_self);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_stop, "stop", _self);
+        return result;
+    }
+}
+
+static int
+__Dome_stop(void *_self)
+{
+    return AAOS_ENOTSUP;
+}
+
+/*
+ * Pure function, mandatory functionallities.
  */
 
 int
@@ -252,6 +530,20 @@ __dome_init(void *_self)
     } else {
         int result;
         forward(_self, &result, (Method) __dome_init, "init", _self);
+        return result;
+    }
+}
+
+int
+__dome_status(void *_self, void *status_buffer, size_t size, size_t *length)
+{
+    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
+    
+    if (isOf(class, __DomeClass()) && class->status.method) {
+        return ((int (*)(void *, void *, size_t, size_t *)) class->status.method) (_self, status_buffer, size, length);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __dome_status, "status", _self, status_buffer, size, length);
         return result;
     }
 }
@@ -298,117 +590,6 @@ __dome_stop_window(void *_self)
     }
 }
 
-int
-__dome_inspect(void *_self)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->inspect.method) {
-        return ((int (*)(void *)) class->inspect.method) (_self);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_inspect, "inspect", _self);
-        return result;
-    }
-}
-
-int
-__dome_get_window_position(void *_self, double *position)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->get_window_position.method) {
-        return ((int (*)(void *, double *)) class->get_window_position.method) (_self, position);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_get_window_position, "get_window_position", _self);
-        return result;
-    }
-}
-
-int
-__dome_get_window_open_speed(void *_self, double *speed)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->get_window_open_speed.method) {
-        return ((int (*)(void *, double *)) class->get_window_open_speed.method) (_self, speed);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_get_window_open_speed, "get_window_open_speed", _self);
-        return result;
-    }
-}
-
-int
-__dome_set_window_open_speed(void *_self, double speed)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->set_window_open_speed.method) {
-        return ((int (*)(void *, double )) class->set_window_open_speed.method) (_self, speed);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_set_window_open_speed, "set_window_open_speed", _self);
-        return result;
-    }
-}
-
-int
-__dome_get_window_close_speed(void *_self, double *speed)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->get_window_close_speed.method) {
-        return ((int (*)(void *, double *)) class->get_window_close_speed.method) (_self, speed);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_get_window_close_speed, "get_window_close_speed", _self);
-        return result;
-    }
-}
-
-int
-__dome_set_window_close_speed(void *_self, double speed)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->set_window_close_speed.method) {
-        return ((int (*)(void *, double )) class->set_window_close_speed.method) (_self, speed);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_set_window_close_speed, "set_window_close_speed", _self);
-        return result;
-    }
-}
-
-int
-__dome_status(void *_self, void *status_buffer, size_t size, size_t *length)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->status.method) {
-        return ((int (*)(void *, void *, size_t, size_t *)) class->status.method) (_self, status_buffer, size, length);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_status, "status", _self, status_buffer, size, length);
-        return result;
-    }
-}
-
-int __dome_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
-{
-    const struct __DomeClass *class = (const struct __DomeClass *) classOf(_self);
-    
-    if (isOf(class, __DomeClass()) && class->raw.method) {
-        return ((int (*)(void *, const void *, size_t, size_t *, void *, size_t, size_t *)) class->raw.method)(_self, write_buffer, write_buffer_size, write_size, read_buffer, read_buffer_size, read_size);
-    } else {
-        int result;
-        forward(_self, &result, (Method) __dome_raw, "raw", _self, write_buffer, write_buffer_size, write_size, read_buffer, read_buffer_size, read_size);
-        return result;
-    }
-}
-
 static void
 __Dome_forward(const void *_self, void *result, Method selector, const char *name, va_list *app)
 {
@@ -424,7 +605,7 @@ __Dome_forward(const void *_self, void *result, Method selector, const char *nam
     
     void *obj = va_arg(*app, void *);
     
-    if (selector == (Method) __dome_init || selector == (Method) __dome_open_window || selector == (Method) __dome_stop_window || selector == (Method) __dome_close_window || selector == (Method) __dome_inspect) {
+    if (selector == (Method) __dome_init || selector == (Method) __dome_open_window || selector == (Method) __dome_stop_window || selector == (Method) __dome_close_window || selector == (Method) __dome_inspect || selector == (Method) __dome_park || selector == (Method) __dome_park_off || selector == (Method) __dome_stop || selector == (Method) __dome_abort) {
         *((int *) result) = ((int (*)(void *)) method)(obj);
     } else if (selector == (Method) __dome_status) {
         void *status_buffer = va_arg(*app, void *);
@@ -674,6 +855,46 @@ __DomeClass_ctor(void *_self, va_list *app)
             self->raw.method = method;
             continue;
         }
+        if (selector == (Method) __dome_slew) {
+            if (tag) {
+                self->slew.tag = tag;
+                self->slew.selector = selector;
+            }
+            self->slew.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_park) {
+            if (tag) {
+                self->park.tag = tag;
+                self->park.selector = selector;
+            }
+            self->park.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_park_off) {
+            if (tag) {
+                self->park_off.tag = tag;
+                self->park_off.selector = selector;
+            }
+            self->park_off.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_abort) {
+            if (tag) {
+                self->abort.tag = tag;
+                self->abort.selector = selector;
+            }
+            self->abort.method = method;
+            continue;
+        }
+        if (selector == (Method) __dome_stop) {
+            if (tag) {
+                self->stop.tag = tag;
+                self->stop.selector = selector;
+            }
+            self->stop.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -725,13 +946,19 @@ static void
 __Dome_initialize(void)
 {
     ___Dome = new(__DomeClass(), "__Dome", Object(), sizeof(struct __Dome),
-                    ctor, "ctor", __Dome_ctor,
-                    dtor, "dtor", __Dome_dtor,
-                    puto, "puto", __Dome_puto,
-                    forward, "forward", __Dome_forward,
-                    __dome_register, "register", __Dome_register,
-                    __dome_get_name, "get_name", __Dome_get_name,
-                   (void *) 0);
+                  ctor, "ctor", __Dome_ctor,
+                  dtor, "dtor", __Dome_dtor,
+                  puto, "puto", __Dome_puto,
+                  forward, "forward", __Dome_forward,
+                  __dome_register, "register", __Dome_register,
+                  __dome_get_name, "get_name", __Dome_get_name,
+                  __dome_slew, "slew", __Dome_slew,
+                  __dome_abort, "abort", __Dome_abort,
+                  __dome_stop, "stop", __Dome_stop,
+                  __dome_park, "park", __Dome_park,
+                  __dome_park_off, "park_off", __Dome_park_off,
+                  
+                  (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(__Dome_destroy);
 #endif

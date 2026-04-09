@@ -149,6 +149,14 @@ struct SMSSerialClass {
     struct Method del;
 };
 
+struct YNAOIRCameraSerial {
+    struct __Serial _;
+};
+
+struct YNAOIRCameraSerialClass {
+    struct __SerialClass _;
+};
+
 struct KLTPSerial {
     struct __Serial _;
     size_t output_len;

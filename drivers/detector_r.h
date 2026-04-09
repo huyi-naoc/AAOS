@@ -429,4 +429,22 @@ struct QHYCameraClass {
 
 #endif
 
+struct YNAOIRCamera {
+    struct __Detector _;
+    void *serial;
+    char *serial_address;
+    char *serial_port;
+    char *so_path;
+    void *dlh;
+    void *serial_client;
+#ifdef __USE_YNAO_IR_CAMERA__
+    MCHANDLE channel;
+#endif
+    unsigned int exposure_mode;
+};
+
+struct YNAOIRCameraClass {
+    struct __DetectorClass _;
+};
+
 #endif /* detector_r_h */

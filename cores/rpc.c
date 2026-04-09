@@ -46,6 +46,22 @@ RPCVirtualTable_ctor(void *_self, va_list *app)
     while ((selector = va_arg(*app, Method))) {
         const char *tag = va_arg(*app, const char *);
         Method method = va_arg(*app, Method);
+        if (selector == (Method) rpc_read) {
+            if (tag) {
+                self->read.tag = tag;
+                self->read.selector = selector;
+            }
+            self->read.method = method;
+            continue;
+        }
+        if (selector == (Method) rpc_write) {
+            if (tag) {
+                self->write.tag = tag;
+                self->write.selector = selector;
+            }
+            self->write.method = method;
+            continue;
+        }
         if (selector == (Method) rpc_call) {
             if (tag) {
                 self->call.tag = tag;
@@ -365,6 +381,7 @@ RPC_call(void *_self)
      */
     header = protobuf_header(self);
     protobuf_get(self, PACKET_OPTION, &option);
+    protobuf_set(self, PACKET_ERRORCODE, 0);
     if (option & PROTO_OPTION_MORE_PACKET) {
         /*
          * skip send command.
@@ -511,7 +528,7 @@ RPC_forward(const void *_self, void *result, Method selector, const char *name, 
     
     void *obj = va_arg(ap, void *);
     
-    if (selector == (Method) rpc_call || selector == (Method) rpc_execute || selector == (Method) rpc_process || selector == (Method) rpc_inspect) {
+    if (selector == (Method) rpc_call || selector == (Method) rpc_execute || selector == (Method) rpc_process || selector == (Method) rpc_inspect || selector == (Method) rpc_read || selector == (Method) rpc_write) {
         *((int *) result) = ((int (*)(void *)) method)(obj);
     } else if (selector == (Method) rpc_register) {
         double timeout = va_arg(ap, double);
@@ -1244,9 +1261,9 @@ RPCServer_process_thr(void *arg)
             break;
         }
     }
-    
+
     delete(arg);
-    arg = NULL;
+
     return NULL;
 }
 

@@ -90,11 +90,11 @@ __detector_json_string_to_header(fitsfile *fptr, const char *json_string)
         
     }
     
-    if ((general_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) != NULL) {
-        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "telescop"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
+    if ((telescope_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) != NULL) {
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(telescope_json, "telescop"))) != NULL && cJSON_IsString(value_json) && value_json->valuestring != NULL) {
             fits_update_key_str(fptr, "TELESCOP", value_json->string, NULL, &status);
         }
-        if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "tel_id"))) != NULL && cJSON_IsNumber(value_json)) {
+        if ((value_json = (cJSON_GetObjectItemCaseSensitive(telescope_json, "tel_id"))) != NULL && cJSON_IsNumber(value_json)) {
             fits_update_key_lng(fptr, "TEL_ID", (long) value_json->valueint, NULL, &status);
         }
         if ((value_json = (cJSON_GetObjectItemCaseSensitive(general_json, "ra"))) != NULL && cJSON_IsNumber(value_json)) {
@@ -10692,7 +10692,7 @@ ASICamera_ctor(void *_self, va_list *app)
     struct ASICamera *self = super_ctor(ASICamera(), _self, app);
     
     const char *s;
-
+    
     self->_.d_state.state = (DETECTOR_STATE_OFFLINE|DETECTOR_STATE_UNINITIALIZED);
     self->camera_id = -1;
     self->camera_index = -1;
@@ -10713,6 +10713,7 @@ ASICamera_ctor(void *_self, va_list *app)
     self->_.d_proc.pre_acquisition = ASICamera_pre_acquisition;
     self->_.d_proc.post_acquisition = __Detector_default_post_acquisition;
     self->_.d_proc.queue = new(ThreadsafeQueue(), DetectorDataFrame_cleanup);
+
     
     return (void *) self;
 }
@@ -10912,11 +10913,31 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         array_json = cJSON_CreateIntArray(camera_info.SupportedVideoFormat, 8);
         cJSON_AddItemToObject(root_json, "SupportedVideoFormat", array_json);
         cJSON_AddNumberToObject(root_json, "PixelSize", camera_info.PixelSize);
-        cJSON_AddNumberToObject(root_json, "MechanicalShutter", (double) camera_info.MechanicalShutter);
-        cJSON_AddNumberToObject(root_json, "ST4Port", (double) camera_info.ST4Port);
-        cJSON_AddNumberToObject(root_json, "IsCoolerCam", (double) camera_info.IsCoolerCam);
-        cJSON_AddNumberToObject(root_json, "IsUSB3Host", (double) camera_info.IsUSB3Host);
-        cJSON_AddNumberToObject(root_json, "IsUSB3Camera", (double) camera_info.IsUSB3Camera);
+        if (camera_info.MechanicalShutter) {
+            cJSON_AddStringToObject(root_json, "MechanicalShutter", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "MechanicalShutter", "false");
+        }
+        if (camera_info.ST4Port) {
+            cJSON_AddStringToObject(root_json, "ST4Port", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "ST4Port", "false");
+        }
+        if (camera_info.IsCoolerCam) {
+            cJSON_AddStringToObject(root_json, "IsCoolerCam", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "IsCoolerCam", "false");
+        }
+        if (camera_info.IsUSB3Host) {
+            cJSON_AddStringToObject(root_json, "IsUSB3Host", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "IsUSB3Host", "false");
+        }
+        if (camera_info.IsUSB3Camera) {
+            cJSON_AddStringToObject(root_json, "IsUSB3Camera", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "IsUSB3Camera", "false");
+        }
         cJSON_AddNumberToObject(root_json, "ElecPerADU", (double) camera_info.ElecPerADU);
         cJSON_AddNumberToObject(root_json, "BitDepth", (double) camera_info.BitDepth);
         string = cJSON_Print(root_json);
@@ -10997,29 +11018,19 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
             *read_size = 0;
         }
     } else if ((strcmp(func_name, "ASIGetNumOfControls")) == 0) {
-        int controls[32];
-        cJSON *root_json, *array_json;
+        int controls;
+        cJSON *root_json;
         char *string;
-	int i;
-
-        for (i = 0; i < 32; i++) {
-            controls[i] = -1;
-        }
+        int i;
+        
         ASI_ERROR_CODE (*ASIGetNumOfControls)(int, int *);
         ASIGetNumOfControls = dlsym(self->dlh, "ASIGetNumOfControls");
-        if ((ret = ASIGetNumOfControls(self->camera_id, controls)) !=  ASI_SUCCESS) {
+        if ((ret = ASIGetNumOfControls(self->camera_id, &controls)) !=  ASI_SUCCESS) {
             ret = asi_error_mapping(ret);
             goto error;
         }
         root_json = cJSON_CreateObject();
-        array_json = cJSON_CreateArray();
-        for (i = 0; i < 32; i++) {
-            if (controls[i] == -1) {
-                break;
-            }
-            cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) controls[i]));
-        }
-        cJSON_AddItemToObject(root_json, "controls", array_json);
+        cJSON_AddNumberToObject(root_json, "controls", controls);
         string = cJSON_Print(root_json);
         snprintf(read_buffer, read_buffer_size, "%s", string);
         if (read_size != NULL) {
@@ -11030,7 +11041,7 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
     } else if ((strcmp(func_name, "ASIGetControlCaps")) == 0) {
         int control_index;
         ASI_CONTROL_CAPS control_caps;
-        cJSON *root_json, *array_json;
+        cJSON *root_json;
         char *string;
         ASI_ERROR_CODE (*ASIGetControlCaps)(int, int, ASI_CONTROL_CAPS *);
         
@@ -11047,11 +11058,18 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         cJSON_AddStringToObject(root_json, "Name", control_caps.Name);
         cJSON_AddStringToObject(root_json, "Description", control_caps.Description);
         cJSON_AddNumberToObject(root_json, "MaxValue", (double) control_caps.MaxValue);
-        cJSON_AddNumberToObject(root_json, "MinValue", (double) control_caps.MaxValue);
+        cJSON_AddNumberToObject(root_json, "MinValue", (double) control_caps.MinValue);
         cJSON_AddNumberToObject(root_json, "DefaultValue", (double) control_caps.DefaultValue);
-        cJSON_AddNumberToObject(root_json, "IsAutoSupported", (double) control_caps.IsAutoSupported);
-        cJSON_AddNumberToObject(root_json, "IsWritable", (double) control_caps.IsWritable);
-        cJSON_AddItemToObject(root_json, "controls", array_json);
+        if (control_caps.IsAutoSupported) {
+            cJSON_AddStringToObject(root_json, "IsAutoSupported", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "IsAutoSupported", "false");
+        }
+        if (control_caps.IsWritable) {
+            cJSON_AddStringToObject(root_json, "IsWritable", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "IsWritable", "false");
+        }
         string = cJSON_Print(root_json);
         snprintf(read_buffer, read_buffer_size, "%s", string);
         if (read_size != NULL) {
@@ -11078,7 +11096,11 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         }
         root_json = cJSON_CreateObject();
         cJSON_AddNumberToObject(root_json, "Value", (double) value);
-        cJSON_AddNumberToObject(root_json, "IsAuto", (double) is_auto);
+        if (is_auto) {
+            cJSON_AddStringToObject(root_json, "IsAuto", "true");
+        } else {
+            cJSON_AddStringToObject(root_json, "IsAuto", "false");
+        }
         string = cJSON_Print(root_json);
         snprintf(read_buffer, read_buffer_size, "%s", string);
         if (read_size != NULL) {
@@ -20013,6 +20035,662 @@ asi_camera_virtual_table(void)
 }
 
 #endif
+
+#include "serial_rpc.h"
+
+#ifdef __USE_YNAO_IR_CAMERA_
+static const void *ynao_ir_camera_virtual_table(void);
+
+static void *
+YNAOIRCamera_ctor(void *_self, va_list *app)
+{
+    struct YNAOIRCamera *self = super_ctor(YNAOIRCamera(), _self, app);
+    
+    const char *s;
+    MCSTATUS mc_ret;
+    MCSTATUS (*McOpenDriver)(PCCHAR);
+    
+    McOpenDriver = dlsym(self->dlh, "McOpenDriver");
+
+    self->_.d_state.state = (DETECTOR_STATE_OFFLINE|DETECTOR_STATE_UNINITIALIZED);
+    s = va_arg(*app, const char *);
+    self->serial_address = (char *) Malloc(strlen(s) + 1);
+    snprintf(self->serial_address, strlen(s) + 1, "%s", s);
+    s = va_arg(*app, const char *);
+    self->serial_port = (char *) Malloc(strlen(s) + 1);
+    snprintf(self->serial_port, strlen(s) + 1, "%s", s);
+    self->so_path = (char *) Malloc(strlen(s) + 1);
+    snprintf(self->so_path, strlen(s) + 1, "%s", s);
+    self->dlh = dlopen(self->so_path, RTLD_LAZY | RTLD_LOCAL);
+#ifdef DEBUG
+    if (self->dlh == NULL) {
+        fprintf(stderr, "%s %s %d: dlopen \"%s\" error.\n", __FILE__, __func__, __LINE__ - 3, self->so_path);
+    }
+#endif
+    
+    self->serial_client = new(SerialClient(), self->serial_address, self->serial_port);
+    self->_._vtab = ynao_ir_camera_virtual_table();
+    //self->_.d_proc.name_convention = ASICamera_name_convention;
+    //self->_.d_proc.pre_acquisition = ASICamera_pre_acquisition;
+    //self->_.d_proc.post_acquisition = __Detector_default_post_acquisition;
+    self->_.d_proc.queue = new(ThreadsafeQueue(), DetectorDataFrame_cleanup);
+    
+    if ((mc_ret = McOpenDriver(NULL)) != MC_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d: McOpenDriver error %d.\n", __FILE__, __func__, __LINE__ - 2, mc_ret);
+#endif
+    }
+    
+    return (void *) self;
+}
+
+static void *
+YNAOIRCamera_dtor(void *_self)
+{
+    struct YNAOIRCamera *self = cast(YNAOIRCamera(), _self);
+    
+    MCSTATUS (*McCloseDriver)(void);
+    
+    McCloseDriver = dlsym(self->dlh, "McCloseDriver");
+    McCloseDriver();
+    
+    if (self->serial_client != NULL) {
+        delete(self->serial_client);
+    }
+    free(self->serial_address);
+    free(self->serial_port);
+    free(self->so_path);
+    dlclose(self->dlh);
+
+    return super_dtor(YNAOIRCamera(), _self);
+}
+
+static void *
+YNAOIRCameraClass_ctor(void *_self, va_list *app)
+{
+    struct YNAOIRCameraClass *self = super_ctor(YNAOIRCameraClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    
+    self->_.disable_cooling.method = (Method) 0;
+    self->_.enable_cooling.method = (Method) 0;
+    self->_.get_binning.method = (Method) 0;
+    self->_.set_binning.method = (Method) 0;
+    self->_.set_capture_mode.method = (Method) 0;
+    self->_.get_capture_mode.method = (Method) 0;
+    self->_.set_exposure_time.method = (Method) 0;
+    self->_.get_exposure_time.method = (Method) 0;
+    self->_.set_frame_rate.method = (Method) 0;
+    self->_.get_frame_rate.method = (Method) 0;
+    self->_.set_gain.method = (Method) 0;
+    self->_.get_gain.method = (Method) 0;
+    self->_.set_overscan.method = (Method) 0;
+    self->_.get_overscan.method = (Method) 0;
+    self->_.set_pixel_format.method = (Method) 0;
+    self->_.get_pixel_format.method = (Method) 0;
+    self->_.set_region.method = (Method) 0;
+    self->_.get_region.method = (Method) 0;
+    self->_.set_temperature.method = (Method) 0;
+    self->_.get_temperature.method = (Method) 0;
+    self->_.set_trigger_mode.method = (Method) 0;
+    self->_.get_trigger_mode.method = (Method) 0;
+    self->_.inspect.method = (Method) 0;
+    //self->_.wait.method = (Method) 0;
+    self->_.wait_for_completion.method = (Method) 0;
+    self->_.raw.method = (Method) 0;
+    self->_.expose.method = (Method) 0;
+    self->_.status.method = (Method) 0;
+    self->_.info.method = (Method) 0;
+    self->_.stop.method = (Method) 0;
+    self->_.abort.method = (Method) 0;
+    self->_.power_on.method = (Method) 0;
+    self->_.power_off.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_YNAOIRCameraClass;
+
+static void
+YNAOIRCameraClass_destroy(void)
+{
+    free((void *) _YNAOIRCameraClass);
+}
+
+static void
+YNAOIRCameraClass_initialize(void)
+{
+    _YNAOIRCameraClass = new(__DetectorClass(), "YNAOIRCameraClass", __DetectorClass(), sizeof(struct YNAOIRCameraClass),
+                           ctor, "", YNAOIRCameraClass_ctor,
+                           (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(YNAOIRCameraClass_destroy);
+#endif
+}
+
+const void *
+YNAOIRCameraClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, YNAOIRCameraClass_initialize);
+#endif
+    
+    return _YNAOIRCameraClass;
+}
+
+static const void *_YNAOIRCamera;
+
+static void
+YNAOIRCamera_destroy(void)
+{
+    free((void *)_YNAOIRCamera);
+}
+
+static void
+YNAOIRCamera_initialize(void)
+{
+    _YNAOIRCamera = new(YNAOIRCameraClass(), "YNAOIRCamera", __Detector(), sizeof(struct YNAOIRCamera),
+                        ctor, "ctor", YNAOIRCamera_ctor,
+                        dtor, "dtor", YNAOIRCamera_dtor,
+                        (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(YNAOIRCamera_destroy);
+#endif
+}
+
+const void *
+YNAOIRCamera(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, YNAOIRCamera_initialize);
+#endif
+
+    return _YNAOIRCamera;
+}
+
+inline static uint32_t swap_uint32(uint32_t value) {
+    return ((value & 0xFF000000) >> 24) | ((value & 0x00FF0000) >> 8)  | ((value & 0x0000FF00) << 8)  | ((value & 0x000000FF) << 24);
+}
+
+static int
+YNAOIRCamera_set_exposure_time(void *_self, double exposure_time)
+{
+    struct YNAOIRCamera *self = cast(YNAOIRCamera(), _self);
+
+    uint32_t state;
+    uint16_t options;
+    int ret = AAOS_OK;
+    void *serial;
+    unsigned char cmd[COMMANDSIZE], buf[COMMANDSIZE];
+    uint32_t exposure_time_us = exposure_time * 1000000;
+    
+    cmd[0] = 0x5B;
+    cmd[1] = 0x55;
+    cmd[2] = 0x57;
+    switch (self->exposure_mode) {
+        case 0x00:
+            cmd[3] = 0x13;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        case 0x01:
+            cmd[3] = 0x5A;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        case 0x03:
+            cmd[3] = 0x5A;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        case 0x0D:
+            cmd[3] = 0x61;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        default:
+            break;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    if (!self->_.d_cap.cooling_available) {
+        ret = AAOS_ENOTSUP;
+        goto error;
+    }
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    if ((ret = rpc_client_connect(self->serial_client, &serial)) != AAOS_OK) {
+        goto error;
+    }
+    if ((ret = serial_raw(serial, cmd, 8, buf, COMMANDSIZE, NULL)) != AAOS_OK) {
+        ret = AAOS_EDEVMAL;
+        delete(serial);
+        goto error;
+    }
+    delete(serial);
+    self->_.d_param.exposure_time = exposure_time;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
+YNAOIRCamera_set_exposure_time_nl(void *_self, double exposure_time)
+{
+    struct YNAOIRCamera *self = cast(YNAOIRCamera(), _self);
+
+    int ret = AAOS_OK;
+    void *serial;
+    unsigned char cmd[COMMANDSIZE], buf[COMMANDSIZE];
+    uint32_t exposure_time_us = exposure_time * 1000000;
+    
+    cmd[0] = 0x5B;
+    cmd[1] = 0x55;
+    cmd[2] = 0x57;
+    switch (self->exposure_mode) {
+        case 0x00:
+            cmd[3] = 0x13;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        case 0x01:
+            cmd[3] = 0x5A;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        case 0x03:
+            cmd[3] = 0x5A;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        case 0x0D:
+            cmd[3] = 0x61;
+            exposure_time_us = swap_uint32(exposure_time_us);
+            memcpy(cmd + 3, &exposure_time_us, sizeof(uint32_t));
+            break;
+        default:
+            break;
+    }
+    
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    if ((ret = rpc_client_connect(self->serial_client, &serial)) != AAOS_OK) {
+        goto error;
+    }
+    if ((ret = serial_raw(serial, cmd, 8, buf, COMMANDSIZE, NULL)) != AAOS_OK) {
+        ret = AAOS_EDEVMAL;
+        delete(serial);
+        goto error;
+    }
+    delete(serial);
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_param.exposure_time = exposure_time;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
+YNAOIRCamera_get_exposure_time(void *_self, double *exposure_time)
+{
+    struct YNAOIRCamera *self = cast(YNAOIRCamera(), _self);
+
+    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+    *exposure_time = self->_.d_param.exposure_time;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+
+    return AAOS_OK;
+}
+
+static int
+YNAOIRCamera_init(void *_self)
+{
+    struct YNAOIRCamera *self = cast(YNAOIRCamera(), _self);
+    
+    int ret = AAOS_OK;
+    MCSTATUS mc_ret;
+    INT32 width = 0, height = 0, pitch = 0;
+    
+    MCSTATUS (*McCreate)(MCHANDLE, PMCHANDLE);
+    MCSTATUS (*MCGetParamInt)(MCHANDLE, MCPARAMID, PINT32);
+    MCSTATUS (*MCSetParamInt)(MCHANDLE, MCPARAMID, INT32);
+    
+    McOpenDriver = dlsym(self->dlh, "McOpenDriver");
+    McCloseDriver = dlsym(self->dlh, "McCloseDriver");
+    McCreate = dlsym(self->dlh, "McCreate");
+    
+    if ((mc_ret = McCreate(MC_CHANNEL, &self->channel)) != MC_OK) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    if ((mc_ret = MCGetParamInt(MC_CHANNEL, MC_ImageSizeX, &width)) != MC_OK) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    if ((mc_ret = MCGetParamInt(MC_CHANNEL, MC_ImageSizeY, &height)) != MC_OK) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    if ((mc_ret = MCGetParamInt(MC_CHANNEL, MC_BufferPitch, &pitch)) != MC_OK) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    self->_.d_cap.width = width;
+    self->_.d_cap.height = height;
+    if (pitch == 2) {
+        self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_MONO_16;
+    }
+    
+error:
+    return ret;
+}
+
+static void
+YNAOIRCamera_signal_process_thr(PMCSIGNALINFO sig_info, struct YNAOIRCamera *detector)
+{
+    unsigned int state;
+    uint16_t options;
+
+    Pthread_mutex_lock(&detector->_.d_state.mtx);
+    state = detector->_.d_state.state;
+    options = detector->_.d_state.options;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    switch (sig_info->Signal) {
+        case MC_SIG_SURFACE_PROCESSING:
+            if (state&DETECTOR_STATE_IDLE) {
+                
+            }
+            break;
+            
+        default:
+            break;
+    }
+    
+}
+
+static void *
+YNAOIRCamera_image_process_thr(void *arg)
+{
+    struct YNAOIRCamera *detector = (struct YNAOIRCamera *) arg;
+    
+    MCSTATUS mc_ret;
+    MCSIGNALINFO sig_info;
+    if ((mc_ret = McWaitSignal(self->channle, MC_SIG_ANY, 1000, &sig_info)) == MC_OK) {
+        
+        
+    }
+
+    return NULL;
+}
+
+static int
+YNAOIRCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *app)
+{
+    struct YNAOIRCamera *self = cast(YNAOIRCamera(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    uint32_t i;
+    struct DetectorDataFrame *data;
+    long length = 0;
+    int ret = AAOS_OK;
+    void *rpc;
+    char *string;
+    int format;
+    //struct ASICameraExposureArg *arg;
+    void *retval;
+    
+    MCSTATUS mc_ret;
+    MCSIGNALINFO sig_info;
+    MCSTATUS (*McWaitSignal)(MCHANDLE, MCSIGNAL, UINT32, PMCSIGNALINFO);
+    UINT32 timeout_ms = exposure_time * 2 + 5;
+    
+    McWaitSignal = dlsym(self->dlh, "McWaitSignal");
+    
+    rpc = va_arg(*app, void *);
+    string = va_arg(*app, char *);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    
+    if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EPWROFF;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EUNINIT;
+    }
+    if ((ret = YNAOIRCamera_set_exposure_time_nl(self, exposure_time)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return ret;
+    }
+    
+    self->_.d_state.state = (self->_.d_state.state&DETECTOR_STATE_MALFUNCTION) | state;
+    
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.rpc = rpc;
+    self->_.d_exp.request_frames = n_frame;
+    self->_.d_exp.success_frames = 0;
+    self->_.d_exp.count = 0;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    /*
+    arg = (struct ASICameraExposureArg *) Malloc(sizeof(struct ASICameraExposureArg));
+    arg->detector = self;
+    arg->rpc = rpc;
+    arg->string = string;
+    arg->format = format;
+    Pthread_create(&self->_.d_state.tid, NULL, ASICamera_process_image_thr, (void *) arg);
+     */
+    state = DETECTOR_STATE_EXPOSING;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    switch (self->_.d_param.pixel_format) {
+        case DETECTOR_PIXEL_FORMAT_MONO_8:
+            length = self->_.d_param.image_width * self->_.d_param.image_height;
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_16:
+            length = self->_.d_param.image_width * self->_.d_param.image_height * 2;
+            break;
+        case DETECTOR_PIXEL_FORMAT_RGB_24:
+            length = self->_.d_param.image_width * self->_.d_param.image_height * 24;
+            break;
+        default:
+            break;
+    }
+    
+    data = (struct DetectorDataFrame *) Malloc(sizeof(struct DetectorDataFrame));
+    data->buffer = NULL;
+    data->pixel_format = self->_.d_param.pixel_format;
+    data->width = self->_.d_param.image_width;
+    data->height = self->_.d_param.image_height;
+    data->n = n_frame;
+    data->i = 1;
+    data->length = length;
+    Clock_gettime(CLOCK_REALTIME, &data->tp);
+    threadsafe_queue_push(self->_.d_proc.queue, data);
+    
+    while (i < n_frame) {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        if (self->_.d_exp.stop_flag) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d: exposure has been stopped.\n", __FILE__, __func__, __LINE__);
+#endif
+            self->_.d_exp.stop_flag = false;
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            Pthread_cond_broadcast(&self->_.d_exp.cond);
+            ret = AAOS_ECANCELED;
+            break;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        data = (struct DetectorDataFrame *) Malloc(sizeof(struct DetectorDataFrame));
+        data->buffer = (unsigned char *) Malloc(length);
+        data->pixel_format = self->_.d_param.pixel_format;
+        data->width = self->_.d_param.image_width;
+        data->height = self->_.d_param.image_height;
+        data->n = n_frame;
+        data->i = i + 1;
+        data->length = length;
+    loop:
+        if ((mc_ret = McWaitSignal(self->channel, MC_SIG_ANY, timeout_ms, &sig_info)) != MC_OK) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- McWaitSignal: error %d.\n", __FILE__, __func__, __LINE__ - 2, ret);
+#endif
+            free(data->buffer);
+            free(data);
+            ret = AAOS_EDEVMAL;
+            break;
+        }
+        switch (sig_info.Signal) {
+            case MC_SIG_SURFACE_PROCESSING:
+                /*
+                 *
+                 */
+                 
+                i++;
+                break;
+            case MC_SIG_FRAMETRIGGER_VIOLATION:
+                goto loop;
+                break;
+            case MC_SIG_START_EXPOSURE:
+                goto loop;
+                break;
+            case MC_SIG_ACQUISITION_FAILURE:
+                ret = AAOS_EMALDEV;
+                goto error;
+
+                
+                break;
+            default:
+                goto loop;
+                break;
+        }
+        self->_.d_exp.success_frames++;
+        self->_.d_exp.count++;
+        Clock_gettime(CLOCK_REALTIME, &data->tp);
+        threadsafe_queue_push(self->_.d_proc.queue, data);
+    }
+    
+    /*
+    if ((ret = ASIStartVideoCapture(self->camera_id)) != ASI_SUCCESS) {
+        ret = asi_error_mapping(ret);
+        threadsafe_queue_push(self->_.d_proc.queue, NULL);
+        Pthread_join(self->_.d_state.tid, NULL);
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.rpc = NULL;
+        self->_.d_exp.stop_flag = true;
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        Pthread_mutex_lock(&self->_.d_state.mtx);
+        self->_.d_state.state = (state&DETECTOR_STATE_MALFUNCTION) | DETECTOR_STATE_IDLE;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        Pthread_cond_broadcast(&self->_.d_state.cond);
+        threadsafe_queue_push(self->_.d_proc.queue, NULL);
+        Pthread_join(self->_.d_state.tid, &retval);
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.stop_flag = false;
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        free(arg);
+        
+        return ret;
+    }
+     */
+    /*
+    for (i = 0; i < n_frame; i++) {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        if (self->_.d_exp.stop_flag) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d: exposure has been stopped.\n", __FILE__, __func__, __LINE__);
+#endif
+            self->_.d_exp.stop_flag = false;
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            Pthread_cond_broadcast(&self->_.d_exp.cond);
+            ret = AAOS_ECANCELED;
+            break;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        data = (struct DetectorDataFrame *) Malloc(sizeof(struct DetectorDataFrame));
+        data->buffer = (unsigned char *) Malloc(length);
+        data->pixel_format = self->_.d_param.pixel_format;
+        data->width = self->_.d_param.image_width;
+        data->height = self->_.d_param.image_height;
+        data->n = n_frame;
+        data->i = i + 1;
+        data->length = length;
+        if ((ret = ASIGetVideoData(self->camera_id, data->buffer, length, 2000 * exposure_time + 500)) != ASI_SUCCESS) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- ASIGetVideoData: error %d.\n", __FILE__, __func__, __LINE__ - 2, ret);
+#endif
+            free(data->buffer);
+            free(data);
+            if (ret == ASI_ERROR_CAMERA_CLOSED || ret == ASI_ERROR_TIMEOUT) {
+                ret = AAOS_ECANCELED;
+            } else {
+                ret = asi_error_mapping(ret);
+            }
+            break;
+        }
+        self->_.d_exp.success_frames++;
+        self->_.d_exp.count++;
+        Clock_gettime(CLOCK_REALTIME, &data->tp);
+        threadsafe_queue_push(self->_.d_proc.queue, data);
+    }
+
+    threadsafe_queue_push(self->_.d_proc.queue, NULL);
+    Pthread_join(self->_.d_state.tid, &retval);
+    
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    if (!(self->_.d_exp.stop_flag&&ret==AAOS_ECANCELED)) {
+        ASIStopVideoCapture(self->camera_id);
+    }
+    self->_.d_exp.stop_flag = false;
+    self->_.d_exp.rpc = NULL;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    free(arg);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state = (state&DETECTOR_STATE_MALFUNCTION) | DETECTOR_STATE_IDLE;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    Pthread_cond_broadcast(&self->_.d_state.cond);
+
+    if (retval == PTHREAD_CANCELED) {
+        ret = AAOS_ECANCELED;
+    }
+     */
+
+error:
+    return ret;
+}
+#endif
+
 
 
 #ifdef _USE_COMPILER_ATTRIBUTION_

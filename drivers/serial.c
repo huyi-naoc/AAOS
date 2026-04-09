@@ -4958,7 +4958,8 @@ KLTPSerial_read_thr(void *arg)
     return NULL;
 }
 
-static int KLTPSerial_aligned_read(struct KLTPSerial *self)
+static
+int KLTPSerial_aligned_read(struct KLTPSerial *self)
 {
     unsigned char buf[self->length * 2];
     int ret;
@@ -5336,6 +5337,342 @@ kltp_serial_virtual_table(void)
     Pthread_once(&once_control, kltp_serial_virtual_table_initialize);
 #endif
     return _kltp_serial_virtual_table;
+}
+
+/*
+ * Yunnan Astronomical Observatory infared camera control
+ */
+
+static unsigned char
+ynao_ir_camera_serial_checksum(unsigned char *buf, size_t len)
+{
+    size_t i;
+    unsigned char c = 0x00;
+    
+    if (len <= 2) {
+        return c;
+    }
+    
+    for (i = 2; i < len - 1; i++) {
+        c ^= buf[i];
+    }
+    
+    return c;
+}
+
+static const void *ynao_ir_camera_serial_virtual_table(void);
+
+static void *
+YNAOIRCameraSerial_ctor(void *_self, va_list *app)
+{
+    struct YNAOIRCameraSerial *self = super_ctor(YNAOIRCameraSerial(), _self, app);
+    
+    //self->timeout = APMOUNT_TIMEOUT;
+    self->_._vtab= ynao_ir_camera_serial_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+YNAOIRCameraSerial_dtor(void *_self)
+{
+    return super_dtor(YNAOIRCameraSerial(), _self);
+}
+
+static void *
+YNAOIRCameraSerialClass_ctor(void *_self, va_list *app)
+{
+    struct YNAOIRCameraSerialClass *self = super_ctor(YNAOIRCameraSerialClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.validate.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_YNAOIRCameraSerialClass;
+
+static void
+YNAOIRCameraSerialClass_destroy(void)
+{
+    free((void *) _YNAOIRCameraSerialClass);
+}
+
+static void
+YNAOIRCameraSerialClass_initialize(void)
+{
+    _YNAOIRCameraSerialClass = new(__SerialClass(), "YNAOIRCameraSerialClass", __SerialClass(), sizeof(struct YNAOIRCameraSerialClass),
+                                   ctor, "", YNAOIRCameraSerialClass_ctor,
+                                   (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(YNAOIRCameraSerialClass_destroy);
+#endif
+}
+
+const void *
+YNAOIRCameraSerialClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, YNAOIRCameraSerialClass_initialize);
+#endif
+    
+    return _YNAOIRCameraSerialClass;
+}
+
+static const void *_YNAOIRCameraSerial;
+
+static void
+YNAOIRCameraSerial_destroy(void)
+{
+    free((void *)_YNAOIRCameraSerial);
+}
+
+static void
+YNAOIRCameraSerial_initialize(void)
+{
+    
+    _YNAOIRCameraSerial = new(YNAOIRCameraSerialClass(), "YNAOIRCameraSerial", __Serial(), sizeof(struct YNAOIRCameraSerial),
+                              ctor, "ctor", YNAOIRCameraSerial_ctor,
+                              dtor, "dtor", YNAOIRCameraSerial_dtor,
+                              (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(YNAOIRCameraSerial_destroy);
+#endif
+}
+
+const void *
+YNAOIRCameraSerial(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, YNAOIRCameraSerial_initialize);
+#endif
+
+    return _YNAOIRCameraSerial;
+}
+
+static int
+YNAOIRCameraSerial_init(void *_self)
+{
+    struct __Serial *self = cast(__Serial(), _self);
+    struct termios termptr;
+    int ibaud = B38400, obaud = B38400;
+    
+    self->fd = Open(self->path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (self->fd < 0) {
+        if (errno == ENOENT && (self->option&SERIAL_OPTION_WAIT_FOR_READY)) {
+            pthread_t tid;
+            self->state = SERIAL_STATE_WAIT_FOR_READY;
+            Pthread_create(&tid, NULL, __Serial_wait_for_tty_ready_thread, self);
+        } else {
+            self->state = SERIAL_STATE_ERROR;
+        }
+        return AAOS_EBADF;
+    } else {
+        self->state = SERIAL_STATE_OK;
+    }
+    
+    Tcgetattr(self->fd, &termptr);
+    Cfsetispeed(&termptr, ibaud);
+    Cfsetospeed(&termptr, obaud);
+    termptr.c_lflag &= ~(ISIG | ICANON | IEXTEN | ISIG | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE);
+    termptr.c_iflag &= ~(IXON | BRKINT | ICRNL | INPCK | ISTRIP);
+    termptr.c_cflag &= ~(CSIZE | PARENB);
+    termptr.c_cflag |= CS8;
+    termptr.c_oflag |= OPOST;
+    termptr.c_cc[VMIN] = 1;
+    termptr.c_cc[VTIME] = 0;
+    
+    Tcsetattr(self->fd, TCSANOW, &termptr);
+    
+    return AAOS_OK;
+}
+
+static int
+YNAOIRCameraSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+{
+    struct __Serial *self = cast(__Serial(), _self);
+    
+    int ret = AAOS_OK;
+    unsigned char *buf, crc;
+    Method validate;
+    
+    if (self->_vtab && (validate = virtualTo(self->_vtab, "validate")) != 0) {
+        ret = ((int (*)(const void *, const void *, size_t)) validate)(self, write_buffer, write_buffer_size);
+        if (ret != AAOS_OK) {
+            return ret;
+        }
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    switch (self->state) {
+        case SERIAL_STATE_ERROR:
+            Pthread_mutex_unlock(&self->mtx);
+            return AAOS_EDEVMAL;
+            break;
+        case SERIAL_STATE_UNLOADED:
+            Pthread_mutex_unlock(&self->mtx);
+            return AAOS_EDEVNOTLOADED;
+            break;
+        default:
+            break;
+    }
+    while (self->state == SERIAL_STATE_WAIT_FOR_READY) {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+
+     }
+    /*
+     * must flush before IO operation.
+     */
+    Tcflush(self->fd, TCIOFLUSH);
+    
+    buf = (unsigned char *) Malloc(write_buffer_size + 16);
+    memcpy(buf, write_buffer, write_buffer_size);
+    crc = ynao_ir_camera_serial_checksum(buf, write_buffer_size);
+    buf[write_buffer_size] = crc;
+    buf[write_buffer_size + 1] = 0x5D;
+    if ((ret = __Serial_write(self, buf, write_buffer_size + 2, write_size)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
+        return ret;
+    }
+    if ((ret = __Serial_read3(self, read_buffer, read_buffer_size, read_size)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
+        return ret;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+YNAOIRCameraSerial_feed_dog(void *_self)
+{
+    return AAOS_OK;
+}
+
+static int
+YNAOIRCameraSerial_validate(const void *_self, const void *command, size_t size)
+{
+    const unsigned char *buf;
+    
+    if (size < 7) {
+        return AAOS_EBADCMD;
+    }
+    
+    buf = (const unsigned char *) command;
+    
+    if (buf[0] != 0x5B && buf[1] != 0x55 && buf[2] != 0x57) {
+        return AAOS_EBADCMD;
+    }
+    
+    switch (buf[3]) {
+        case 0x58: /*Gain*/
+            if (buf[4] != 0x01 && buf[5] != 0x00) {
+                return AAOS_EBADCMD;
+            }
+            if (buf[6] != 0x00 && buf[6] != 0x01 && buf[6] != 0x02) {
+                return AAOS_EBADCMD;
+            }
+            break;
+        case 0x59:
+            if (buf[4] != 0x01 && buf[5] != 0x00) {
+                return AAOS_EBADCMD;
+            }
+            if (buf[6] != 0x00 && buf[6] != 0x01 && buf[6] != 0x03 && buf[6] != 0x0D) {
+                return AAOS_EBADCMD;
+            }
+            break;
+        case 0x13:
+        case 0x5A:
+        case 0x5F:
+        case 0x61:
+        case 0x63:
+        case 0x70:
+        case 0x71:
+            if (size < 10) {
+                return AAOS_EBADCMD;
+            }
+            if (buf[4] != 0x04 && buf[5] != 0x00) {
+                return AAOS_EBADCMD;
+            }
+            break;
+        case 0xA2:
+            if (size < 9) {
+                return AAOS_EBADCMD;
+            }
+            if (buf[4] != 0x03 && buf[5] != 0x00) {
+                return AAOS_EBADCMD;
+            }
+            if (buf[8] != 0x00 && buf[8] != 0x01) {
+                return AAOS_EBADCMD;
+            }
+            break;
+        case 0xA1:
+            if (size < 8) {
+                return AAOS_EBADCMD;
+            }
+            if (buf[4] != 0x02 && buf[5] != 0x00) {
+                return AAOS_EBADCMD;
+            }
+            break;
+        case 0x56:
+            if (buf[4] != 0x01 && buf[5] != 0x00) {
+                return AAOS_EBADCMD;
+            }
+            if (buf[6] != 0x00 && buf[6] != 0x01) {
+                return AAOS_EBADCMD;
+            }
+            break;
+        default:
+            return AAOS_EBADCMD;
+            break;
+    }
+    
+    return AAOS_OK;
+}
+
+static int
+YNAOIRCameraSerial_inspect(void *_self)
+{
+    return AAOS_OK;
+    //char buf[BUFSIZE];
+    //return APMountSerial_raw(_self, "GG", 2, NULL, buf, BUFSIZE, NULL);
+}
+
+static const void *_ynao_ir_camera_serial_virtual_table;
+
+static void
+ynao_ir_camera_serial_virtual_table_destroy(void)
+{
+    delete((void *) _ynao_ir_camera_serial_virtual_table);
+}
+
+static void
+ynao_ir_camera_serial_virtual_table_initialize(void)
+{
+    _ynao_ir_camera_serial_virtual_table = new(__SerialVirtualTable(),
+                                               __serial_init, "init", YNAOIRCameraSerial_init,
+                                               __serial_feed_dog, "feed_dog", YNAOIRCameraSerial_feed_dog,
+                                               __serial_validate, "validate", YNAOIRCameraSerial_validate,
+                                               __serial_raw, "raw", YNAOIRCameraSerial_raw,
+                                               __serial_inspect, "inspect", YNAOIRCameraSerial_inspect,
+                                               (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(ynao_ir_camera_serial_virtual_table_destroy);
+#endif
+}
+
+static const void *
+ynao_ir_camera_serial_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, ynao_ir_camera_serial_virtual_table_initialize);
+#endif
+    
+    return _ynao_ir_camera_serial_virtual_table;
 }
 
 /*

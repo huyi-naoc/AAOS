@@ -29,6 +29,11 @@ struct DomeClass {
     struct Method get_window_close_speed;
     struct Method set_window_close_speed;
     struct Method get_window_position;
+    struct Method slew;
+    struct Method park;
+    struct Method park_off;
+    struct Method abort;
+    struct Method stop;
     struct Method reg;
     struct Method inspect;
 };

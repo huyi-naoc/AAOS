@@ -73,6 +73,26 @@ struct ThreadsafeCircularQueueClass {
     struct Method empty;
 };
 
+struct ThreadsafePriorityQueue {
+    const struct Object _;
+    void **queues;
+    void (*cleanup)(void *);
+    ssize_t min_priority;
+    ssize_t max_priority;
+    size_t min_index;
+    bool is_empty;
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
+};
+
+struct ThreadsafePriorityQueueClass {
+    const struct Class _;
+    struct Method push;
+    struct Method pop;
+    struct Method timed_pop;
+    struct Method empty;
+};
+
 struct l_node {
     void *data;
     struct l_node *next;
@@ -139,6 +159,21 @@ struct NodeCounter {
     unsigned int internal_count : 30;
     unsigned int external_count : 2;
 };
+
+struct TreeNode;
+
+struct TreeNode {
+    void *data;
+    void (*cleanup)(void *);
+    struct TreeNode *children;
+};
+
+struct Tree {
+    struct Object _;
+    struct TreeNode *root;
+};
+
+
 
 /*
 struct Node {

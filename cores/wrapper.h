@@ -177,6 +177,7 @@ int Tcp_connect(const char *, const char *, SA *, socklen_t *);
 int Tcp_connect_nb(const char *, const char *, SA *, socklen_t *, double);
 int Tcp_listen(const char *, const char *, SA *, socklen_t *);
 int Un_stream_connect(const char *);
+int Un_stream_connect_nb(const char *, double);
 int Un_stream_listen(const char *);
 
 #ifdef __cplusplus

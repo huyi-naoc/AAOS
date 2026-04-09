@@ -53,6 +53,8 @@ double air_mass(double);
 double dut_iers_a(double jd);
 void xyp_iers_a(double jd, double *xp, double *yp);
 void dxy_iers_a(double jd, double *dx, double *dy);
+void j2000_to_jtime(double ra, double dec, double timestamp, double *ra_time, double *dec_time);
+void jtime_to_j2000(double ra_time, double dec_time, double timestamp, double *ra, double *dec);
 #endif
 double equatorial_distance(double, double, double, double);
 #ifndef __USE_SOFA__
