@@ -55,6 +55,7 @@ struct TelescopeClass {
     struct Method get_derotator_angle;
     struct Method enable_derotator;
     struct Method disable_derotator;
+    struct Method get_focus_length;
     
     struct Method inspect;
     struct Method reg;

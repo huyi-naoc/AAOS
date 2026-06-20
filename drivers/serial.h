@@ -86,6 +86,9 @@ extern const void *KLTPSerialClass(void);
 extern const void *YNAOIRCameraSerial(void);
 extern const void *YNAOIRCameraSerialClass(void);
 
+extern const void *WTGAHRS3Serial(void);
+extern const void *WTGAHRS3SerialClass(void);
+
 
 #ifdef __cplusplus
 }

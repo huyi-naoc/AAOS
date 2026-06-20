@@ -48,6 +48,7 @@ static int
 __Detector_default_pre_acquisition(void *_self, const char *filename, ...)
 {
     struct __Detector *self = cast(__Detector(), _self);
+    
     int ret = AAOS_OK, status = 0;
     struct timespec tp;
     struct tm tm_buf;
@@ -272,8 +273,10 @@ __Detector_default_post_acquisition(void *_self, const char *filename, ...)
 }
 
 void static
-__Detector_default_name_convention(struct __Detector *self, char *buf, size_t size, ...)
+__Detector_default_name_convention(void *_self, char *buf, size_t size, ...)
 {
+    struct __Detector *self = cast(__Detector(), _self);
+
     FILE *fp;
     static __thread char time_buf[TIMESTAMPSIZE];
     struct timespec tp;
@@ -672,7 +675,6 @@ __DetectorVirtualTable(void)
  * Detector class method.
  */
 
-
 void
 __detector_get(void *_self, const char *keyname, ...)
 {
@@ -989,8 +991,8 @@ __Detector_clear_option(void *_self)
     
     Pthread_mutex_lock(&self->d_state.mtx);
     self->d_state.options = 0;
-    self->d_exp.notify_last_frame_filling = 0;
-    self->d_exp.notify_each_frame_done = 0;
+    self->d_exp.notify_last_frame_filling = false;
+    self->d_exp.notify_each_frame_done = false;
     Pthread_mutex_unlock(&self->d_state.mtx);
 }
 
@@ -1013,10 +1015,10 @@ __Detector_set_option(void *_self, uint16_t option)
     
     Pthread_mutex_lock(&self->d_state.mtx);
     if (option & DETECTOR_OPTION_NOTIFY_LAST_FILLING) {
-        self->d_exp.notify_last_frame_filling = 1;
+        self->d_exp.notify_last_frame_filling = true;
     }
     if (option & DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
-        self->d_exp.notify_each_frame_done = 1;
+        self->d_exp.notify_each_frame_done = true;
     }
     self->d_state.options |= option;
     Pthread_mutex_unlock(&self->d_state.mtx);
@@ -1085,7 +1087,7 @@ __detector_get_directory(void *_self, char *directory, size_t size)
     const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
     
     if (isOf(class, __DetectorClass()) && class->get_directory.method) {
-        return ((void (*)(void *, char *, size_t)) class->set_directory.method)(_self, directory, size);
+        return ((void (*)(void *, char *, size_t)) class->get_directory.method)(_self, directory, size);
     } else {
         forward(_self, 0, (Method) __detector_get_directory, "get_directory", _self, directory, size);
     }
@@ -1136,7 +1138,7 @@ __detector_get_prefix(void *_self, char *prefix, size_t size)
     const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
     
     if (isOf(class, __DetectorClass()) && class->get_prefix.method) {
-        return ((void (*)(void *, char *, size_t)) class->set_prefix.method)(_self, prefix, size);
+        return ((void (*)(void *, char *, size_t)) class->get_prefix.method)(_self, prefix, size);
     } else {
         forward(_self, 0, (Method) __detector_get_prefix, "get_prefix", _self, prefix, size);
     }
@@ -1187,7 +1189,7 @@ __detector_get_template(void *_self, char *template, size_t size)
     const struct __DetectorClass *class = (const struct __DetectorClass *) classOf(_self);
     
     if (isOf(class, __DetectorClass()) && class->get_template.method) {
-        return ((void (*)(void *, char *, size_t)) class->set_template.method)(_self, template, size);
+        return ((void (*)(void *, char *, size_t)) class->get_template.method)(_self, template, size);
     } else {
         forward(_self, 0, (Method) __detector_get_prefix, "get_template", _self, template, size);
     }
@@ -2948,7 +2950,7 @@ VirtualDetector_ctor(void *_self, va_list *app)
 {
     struct VirtualDetector *self = super_ctor(VirtualDetector(), _self, app);
     
-    self->_.d_state.state = DETECTOR_STATE_UNINITIALIZED;
+    self->_.d_state.state = DETECTOR_STATE_OFFLINE;
     const char *name = va_arg(*app, const char *);
 
     self->_.d_cap.width = 1024;
@@ -3039,7 +3041,7 @@ VirtualDetectorClass_ctor(void *_self, va_list *app)
     self->_.set_region.method = (Method) 0;
     self->_.get_region.method = (Method) 0;
     self->_.inspect.method = (Method) 0;
-self->_.reg.method = (Method) 0;
+    self->_.reg.method = (Method) 0;
     //self->_.wait.method = (Method) 0;
     self->_.wait_for_completion.method = (Method) 0;
     self->_.raw.method = (Method) 0;
@@ -3048,6 +3050,8 @@ self->_.reg.method = (Method) 0;
     self->_.info.method = (Method) 0;
     self->_.stop.method = (Method) 0;
     self->_.abort.method = (Method) 0;
+    self->_.power_on.method = (Method) 0;
+    self->_.power_off.method = (Method) 0;
     
     return self;
 }
@@ -3879,7 +3883,7 @@ VirtualDetector_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, 
     *y_offset = self->_.d_param.y_offset;
     *height = self->_.d_param.image_height;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
-    
+
     return AAOS_OK;
 }
 
@@ -4708,11 +4712,10 @@ VirtualDetector_inspect(void *_self)
     return AAOS_OK;
 }
 
+
 static int
-VirtualDetector_status(void *_self, void *res, size_t res_size, size_t *res_len)
+VirtualDetector_status_plain(struct VirtualDetector *self, void *res, size_t res_size, size_t *res_len)
 {
-    struct VirtualDetector *self = cast(VirtualDetector(), _self);
-    
     FILE *fp;
     unsigned int state;
     bool is_cooling_enable;
@@ -4742,37 +4745,133 @@ VirtualDetector_status(void *_self, void *res, size_t res_size, size_t *res_len)
     if ((ret = VirtualDetector_get_region(self, &x_offset, &width, &y_offset, &height)) == AAOS_OK) {
         fprintf(fp, "region:\t\t%u %u %u %u\n", x_offset, width, y_offset, height);
     }
-if ((ret = VirtualDetector_get_frame_rate(self, &frame_rate)) == AAOS_OK) {
+    
+    if ((ret = VirtualDetector_get_frame_rate(self, &frame_rate)) == AAOS_OK) {
         fprintf(fp, "framerate:\t%8.3f\n", frame_rate);
     }
-if ((ret = VirtualDetector_get_exposure_time(self, &exposure_time)) == AAOS_OK) {
+    
+    if ((ret = VirtualDetector_get_exposure_time(self, &exposure_time)) == AAOS_OK) {
         fprintf(fp, "exptime:\t%8.3f\n", exposure_time);
     }
+    
     if ((ret = VirtualDetector_get_gain(self, &gain)) == AAOS_OK) {
         fprintf(fp, "gain:\t\t%8.3f (e- per ADU)\n", gain);
     }
-if ((ret = VirtualDetector_get_gain(self, &readout_rate)) == AAOS_OK) {
+    
+    if ((ret = VirtualDetector_get_gain(self, &readout_rate)) == AAOS_OK) {
         fprintf(fp, "readrate:\t%8.3f (Mbps)\n", readout_rate);
     }
+    
     if (is_cooling_enable && (ret = VirtualDetector_get_temperature(self, &temperature)) == AAOS_OK) {
-	
-	fprintf(fp, "settemp:\t%8.3f (Celsius degree)\n", temperature);
-	fprintf(fp, "chiptemp:\t%8.3f (Celsius degree)\n", temperature);
+        fprintf(fp, "settemp:\t%8.3f (Celsius degree)\n", temperature);
+        fprintf(fp, "chiptemp:\t%8.3f (Celsius degree)\n", temperature);
     }
+    
     fclose(fp);
-
-if (res_len != NULL) {
-	*res_len = strlen(res) + 1;
-}
+    
+    if (res_len != NULL) {
+        *res_len = strlen(res) + 1;
+    }
     
     return AAOS_OK;
 }
 
 static int
-VirtualDetector_info(void *_self, void *res, size_t res_size, size_t *res_len)
+VirtualDetector_status_json(struct VirtualDetector *self, void *res, size_t res_size, size_t *res_len)
+{
+    cJSON * root_json;
+    
+    unsigned int state;
+    bool is_cooling_enable;
+    double exposure_time, frame_rate, gain, readout_rate, temperature;
+    uint32_t x_offset, width, y_offset, height;
+    int ret;
+    
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    is_cooling_enable = self->_.d_param.is_cooling_enable;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    if (state&DETECTOR_STATE_MALFUNCTION) {
+        cJSON_AddStringToObject(root_json, "state", "MALFUNCTION");
+    } else {
+        state &= ~DETECTOR_STATE_MALFUNCTION;
+        switch (state) {
+            case DETECTOR_STATE_OFFLINE:
+                cJSON_AddStringToObject(root_json, "state", "OFFLINE");
+                break;
+            case DETECTOR_STATE_UNINITIALIZED:
+                cJSON_AddStringToObject(root_json, "state", "UNINITIALIZED");
+                break;
+            case DETECTOR_STATE_EXPOSING:
+                cJSON_AddStringToObject(root_json, "state", "EXPOSING");
+                break;
+            case DETECTOR_STATE_READING:
+                cJSON_AddStringToObject(root_json, "state", "READING");
+                break;
+            case DETECTOR_STATE_IDLE:
+                cJSON_AddStringToObject(root_json, "state", "IDLE");
+                break;
+            default:
+                break;
+        }
+    }
+    
+    if ((ret = VirtualDetector_get_region(self, &x_offset, &width, &y_offset, &height)) == AAOS_OK) {
+        cJSON_AddNumberToObject(root_json, "x_offset", (double) x_offset);
+        cJSON_AddNumberToObject(root_json, "y_offset", (double) y_offset);
+        cJSON_AddNumberToObject(root_json, "width", (double) width);
+        cJSON_AddNumberToObject(root_json, "height", (double) height);
+    }
+    
+    if ((ret = VirtualDetector_get_frame_rate(self, &frame_rate)) == AAOS_OK) {
+        cJSON_AddNumberToObject(root_json, "frame_rate", frame_rate);
+    }
+    
+    if ((ret = VirtualDetector_get_exposure_time(self, &exposure_time)) == AAOS_OK) {
+        cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time);
+    }
+    
+    if ((ret = VirtualDetector_get_gain(self, &gain)) == AAOS_OK) {
+        cJSON_AddNumberToObject(root_json, "gain", gain);
+    }
+    
+    if ((ret = VirtualDetector_get_readout_rate(self, &readout_rate)) == AAOS_OK) {
+        cJSON_AddNumberToObject(root_json, "readout_rate", readout_rate);
+    }
+    
+    if (is_cooling_enable && (ret = VirtualDetector_get_temperature(self, &temperature)) == AAOS_OK) {
+        
+        cJSON_AddNumberToObject(root_json, "settemp", temperature);
+        cJSON_AddNumberToObject(root_json, "chiptemp", temperature);
+    }
+    
+    cJSON_PrintPreallocated(root_json, (char *) res, (int) res_size, 1);
+    cJSON_Delete(root_json);
+    
+    if (res_len != NULL) {
+        *res_len = strlen((char *) res) + 1;
+    }
+    
+    return AAOS_OK;
+    
+}
+
+static int
+VirtualDetector_status(void *_self, void *res, size_t res_size, size_t *res_len)
 {
     struct VirtualDetector *self = cast(VirtualDetector(), _self);
     
+    return VirtualDetector_status_json(self, res, res_size, res_len);
+}
+
+static int
+VirtualDetector_info_plain(struct VirtualDetector *self, void *res, size_t res_size, size_t *res_len)
+{
     FILE *fp;
     size_t i;
     
@@ -4828,7 +4927,7 @@ VirtualDetector_info(void *_self, void *res, size_t res_size, size_t *res_len)
         fprintf(fp, "x_offset:\t%zd -- %zd\n", x_offset_min, x_offset_max);
         fprintf(fp, "width:\t\t%zd -- %zd\n", image_width_min, image_width_max);
         fprintf(fp, "y_offset:\t%zd -- %zd\n", y_offset_min, y_offset_max);
-        fprintf(fp, "height:\t%zd -- %zd\n\n", image_height_min, image_height_max);	
+        fprintf(fp, "height:\t%zd -- %zd\n\n", image_height_min, image_height_max);
     } else {
         fprintf(fp, "RIO:\t\tunavailable\n\n");
     }
@@ -4857,7 +4956,7 @@ VirtualDetector_info(void *_self, void *res, size_t res_size, size_t *res_len)
 
     if (self->_.d_cap.exposure_time_available) {
         fprintf(fp, "exptime:\tavailable\n");
-        fprintf(fp, "exptime:\t%9.3lf -- %9.3lf seconds\n\n", self->_.d_cap.exposure_time_min, self->_.d_cap.exposure_time_max);	
+        fprintf(fp, "exptime:\t%9.3lf -- %9.3lf seconds\n\n", self->_.d_cap.exposure_time_min, self->_.d_cap.exposure_time_max);
     } else {
         fprintf(fp, "exptime:\t\tunavailable\n\n");
     }
@@ -4907,6 +5006,205 @@ VirtualDetector_info(void *_self, void *res, size_t res_size, size_t *res_len)
     return AAOS_OK;
 }
 
+
+static int
+VirtualDetector_info_json(struct VirtualDetector *self, void *res, size_t res_size, size_t *res_len)
+{
+    cJSON *root_json, *capability_json, *array_json;
+    
+    FILE *fp;
+    size_t i, n;
+    
+    size_t x_offset_min, x_offset_max, image_width_min, image_width_max, y_offset_min, y_offset_max, image_height_min, image_height_max;
+    double frame_rate_min, frame_rate_max;
+    
+    
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    if (self->_.name != NULL) {
+        cJSON_AddStringToObject(root_json, "name", self->_.name);
+    }
+    
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "description", self->_.description);
+    }
+    
+    if ((capability_json = cJSON_CreateObject()) == NULL) {
+        cJSON_Delete(root_json);
+        return AAOS_ENOMEM;
+    }
+    
+    cJSON_AddItemToObject(root_json, "capability", capability_json);
+    
+    cJSON_AddNumberToObject(capability_json, "width", (double) self->_.d_cap.width);
+    cJSON_AddNumberToObject(capability_json, "height", (double) self->_.d_cap.height);
+    
+    cJSON_AddNumberToObject(capability_json, "x_n_chip", (double) self->_.d_cap.x_n_chip);
+    cJSON_AddNumberToObject(capability_json, "y_n_chip", (double) self->_.d_cap.y_n_chip);
+    
+    if (self->_.d_cap.binning_available) {
+        cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_True);
+        if (self->_.d_cap.x_binning_array != NULL) {
+            if ((array_json = cJSON_CreateArray()) == NULL) {
+                cJSON_Delete(root_json);
+                return AAOS_ENOMEM;
+            }
+            n = self->_.d_cap.n_x_binning;
+            for (i = 0; i < n; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) self->_.d_cap.x_binning_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "x_binning", array_json);
+        } else {
+            cJSON_AddNumberToObject(capability_json, "x_binning_min", (double) self->_.d_cap.x_binning_min);
+            cJSON_AddNumberToObject(capability_json, "x_binning_max", (double) self->_.d_cap.x_binning_max);
+        }
+        
+        if (self->_.d_cap.y_binning_array != NULL) {
+            if ((array_json = cJSON_CreateArray()) == NULL) {
+                cJSON_Delete(root_json);
+                return AAOS_ENOMEM;
+            }
+            n = self->_.d_cap.n_y_binning;
+            for (i = 0; i < n; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) self->_.d_cap.y_binning_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "y_binning", array_json);
+        } else {
+            cJSON_AddNumberToObject(capability_json, "y_binning_min", (double) self->_.d_cap.y_binning_min);
+            cJSON_AddNumberToObject(capability_json, "y_binning_max", (double) self->_.d_cap.y_binning_max);
+        }
+        
+    } else {
+        cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_False);
+    }
+    
+    if (self->_.d_cap.offset_available) {
+        cJSON_AddBoolToObject(capability_json, "region_available", cJSON_True);
+        
+        x_offset_min = self->_.d_cap.x_offset_min;
+        x_offset_max = self->_.d_cap.x_offset_max;
+        image_width_min = self->_.d_cap.image_width_min;
+        image_width_max = self->_.d_cap.image_width_max;
+        y_offset_min = self->_.d_cap.y_offset_min;
+        y_offset_max = self->_.d_cap.y_offset_max;
+        image_height_min = self->_.d_cap.image_height_min;
+        image_height_max = self->_.d_cap.image_height_max;
+        
+        cJSON_AddNumberToObject(capability_json, "x_offset_min", (double) x_offset_min);
+        cJSON_AddNumberToObject(capability_json, "x_offset_max", (double) x_offset_max);
+        cJSON_AddNumberToObject(capability_json, "image_width_min", (double) image_width_min);
+        cJSON_AddNumberToObject(capability_json, "image_width_max", (double) image_width_max);
+        cJSON_AddNumberToObject(capability_json, "y_offset_min", (double) y_offset_min);
+        cJSON_AddNumberToObject(capability_json, "y_offset_max", (double) y_offset_max);
+        cJSON_AddNumberToObject(capability_json, "image_height_min", (double) image_height_min);
+        cJSON_AddNumberToObject(capability_json, "image_height_max", (double) image_height_max);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "region_available", cJSON_False);
+    }
+    
+    if (self->_.d_cap.pixel_format_available && self->_.d_cap.pixel_format_array != NULL) {
+        cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_True);
+        n = self->_.d_cap.n_pixel_format;
+        if ((array_json = cJSON_CreateArray()) == NULL) {
+            cJSON_Delete(root_json);
+            return AAOS_ENOMEM;
+        }
+        for (i = 0; i < n; i++) {
+            cJSON_AddItemToArray(array_json, cJSON_CreateString(pixel_format_string[self->_.d_cap.pixel_format_array[i]]));
+        }
+        cJSON_AddItemToObject(capability_json, "pixel_format", array_json);
+        
+    } else {
+        cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_False);
+    }
+
+    if (self->_.d_cap.frame_rate_available) {
+        cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_True);
+        Pthread_mutex_lock(&self->_.d_state.mtx);
+        frame_rate_min = self->_.d_cap.frame_rate_min;
+        frame_rate_max = self->_.d_cap.frame_rate_max;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        cJSON_AddNumberToObject(capability_json, "frame_rate_min", frame_rate_min);
+        cJSON_AddNumberToObject(capability_json, "frame_rate_max", frame_rate_max);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_False);
+    }
+
+    if (self->_.d_cap.exposure_time_available) {
+        cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_True);
+        cJSON_AddNumberToObject(capability_json, "exposure_time_min", self->_.d_cap.exposure_time_min);
+        cJSON_AddNumberToObject(capability_json, "exposure_time_max", self->_.d_cap.exposure_time_max);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_False);
+    }
+
+    if (self->_.d_cap.gain_available) {
+        cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_True);
+        if (self->_.d_cap.gain_array !=  NULL) {
+            if ((array_json = cJSON_CreateArray()) == NULL) {
+                cJSON_Delete(root_json);
+                return AAOS_ENOMEM;
+            }
+            n = self->_.d_cap.n_gain;
+            for (i = 0; i < n; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.gain_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "gain", array_json);
+        } else {
+            cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
+            cJSON_AddNumberToObject(capability_json, "gain_max", self->_.d_cap.gain_max);
+        }
+    } else {
+        cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_False);
+    }
+    
+
+    if (self->_.d_cap.readout_rate_available && self->_.d_cap.readout_rate_array != NULL) {
+        cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_True);
+        if (self->_.d_cap.readout_rate_array !=  NULL) {
+            if ((array_json = cJSON_CreateArray()) == NULL) {
+                cJSON_Delete(root_json);
+                return AAOS_ENOMEM;
+            }
+            n = self->_.d_cap.n_readout_rate;
+            for (i = 0; i < n; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.readout_rate_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "readout_rate", array_json);
+        } else {
+            cJSON_AddNumberToObject(capability_json, "readout_rate_min", self->_.d_cap.readout_rate_min);
+            cJSON_AddNumberToObject(capability_json, "readout_rate_max", self->_.d_cap.readout_rate_max);
+        }
+    } else {
+        cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_False);
+    }
+
+    if (self->_.d_cap.cooling_available) {
+        cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_True);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_False);
+    }
+    
+    cJSON_PrintPreallocated(root_json, (char *) res, (int) res_size, 1);
+    cJSON_Delete(root_json);
+    
+    if (res_len != NULL) {
+        *res_len = strlen(res) + 1;
+    }
+    
+    return AAOS_OK;
+}
+
+static int
+VirtualDetector_info(void *_self, void *res, size_t res_size, size_t *res_len)
+{
+    struct VirtualDetector *self = cast(VirtualDetector(), _self);
+    
+    return VirtualDetector_info_json(self, res, res_size, res_len);
+}
+
 static const void *_virtual_detector_virtual_table;
 
 static void
@@ -4945,7 +5243,8 @@ virtual_detector_virtual_table_initialize(void)
                                           __detector_abort, "abort", VirtualDetector_abort,
                                           __detector_stop, "stop", VirtualDetector_stop,
                                           __detector_status, "status",VirtualDetector_status,
-									  __detector_info, "info",VirtualDetector_info,
+                                          __detector_info, "info",VirtualDetector_info,
+                                          
                                           (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(virtual_detector_virtual_table_destroy);
@@ -5275,7 +5574,7 @@ SitianCam_set_gain(void *_self, double gain)
     const char *s;
     
     memset(tmp, '\0', 256);
-    if (gain != SITIAN_DETECTOR_GAIN_LOW || gain != SITIAN_DETECTOR_GAIN_HIGH || gain != SITIAN_DETECTOR_GAIN_LOW_HIGH) {
+    if (gain != SITIAN_DETECTOR_GAIN_LOW && gain != SITIAN_DETECTOR_GAIN_HIGH && gain != SITIAN_DETECTOR_GAIN_LOW_HIGH) {
         return AAOS_EINVAL;
     }
     snprintf(buffer, BUFSIZE, "MSG=HDR:%d\r\n", (int) gain);
@@ -5989,6 +6288,19 @@ sitiancam_virtual_table(void)
 #include <aravis-0.8/arv.h>
 #include <glib-2.0/glib.h>
 
+struct GenICamDataFrame {
+    ArvBuffer *buffer;
+    struct timespec tp;
+    size_t i;
+    size_t n;
+};
+
+static void
+GenICamDataFrame_cleanup(void *data)
+{
+    free(data);
+}
+
 static void
 tp2str(struct timespec *tp, char *date_time, size_t size)
 {
@@ -6004,6 +6316,90 @@ tp2str(struct timespec *tp, char *date_time, size_t size)
     }
 }
 
+static void
+GenICam_name_convention(void *_self, char *pathname, size_t size, ...)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    va_list ap;
+    size_t i, n;
+    int i_subdir;
+    bool subdir;
+    FILE *fp;
+    struct timespec *tp;
+    static __thread struct tm tm_buf;
+    char time_buf[TIMESTAMPSIZE], directory[PATHSIZE];
+    
+    va_start(ap, size);
+    i = va_arg(ap, size_t);
+    n = va_arg(ap, size_t);
+    tp = va_arg(ap, struct timespec *);
+    i_subdir = va_arg(ap, int);
+    va_end(ap);
+
+    subdir = i_subdir;
+    if (i == 1 || n == 1) {
+        //Clock_gettime(CLOCK_REALTIME, &tp);
+        gmtime_r(&tp->tv_sec, &tm_buf);
+    }
+    
+    if ((fp = fmemopen(pathname, size, "w+")) == NULL) {
+        return;
+    }
+    fprintf(fp, "%s/", self->_.d_proc.image_directory);
+    if (subdir) {
+        strftime(time_buf, TIMESTAMPSIZE, "%Y/%m/%d/", &tm_buf);
+        fprintf(fp, "%s", time_buf);
+        fflush(fp);
+        mkdirp(pathname);
+    }
+    strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S", &tm_buf);
+    if (n == 1) {
+        if (self->_.d_proc.image_prefix != NULL) {
+            fprintf(fp, "%s_%s.fits", self->_.d_proc.image_prefix, time_buf);
+        } else {
+            fprintf(fp, "%s.fits", time_buf);
+        }
+    } else {
+        if (self->_.d_proc.image_prefix != NULL) {
+            fprintf(fp, "%s_%s_%04zd.fits", self->_.d_proc.image_prefix, time_buf, i);
+        } else {
+            fprintf(fp, "%s_%04zd.fits", time_buf, i);
+        }
+    }
+    if (self->_.d_state.state&DETECTOR_OPTION_COMPRESS_IMAGE) {
+        fprintf(fp, ".fz");
+    }
+    fclose(fp);
+}
+
+static int
+GenICam_pre_acquisition(void *_self, const char *filename, ...)
+{
+    struct __Detector *self = cast(__Detector(), _self);
+    
+    int ret = AAOS_OK, status = 0;
+    struct timespec tp;
+    struct tm tm_buf;
+    char buf[TIMESTAMPSIZE];
+    fitsfile *fptr;
+    
+    va_list ap;
+    va_start(ap, filename);
+    fptr = va_arg(ap, fitsfile *);
+    va_end(ap);
+    
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    gmtime_r(&tp.tv_sec, &tm_buf);
+    strftime(buf, TIMESTAMPSIZE, "%Y-%m-%d", &tm_buf);
+    fits_update_key_str(fptr, "DATE-OBS", buf, NULL, &status);
+    strftime(buf, TIMESTAMPSIZE, "%H:%m:%d", &tm_buf);
+    snprintf(buf + strlen(buf), TIMESTAMPSIZE - strlen(buf), ".%03d", (int) floor(tp.tv_nsec / 1000000));
+    fits_update_key_str(fptr, "TIME-OBS", buf, NULL, &status);
+    
+    return ret;
+}
+
 static const void *genicam_virtual_table(void);
 
 static void *
@@ -6016,6 +6412,10 @@ GenICam_ctor(void *_self, va_list *app)
     
     self->name = (char *) Malloc(strlen(name) + 1);
     snprintf(self->name, strlen(name) + 1, "%s", name);
+    
+    self->_.d_proc.name_convention = GenICam_name_convention;
+    self->_.d_proc.pre_acquisition = GenICam_pre_acquisition;
+    self->_.d_proc.queue = new(ThreadsafeQueue(), GenICamDataFrame_cleanup);
     
     self->_._vtab= genicam_virtual_table();
     
@@ -6049,6 +6449,8 @@ GenICamClass_ctor(void *_self, va_list *app)
     self->_.init.method = (Method) 0;
     self->_.status.method = (Method) 0;
     
+    self->_.power_on.method = (Method) 0;
+    self->_.power_off.method = (Method) 0;
     self->_.get_binning.method = (Method) 0;
     self->_.set_binning.method = (Method) 0;
     self->_.set_exposure_time.method = (Method) 0;
@@ -6134,103 +6536,288 @@ GenICam(void)
 }
 
 static int
+GenICam_power_on(void *_self)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+	
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    if (self->_.d_state.state&DETECTOR_STATE_OFFLINE) {
+        self->_.d_state.state = (self->_.d_state.state&(~DETECTOR_STATE_OFFLINE))&DETECTOR_STATE_UNINITIALIZED;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+
+    return AAOS_OK;
+}
+
+static int
+GenICam_power_off(void *_self)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    while (self->_.d_state.state&DETECTOR_STATE_EXPOSING||self->_.d_state.state&DETECTOR_STATE_READING) {
+        Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+    }
+    self->_.d_state.state |= DETECTOR_STATE_OFFLINE;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+
+    return AAOS_OK;
+}
+static int
 GenICam_init(void *_self)
 {
     struct GenICam *self = cast(GenICam(), _self);
-
+    
     int ret = AAOS_OK;
+    unsigned int state;
+    uint16_t options;
+    gint w, h;
+    ArvCamera *camera = NULL;
+    GError *error = NULL;
+
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    if (self->_.d_state.state != DETECTOR_STATE_UNINITIALIZED) {
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         goto error;
+    }
+    if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- detector %s has not been powered on\n", __FILE__, __func__, __LINE__ - 3, self->_.name);
+#endif
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        goto error;
+    }
+    if (!(self->_.d_state.state&DETECTOR_STATE_UNINITIALIZED)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        goto error;
+    }
+    camera = arv_camera_new(self->name, &error);
+    if (error != NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- arv_camera_new error: %s\n", __FILE__, __func__, __LINE__ - 3, error->message);
+#endif
+        g_clear_error(&error);
+        ret = AAOS_ERROR;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        goto error;
+    }
+    
+    arv_camera_get_sensor_size(camera, &w, &h, &error);
+    if (error == NULL) {
+        self->_.d_cap.width = (uint32_t) w;
+        self->_.d_cap.height = (uint32_t) h;
     } else {
-        ArvCamera *camera = NULL;
-        GError *error = NULL;
-        camera = arv_camera_new(self->name, &error);
-        if (error != NULL) {
-            g_clear_error(&error);
-            ret = AAOS_ERROR;
+        g_clear_error(&error);
+    }
+    
+    self->camera = (void *) camera;
+    if (arv_camera_is_binning_available(camera, NULL)) {
+        gint min_ = 0, max_ = 0, x_binning = 0, y_binning  = 0;
+        self->_.d_cap.binning_available = true;
+        arv_camera_get_x_binning_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.x_binning_max = max_;
+        self->_.d_cap.x_binning_min = min_;
+        //increment = arv_camera_get_x_binning_increment(camera, NULL);
+        arv_camera_get_y_binning_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.y_binning_max = max_;
+        self->_.d_cap.y_binning_min = min_;
+        //increment = arv_camera_get_y_binning_increment(camera, NULL);
+        arv_camera_get_binning(camera, &x_binning, &y_binning, NULL);
+        self->_.d_param.x_binning = x_binning;
+        self->_.d_param.y_binning = y_binning;
+    }
+
+    if (arv_camera_is_region_offset_available(camera, NULL)){
+        self->_.d_cap.offset_available = true;
+        gint x, y;
+        gint width, height;
+        gint min_, max_;
+        arv_camera_get_x_offset_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.x_offset_max = max_;
+        self->_.d_cap.x_offset_min = min_;
+        //increment = arv_camera_get_x_offset_increment(camera, NULL);
+        arv_camera_get_y_offset_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.y_offset_max = max_;
+        self->_.d_cap.y_offset_min = min_;
+        //increment = arv_camera_get_y_offset_increment(camera, NULL);
+        arv_camera_get_width_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.image_width_max = max_;
+        self->_.d_cap.image_width_min = min_;
+        //increment = arv_camera_get_width_increment(camera, NULL);
+        arv_camera_get_height_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.image_height_max = max_;
+        self->_.d_cap.image_height_min = min_;
+        //increment = arv_camera_get_height_increment(camera, NULL);
+        arv_camera_get_region(camera, &x, &y, &width, &height, NULL);
+        self->_.d_param.image_width = width;
+        self->_.d_param.image_height = height;
+        self->_.d_param.x_offset = x;
+        self->_.d_param.y_offset = y;
+    }
+    
+    if (arv_camera_is_frame_rate_available(camera, NULL)) {
+        self->_.d_cap.frame_rate_available = true;
+        double min_ = 0., max_ = 0., frame_rate = 0.;
+        arv_camera_get_frame_rate_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.frame_rate_max = max_;
+        self->_.d_cap.frame_rate_min = min_;
+        frame_rate = arv_camera_get_frame_rate(camera, NULL);
+        self->_.d_param.frame_rate = frame_rate;
+    } else {
+        if (arv_camera_is_feature_available(camera, "ProgFrameTimeAbs", NULL)) {
+            gint64 min_, max_;
+            self->_.d_cap.frame_rate_available = true;
+            arv_camera_get_integer_bounds(camera, "ProgFrameTimeAbs", &min_, &max_, NULL);
+            self->_.d_cap.frame_rate_min = 1000000. / max_;
+            self->_.d_cap.frame_rate_min = 1000000. / min_;
+            self->_.d_param.frame_rate = 1000000. / arv_camera_get_integer(camera, "ProgFrameTimeAbs", NULL);
         } else {
-            self->camera = (void *) camera;
-            self->_.d_state.state = DETECTOR_STATE_IDLE;
-            
-            if (arv_camera_is_binning_available(camera, NULL)) {
-                gint min_ = 0, max_ = 0, x_binning = 0, y_binning  = 0;
-                self->_.d_cap.binning_available = true;
-                arv_camera_get_x_binning_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.x_binning_max = max_;
-                self->_.d_cap.x_binning_min = min_;
-                //increment = arv_camera_get_x_binning_increment(camera, NULL);
-                arv_camera_get_y_binning_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.y_binning_max = max_;
-                self->_.d_cap.y_binning_min = min_;
-                //increment = arv_camera_get_y_binning_increment(camera, NULL);
-                arv_camera_get_binning(camera, &x_binning, &y_binning, NULL);
-                self->_.d_param.x_binning = x_binning;
-                self->_.d_param.y_binning = y_binning;
+            self->_.d_cap.frame_rate_available = false;
+        }
+    }
+    
+    if (arv_camera_is_exposure_auto_available(camera, NULL)) {
+        self->_.d_cap.auto_exposure_time_available = true;
+        self->_.d_param.auto_exposure_time_enable = false;
+        arv_camera_set_exposure_time_auto(camera, ARV_AUTO_OFF, NULL);
+    } else {
+        self->_.d_cap.auto_exposure_time_available = false;
+    }
+    
+    if (arv_camera_is_exposure_time_available(camera, NULL)) {
+        self->_.d_cap.exposure_time_available = true;
+        double min_ = 0., max_ = 0., exposure_time = 0.;
+        arv_camera_get_exposure_time_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.exposure_time_max = max_;
+        self->_.d_cap.exposure_time_min = min_;
+        exposure_time = arv_camera_get_exposure_time(camera, NULL);
+        self->_.d_param.exposure_time = exposure_time / 1000000.;
+    } else {
+        if (arv_camera_is_feature_available(camera, "ExposureTimeRaw", NULL)) {
+            gint64 min_, max_;
+            self->_.d_cap.exposure_time_available = true;
+            arv_camera_get_integer_bounds(camera, "ExposureTimeRaw", &min_, &max_, NULL);
+            self->_.d_cap.exposure_time_min = min_ / 1000000.;
+            self->_.d_cap.exposure_time_max = max_ / 1000000.;
+            self->_.d_param.exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", NULL) / 1000000.;
+        } else {
+            self->_.d_cap.exposure_time_available = false;
+        }
+    }
+
+    if (arv_camera_is_gain_auto_available(camera, NULL)) {
+        self->_.d_cap.auto_gain_available = true;
+        self->_.d_param.auto_gain_enable = false;
+        arv_camera_set_gain_auto(camera, ARV_AUTO_OFF, NULL);
+    } else {
+        self->_.d_cap.auto_exposure_time_available = false;
+    }
+    
+    if (arv_camera_is_gain_available(camera, NULL)) {
+        self->_.d_cap.gain_available = true;
+        double min_ = 0., max_ = 0., gain = 0.;
+        arv_camera_get_gain_bounds(camera, &min_, &max_, NULL);
+        self->_.d_cap.gain_max = max_;
+        self->_.d_cap.gain_min = min_;
+        gain = arv_camera_get_gain(camera, NULL);
+        self->_.d_param.gain = gain;
+    }
+    
+    self->_.d_cap.pixel_format_available = true;
+    {
+        guint i, n_pixel_formats, cnt = 0;
+        gint64 *pixel_format_array;
+        pixel_format_array = arv_camera_dup_available_pixel_formats(camera, &n_pixel_formats, NULL);
+        for (i = 0; i < n_pixel_formats; i++) {
+            switch (pixel_format_array[i]) {
+                case ARV_PIXEL_FORMAT_MONO_8:
+                case ARV_PIXEL_FORMAT_MONO_10:
+                case ARV_PIXEL_FORMAT_MONO_10_PACKED:
+                case ARV_PIXEL_FORMAT_MONO_12:
+                case ARV_PIXEL_FORMAT_MONO_12_PACKED:
+                case ARV_PIXEL_FORMAT_MONO_14:
+                case ARV_PIXEL_FORMAT_MONO_16:
+                case ARV_PIXEL_FORMAT_RGB_8_PLANAR:
+                case ARV_PIXEL_FORMAT_YUV_422_PACKED:
+                    cnt++;
+                    break;
+                default:
+                    break;
             }
-            
-            {
-                self->_.d_cap.offset_available = true;
-                gint x, y;
-                gint width, height;
-                gint min_, max_;
-                arv_camera_get_x_offset_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.x_offset_max = max_;
-                self->_.d_cap.x_offset_min = min_;
-                //increment = arv_camera_get_x_offset_increment(camera, NULL);
-                arv_camera_get_y_offset_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.y_offset_max = max_;
-                self->_.d_cap.y_offset_min = min_;
-                //increment = arv_camera_get_y_offset_increment(camera, NULL);
-                arv_camera_get_width_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.image_width_max = max_;
-                self->_.d_cap.image_width_min = min_;
-                //increment = arv_camera_get_width_increment(camera, NULL);
-                arv_camera_get_height_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.image_height_max = max_;
-                self->_.d_cap.image_height_min = min_;
-                //increment = arv_camera_get_height_increment(camera, NULL);
-                arv_camera_get_region(camera, &x, &y, &width, &height, NULL);
-                self->_.d_param.image_width = width;
-                self->_.d_param.image_height = height;
-                self->_.d_param.x_offset = x;
-                self->_.d_param.y_offset = y;
-            }
-            
-            if (arv_camera_is_frame_rate_available(camera, NULL)) {
-                self->_.d_cap.frame_rate_available = true;
-                double min_ = 0., max_ = 0., frame_rate = 0.;
-                arv_camera_get_frame_rate_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.frame_rate_max = max_;
-                self->_.d_cap.frame_rate_min = min_;
-                frame_rate = arv_camera_get_frame_rate(camera, NULL);
-                self->_.d_param.frame_rate = frame_rate;
-            }
-            
-            if (arv_camera_is_exposure_time_available(camera, NULL)) {
-                self->_.d_cap.exposure_time_available = true;
-                double min_ = 0., max_ = 0., exposure_time = 0.;
-                arv_camera_get_exposure_time_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.exposure_time_max = max_;
-                self->_.d_cap.exposure_time_min = min_;
-                exposure_time = arv_camera_get_exposure_time(camera, NULL);
-                self->_.d_param.exposure_time = exposure_time;
-            }
-            
-            if (arv_camera_is_gain_available(camera, NULL)) {
-                self->_.d_cap.gain_available = true;
-                double min_ = 0., max_ = 0., gain = 0.;
-                arv_camera_get_gain_bounds(camera, &min_, &max_, NULL);
-                self->_.d_cap.gain_max = max_;
-                self->_.d_cap.gain_min = min_;
-                gain = arv_camera_get_gain(camera, NULL);
-                self->_.d_param.gain = gain;
+        }
+        self->_.d_cap.n_pixel_format = (size_t) cnt;
+        self->_.d_cap.pixel_format_array = (uint32_t *) Malloc(sizeof(uint32_t) * cnt);
+        cnt = 0;
+        for (i = 0; i < n_pixel_formats; i++) {
+            switch (pixel_format_array[i]) {
+                case ARV_PIXEL_FORMAT_MONO_8:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_MONO_8;
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_10:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_MONO_10;
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_10_PACKED:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_MONO_10_PACKED;
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_12:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_MONO_12;
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_12_PACKED:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_MONO_12_PACKED;
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_14:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_MONO_14;
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_16:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_MONO_16;
+                    break;
+                case ARV_PIXEL_FORMAT_RGB_8_PACKED:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_RGB_24;
+                    break;
+                case ARV_PIXEL_FORMAT_YUV_422_PACKED:
+                    self->_.d_cap.pixel_format_array[cnt++] = DETECTOR_PIXEL_FORMAT_YUV422;
+                    break;
+                default:
+                    break;
             }
         }
     }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_12, &error);
+    if (error != NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- arv_camera_set_pixel_format error: %s\n", __FILE__, __func__, __LINE__ - 3, error->message);
+#endif
+        g_clear_error(&error);
+    } else {
+        self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_MONO_12;
+    }
     
+    self->_.d_cap.capture_mode_available = false;
+    self->_.d_cap.n_capture_mode = 3;
+    self->_.d_cap.capture_mode_array = (uint32_t *) Malloc(3 * sizeof(uint32_t));
+    self->_.d_cap.capture_mode_array[0] = DETECTOR_CAPTURE_MODE_SNAPSHOT;
+    self->_.d_cap.capture_mode_array[1] = DETECTOR_CAPTURE_MODE_MULTIFRAME;
+    self->_.d_cap.capture_mode_array[2] = DETECTOR_CAPTURE_MODE_VIDEO;
+    
+    arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
+    if (error != NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- arv_camera_set_acquisition_mode error: %s\n", __FILE__, __func__, __LINE__ - 3, error->message);
+#endif
+        g_clear_error(&error);
+    } else {
+        self->_.d_param.capture_mode = DETECTOR_CAPTURE_MODE_VIDEO;
+    }
+    
+    self->_.d_param.trigger_mode = DETECTOR_TRIGGER_MODE_DEFAULT;
+    
+    self->_.d_state.state = (state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_IDLE;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+
 error:
     return ret;
 }
@@ -6248,21 +6835,48 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
     gboolean available;
     
     s = (const char *) write_buffer;
-    sscanf(s, "%s %s", cmd, feature);
+    
+    if (strcmp(s, "xml") == 0) {
+        ArvDevice *device;
+        size_t size;
+        device = arv_camera_get_device(camera);
+        snprintf((char *) read_buffer, read_buffer_size, "%s", arv_device_get_genicam_xml(device, &size));
+        if (read_size != NULL) {
+            *read_size = strlen((char *) read_buffer) + 1;
+        }
+        return ret;
+    }
+    
+    if ((ret = sscanf(s, "%s %s", cmd, feature)) != 2) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, s);
+#endif
+        return AAOS_EBADCMD;
+    }
     available = arv_camera_is_feature_available(camera, feature, &error);
     if (error == NULL) {
         if (!available) {
-            ret = AAOS_EBADCMD;
-            goto error;
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- feature \"%s\" is not available\n", __FILE__, __func__, __LINE__ - 4, feature);
+#endif
+            return AAOS_EBADCMD;
         }
     } else {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- arv_camera_is_feature_available error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
+#endif
         ret = AAOS_ERROR;
         goto error;
     }
 
     s = strstr(write_buffer, feature) + strlen(feature) + 1;
     if (strcmp(cmd, "get") == 0) {
-        sscanf(s, "%s", type);
+        if ((ret = sscanf(s, "%s", type)) != 1) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
+#endif
+            return AAOS_ERROR;
+        }
         if (strcmp(type, "int") == 0 || strcmp(type, "integer") == 0) {
             gint64 value = arv_camera_get_integer(camera, feature, &error);
             if (error == NULL) {
@@ -6272,6 +6886,11 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+                if (error != NULL) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_integer error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
+#endif
+                }
                 goto error;
             }
         } else if (strcmp(type, "bool") == 0 || strcmp(type, "boolean") == 0) {
@@ -6288,6 +6907,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_boolean error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "float") == 0 || strcmp(type, "double") == 0) {
@@ -6299,6 +6921,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_float error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "enum") == 0 || strcmp(type, "enumeration") == 0) {
@@ -6308,7 +6933,6 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 guint i;
                 char *s = read_buffer;
                 ssize_t nleft = read_buffer_size;
-
                 snprintf(s, nleft, "%s: [%ld",  feature, values[0]);
                 nleft -= strlen(s);
                 s += strlen(s);
@@ -6330,6 +6954,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_dup_available_enumerations error: %s\n", __FILE__, __func__, __LINE__ - 25, error->message);
+#endif
                 goto error;
             }
     } else if (strcmp(type, "enum_as_str") == 0 || strcmp(type, "enumeration_as_string") == 0) {
@@ -6355,6 +6982,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_dup_available_enumerations_as_strings error: %s\n", __FILE__, __func__, __LINE__ - 22, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "enum_as_name") == 0 || strcmp(type, "enumeration_as_name") == 0) {
@@ -6380,6 +7010,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_dup_available_enumerations_as_display_names error: %s\n", __FILE__, __func__, __LINE__ - 21, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "int_incr") == 0 || strcmp(type, "integer_increment") == 0) {
@@ -6391,6 +7024,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_integer_increment error: %s\n", __FILE__, __func__, __LINE__ - 9, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "float_incr") == 0 || strcmp(type, "double_incr") == 0 || strcmp(type, "float_increment") == 0 || strcmp(type, "double_increment") == 0) {
@@ -6402,6 +7038,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_float_increment error: %s\n", __FILE__, __func__, __LINE__ - 9, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "float_bound") == 0 || strcmp(type, "double_bound") == 0) {
@@ -6414,6 +7053,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_float_bounds error: %s\n", __FILE__, __func__, __LINE__ - 9, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "int_bound") == 0 || strcmp(type, "integer_bound") == 0) {
@@ -6426,6 +7068,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_integer_bounds error: %s\n", __FILE__, __func__, __LINE__ - 9, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "str") == 0 || strcmp(type, "string") == 0) {
@@ -6437,37 +7082,71 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 }
             } else {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- arv_camera_get_string error: %s\n", __FILE__, __func__, __LINE__ - 9, error->message);
+#endif
                 goto error;
             }
-        }else {
-            ret = AAOS_EBADCMD;
-            goto error;
+        } else {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__, (const char *) write_buffer);
+#endif
+            return AAOS_EBADCMD;
         }
     } else if (strcmp(cmd, "set") == 0) {
-        sscanf(s, "%s", type);
+        if ((ret = sscanf(s, "%s", type)) != 1) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
+#endif
+            return AAOS_EBADCMD;
+        }
         s = strstr(s, type) + strlen(type) + 1;
         if (strcmp(type, "bool") == 0 || strcmp(type, "boolean") == 0) {
             gboolean value;
-            sscanf(s, "%d", &value);
+            if ((ret = sscanf(s, "%d", &value)) != 1) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
+#endif
+                return AAOS_EBADCMD;
+            }
             arv_camera_set_boolean(camera, feature, value, &error);
             if (error != NULL) {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- arv_camera_set_boolean error: %s\n", __FILE__, __func__, __LINE__ - 4, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "int") == 0 || strcmp(type, "integer") == 0) {
             gint64 value;
-            sscanf(s, "%ld", &value);
+            if ((ret = sscanf(s, "%ld", &value)) != 1) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
+#endif
+                return AAOS_EBADCMD;
+            }
             arv_camera_set_integer(camera, feature, value, &error);
             if (error != NULL) {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- arv_camera_set_integer error: %s\n", __FILE__, __func__, __LINE__ - 4, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "double") == 0 || strcmp(type, "float") == 0) {
             double value;
-            sscanf(s, "%lf", &value);
+            if ((ret = sscanf(s, "%lf", &value)) != 1) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
+#endif
+                return AAOS_EBADCMD;
+            }
             arv_camera_set_float(camera, feature, value, &error);
             if (error != NULL) {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- arv_camera_set_float error: %s\n", __FILE__, __func__, __LINE__ - 4, error->message);
+#endif
                 goto error;
             }
         } else if (strcmp(type, "str") == 0 || strcmp(type, "string") == 0) {
@@ -6476,11 +7155,16 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             arv_camera_set_string(camera, feature, s, &error);
             if (error != NULL) {
                 ret = AAOS_ERROR;
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- arv_camera_set_string error: %s\n", __FILE__, __func__, __LINE__ - 4, error->message);
+#endif
                 goto error;
             }
         } else {
-            ret = AAOS_EBADCMD;
-            goto error;
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__, (const char *) write_buffer);
+#endif
+            return AAOS_EBADCMD;
         }
         snprintf(read_buffer, read_buffer_size, "Set `%s` successfully\n", feature);
         if (read_size != NULL) {
@@ -6490,6 +7174,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
         arv_camera_execute_command(camera, feature, &error);
         if (error != NULL) {
             ret = AAOS_ERROR;
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- arv_camera_execute_command error: %s\n", __FILE__, __func__, __LINE__ - 4, error->message);
+#endif
             goto error;
         }
         snprintf(read_buffer, read_buffer_size, "Execute `%s` successfully\n", feature);
@@ -6497,9 +7184,12 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             *read_size = strlen(read_buffer) + 1;
         }
     } else {
-        ret = AAOS_EBADCMD;
-        goto error;
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__, (const char *) write_buffer);
+#endif
+        return AAOS_EBADCMD;
     }
+       
 error:
     if (error != NULL) {
         g_clear_error(&error);
@@ -6524,14 +7214,16 @@ static int
 GenICam_set_exposure_time_nl(void *_self, double exposure_time)
 {
     struct GenICam *self = cast(GenICam(), _self);
-    ArvCamera *camera = (ArvCamera *) self->camera;
     
+    ArvCamera *camera = (ArvCamera *) self->camera;
     double exposure_time_us = 1000000. * exposure_time;
+    double min, max;
     ArvAuto auto_mode;
     gboolean auto_available = arv_camera_is_exposure_auto_available(camera, NULL);
     GError *error = NULL;
     int ret = AAOS_OK;
-
+    double current_exposure_time;
+        
     if (exposure_time_us < 0) {
         if (auto_available) {
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
@@ -6554,62 +7246,99 @@ GenICam_set_exposure_time_nl(void *_self, double exposure_time)
         if (auto_available) {
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
             if (error != NULL) {
-                ret = AAOS_ERROR;
-                goto error;
+                g_clear_error(&error);
+                return AAOS_ERROR;
             }
             if (auto_mode != ARV_AUTO_OFF) {
                 arv_camera_set_exposure_time_auto(camera, ARV_AUTO_ONCE, &error);
                 if (error != NULL) {
-                    ret = AAOS_ERROR;
-                    goto error;
+                    g_clear_error(&error);
+                    return AAOS_ERROR;
                 }
             }
         }
-        double min, max;
+        
         arv_camera_get_exposure_time_bounds(camera, &min, &max, &error);
         if (error != NULL) {
-            ret = AAOS_ERROR;
-            goto error;
+            g_clear_error(&error);
+            gint64 min_, max_;
+            arv_camera_get_integer_bounds(camera, "ExposureTimeRaw", &min_, &max_, &error);
+            min = min_;
+            max = max_;
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
         }
+
         if (exposure_time_us > max || exposure_time_us < min) {
-            double min, max;
             arv_camera_get_frame_rate_bounds(camera, &min, &max, &error);
             if (error != NULL) {
-                ret = AAOS_ERROR;
-                goto error;
+                gint64 min_, max_;
+                g_clear_error(&error);
+                arv_camera_get_integer_bounds(camera, "ProgFrameTimeAbs", &min_, &max_, &error);
+                if (error != NULL) {
+                    g_clear_error(&error);
+                    return AAOS_ERROR;
+                }
+                max = 1000000. / min_;
+                min = 1000000. / max_;
             }
             if (exposure_time_us > 1000000. / min || exposure_time_us < 1000000. / max) {
-                ret = AAOS_EINVAL;
-                goto error;
-            } else {
-                arv_camera_set_frame_rate(camera, 1000000. / (exposure_time_us + 10), &error);
+                return AAOS_EINVAL;
+            }
+            arv_camera_set_frame_rate(camera, 1000000. / (exposure_time_us + 10), &error);
+            if (error != NULL) {
+                guint64 us_per_frame = exposure_time_us + 10;
+                g_clear_error(&error);
+                arv_camera_set_boolean(camera, "ProgFrameTimeEnable", true, &error);
                 if (error != NULL) {
-                    ret = AAOS_ERROR;
-                    goto error;
+                    g_clear_error(&error);
+                    return AAOS_ERROR;
                 }
-                self->_.d_param.frame_rate = 1000000. / (exposure_time_us + 10);
+                arv_camera_set_integer(camera, "ProgFrameTimeAbs", us_per_frame, &error);
+                if (error != NULL) {
+                    g_clear_error(&error);
+                    return AAOS_ERROR;
+                }
             }
         }
-        double current_exposure_time;
-        current_exposure_time= arv_camera_get_exposure_time(camera, &error);
+        arv_camera_set_exposure_time(camera, exposure_time_us, &error);
         if (error != NULL) {
-            ret = AAOS_ERROR;
-            goto error;
+            g_clear_error(&error);
+            arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+        }
+        current_exposure_time = arv_camera_get_exposure_time(camera, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+            current_exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
         }
         if (fabs(current_exposure_time -  exposure_time_us) > 1.) {
-            Nanosleep(current_exposure_time / 1000000.);
-            arv_camera_set_exposure_time(camera, exposure_time_us, &error);
-            if (error != NULL) {
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.exposure_time = exposure_time;
+            Nanosleep(current_exposure_time / 100000.);
         }
+        arv_camera_set_exposure_time(camera, exposure_time_us, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+            arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+        }
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.exposure_time = exposure_time;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
     }
+    
 error:
-    if (error != NULL) {
-        g_clear_error(&error);
-    }
     return ret;
 }
 
@@ -6617,15 +7346,40 @@ static int
 GenICam_set_exposure_time(void *_self, double exposure_time)
 {
     struct GenICam *self = cast(GenICam(), _self);
-    ArvCamera *camera = (ArvCamera *) self->camera;
     
+    ArvCamera *camera = (ArvCamera *) self->camera;
     double exposure_time_us = 1000000. * exposure_time;
+    double min, max;
+    unsigned int state;
+    uint16_t options;
     ArvAuto auto_mode;
     gboolean auto_available = arv_camera_is_exposure_auto_available(camera, NULL);
     GError *error = NULL;
     int ret;
     double current_exposure_time;
-
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    
     if (exposure_time_us < 0) {
         if (auto_available) {
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
@@ -6648,130 +7402,109 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
         if (auto_available) {
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
             if (error != NULL) {
-                ret = AAOS_ERROR;
-                goto error;
+                g_clear_error(&error);
+                return AAOS_ERROR;
             }
             if (auto_mode != ARV_AUTO_OFF) {
                 arv_camera_set_exposure_time_auto(camera, ARV_AUTO_ONCE, &error);
                 if (error != NULL) {
+                    g_clear_error(&error);
+                    return AAOS_ERROR;
+                }
+            }
+        }
+        
+        arv_camera_get_exposure_time_bounds(camera, &min, &max, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+            gint64 min_, max_;
+            arv_camera_get_integer_bounds(camera, "ExposureTimeRaw", &min_, &max_, &error);
+            min = min_;
+            max = max_;
+            if (error != NULL) {
+                ret = AAOS_ERROR;
+                goto error;
+            }
+        }
+
+        if (exposure_time_us > max || exposure_time_us < min) {
+            arv_camera_get_frame_rate_bounds(camera, &min, &max, &error);
+            if (error != NULL) {
+                gint64 min_, max_;
+                g_clear_error(&error);
+                arv_camera_get_integer_bounds(camera, "ProgFrameTimeAbs", &min_, &max_, &error);
+                if (error != NULL) {
+                    ret = AAOS_ERROR;
+                    goto error;
+                }
+                max = 1000000. / min_;
+                min = 1000000. / max_;
+            }
+            if (exposure_time_us > 1000000. / min || exposure_time_us < 1000000. / max) {
+                ret = AAOS_EINVAL;
+                goto error;
+            }
+            arv_camera_set_frame_rate(camera, 1000000. / (exposure_time_us + 10), &error);
+            if (error != NULL) {
+                guint64 us_per_frame = exposure_time_us + 10;
+                g_clear_error(&error);
+                arv_camera_set_boolean(camera, "ProgFrameTimeEnable", true, &error);
+                if (error != NULL) {
+                    ret = AAOS_ERROR;
+                    goto error;
+                }
+                arv_camera_set_integer(camera, "ProgFrameTimeAbs", us_per_frame, &error);
+                if (error != NULL) {
                     ret = AAOS_ERROR;
                     goto error;
                 }
             }
         }
-        double min, max;
-        arv_camera_get_exposure_time_bounds(camera, &min, &max, &error);
+        arv_camera_set_exposure_time(camera, exposure_time_us, &error);
         if (error != NULL) {
-            ret = AAOS_ERROR;
-            goto error;
+            g_clear_error(&error);
+            arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            if (error != NULL) {
+                ret = AAOS_ERROR;
+                goto error;
+            }
+        }
+        current_exposure_time = arv_camera_get_exposure_time(camera, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+            current_exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+            if (error != NULL) {
+                ret = AAOS_ERROR;
+                goto error;
+            }
+        }
+        if (fabs(current_exposure_time -  exposure_time_us) > 1.) {
+            Nanosleep(current_exposure_time / 100000.);
+        }
+        arv_camera_set_exposure_time(camera, exposure_time_us, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+            arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            if (error != NULL) {
+                ret = AAOS_ERROR;
+                goto error;
+            }
         }
         
-        Pthread_mutex_lock(&self->_.d_state.mtx);
-        switch (self->_.d_state.state) {
-            case DETECTOR_STATE_IDLE:
-                if (exposure_time_us > max || exposure_time_us < min) {
-                    double min, max;
-                    arv_camera_get_frame_rate_bounds(camera, &min, &max, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    if (exposure_time_us > 1000000. / min || exposure_time_us < 1000000. / max) {
-                        ret = AAOS_EINVAL;
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        goto error;
-                    } else {
-                        arv_camera_set_frame_rate(camera, 1000000. / (exposure_time_us + 10), &error);
-                        if (error != NULL) {
-                            ret = AAOS_ERROR;
-                            Pthread_mutex_unlock(&self->_.d_state.mtx);
-                            goto error;
-                        }
-                        self->_.d_param.frame_rate = 1000000. / (exposure_time_us + 10);
-                    }
-                }
-                
-                current_exposure_time= arv_camera_get_exposure_time(camera, &error);
-                if (error != NULL) {
-                    ret = AAOS_ERROR;
-                    Pthread_mutex_unlock(&self->_.d_state.mtx);
-                    goto error;
-                }
-                if (fabs(current_exposure_time -  exposure_time_us) > 1.) {
-                    Nanosleep(current_exposure_time / 1000000.);
-                    arv_camera_set_exposure_time(camera, exposure_time_us, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.exposure_time = exposure_time;
-                    Pthread_mutex_unlock(&self->_.d_state.mtx);
-                }
-                break;
-            case DETECTOR_STATE_EXPOSING:
-            case DETECTOR_STATE_READING:
-                while (self->_.d_state.state == DETECTOR_STATE_READING || self->_.d_state.state == DETECTOR_STATE_EXPOSING) {
-                    Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-                }
-                if (exposure_time_us > max || exposure_time_us < min) {
-                    double min, max;
-                    arv_camera_get_frame_rate_bounds(camera, &min, &max, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    if (exposure_time_us > 1000000. / min || exposure_time_us < 1000000. / max) {
-                        ret = AAOS_EINVAL;
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        goto error;
-                    } else {
-                        arv_camera_set_frame_rate(camera, 1000000. / (exposure_time_us + 10), &error);
-                        if (error != NULL) {
-                            ret = AAOS_ERROR;
-                            Pthread_mutex_unlock(&self->_.d_state.mtx);
-                            goto error;
-                        }
-                        self->_.d_param.frame_rate = 1000000. / (exposure_time_us + 10);
-                    }
-                }
-                
-                current_exposure_time= arv_camera_get_exposure_time(camera, &error);
-                if (error != NULL) {
-                    ret = AAOS_ERROR;
-                    Pthread_mutex_unlock(&self->_.d_state.mtx);
-                    goto error;
-                }
-                if (fabs(current_exposure_time -  exposure_time_us) > 1.) {
-                    Nanosleep(current_exposure_time / 1000000.);
-                    arv_camera_set_exposure_time(camera, exposure_time_us, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.exposure_time = exposure_time;
-                    Pthread_mutex_unlock(&self->_.d_state.mtx);
-                }
-                break;
-            case DETECTOR_STATE_MALFUNCTION:
-                ret = AAOS_EDEVMAL;
-                break;
-            default:
-                break;
-        }
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.exposure_time = exposure_time;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
     }
-error:
     
+error:
     if (error != NULL) {
         g_clear_error(&error);
     }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
+/*
 static void
 GenICam_name_convention(void *user_data, char *filename, size_t size, ...)
 {
@@ -6807,7 +7540,7 @@ GenICam_name_convention(void *user_data, char *filename, size_t size, ...)
         strftime(filename, left, "%y%m%d_%H%M%S.fits", &res);
     }
 }
-
+*/
 static void
 GenICam_process_image(void *user_data, ArvBuffer *buffer, char *filename, size_t size)
 {
@@ -6900,7 +7633,7 @@ GenICam_process_image(void *user_data, ArvBuffer *buffer, char *filename, size_t
 }
 
 static void
-GenICam_stream_callback(void *user_data, ArvStreamCallbackType type, ArvBuffer *buffer)
+GenICam_stream_callback2(void *user_data, ArvStreamCallbackType type, ArvBuffer *buffer)
 {
     struct GenICam *udata = (struct GenICam *) user_data;
 
@@ -6956,8 +7689,531 @@ GenICam_stream_callback(void *user_data, ArvStreamCallbackType type, ArvBuffer *
     }
 }
 
+
+static void
+GenICam_stream_callback(void *user_data, ArvStreamCallbackType type, ArvBuffer *buffer)
+{
+    struct GenICam *self = (struct GenICam *) user_data;
+    struct GenICamDataFrame *data;
+    
+    uint16_t options;
+    switch (type) {
+        case ARV_STREAM_CALLBACK_TYPE_INIT:
+            Pthread_mutex_lock(&self->_.d_exp.mtx);
+            self->_.d_exp.success_frames = 0;
+            self->_.d_exp.count = 0;
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            data = (struct GenICamDataFrame *) Malloc(sizeof(struct GenICamDataFrame));
+            data->buffer = NULL;
+            data->i = 0;
+            data->n = self->_.d_exp.request_frames;
+            threadsafe_queue_push(self->_.d_proc.queue, data);
+            break;
+        case ARV_STREAM_CALLBACK_TYPE_START_BUFFER:
+            Pthread_mutex_lock(&self->_.d_state.mtx);
+            options =self->_.d_state.options;
+            Pthread_mutex_lock(&self->_.d_exp.mtx);
+            self->_.d_exp.count++;
+            if ((options&DETECTOR_OPTION_NOTIFY_LAST_FILLING) && (self->_.d_exp.success_frames == self->_.d_exp.request_frames - 1)) {
+                self->_.d_exp.last_frame_filling_flag = true;
+                Pthread_cond_broadcast(&self->_.d_exp.cond);
+            }
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            break;
+        case ARV_STREAM_CALLBACK_TYPE_BUFFER_DONE:
+            Pthread_mutex_lock(&self->_.d_state.mtx);
+            options =self->_.d_state.options;
+            Pthread_mutex_lock(&self->_.d_exp.mtx);
+            self->_.d_exp.success_frames++;
+            if ((options&DETECTOR_OPTION_NOTIFY_LAST_FILLING) && (self->_.d_exp.success_frames == self->_.d_exp.request_frames)) {
+                Pthread_cond_broadcast(&self->_.d_exp.cond);
+            }
+            data = (struct GenICamDataFrame *) Malloc(sizeof(struct GenICamDataFrame));
+            data->buffer = buffer;
+            data->i = self->_.d_exp.success_frames;
+            data->n = self->_.d_exp.request_frames;
+            threadsafe_queue_push(self->_.d_proc.queue, data);
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            break;
+        case ARV_STREAM_CALLBACK_TYPE_EXIT:
+            threadsafe_queue_push(self->_.d_proc.queue, NULL);
+            break;
+        default:
+            break;
+    }
+}
+
+struct GenICamExposureArg {
+    struct GenICam *detector;
+    void *rpc;
+    void *string; /* serialized header data string. */
+    unsigned int format; /* string format */
+};
+
+static void*
+GenICam_process_image_thr(void *arg)
+{
+    struct GenICamExposureArg *myarg = (struct GenICamExposureArg *) arg;
+    struct GenICam *detector = myarg->detector;
+    void *rpc = myarg->rpc;
+    const char *string = (const char *) myarg->string;
+    struct GenICamDataFrame *data;
+
+    free(arg);
+
+    unsigned int state;
+    uint16_t options;
+    char filename[PATHSIZE];
+    size_t pixel_size;
+    long naxes[2];
+    int bitpix, datatype;
+    struct timespec tp;
+    char date_time[TIMESTAMPSIZE];
+    fitsfile *fptr;
+    ArvBuffer *buffer;
+    gint x, y, width, height;
+    uint32_t i, n_frames;
+    int status = 0;
+    const void *img_data;
+    size_t size;
+    
+    state = detector->_.d_state.state;
+    options = detector->_.d_state.options;
+	
+    for (; ;) {
+        data = threadsafe_queue_wait_and_pop(detector->_.d_proc.queue);
+        if (data != NULL) {
+            if (data->buffer != NULL) {
+                free(data);
+            } else {
+                n_frames = data->n;
+                free(data);
+                break;
+            }
+        }
+    }
+
+    for (i = 0; i < n_frames; i++) {
+        Pthread_mutex_lock(&detector->_.d_exp.mtx);
+        if (detector->_.d_exp.stop_flag) {
+            detector->_.d_exp.stop_flag = false;
+            Pthread_cond_broadcast(&detector->_.d_exp.cond);
+            Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+            break;
+        }
+        Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+        data = threadsafe_queue_wait_and_pop(detector->_.d_proc.queue);
+        if (data == NULL) {
+            break;
+        }
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        if ((options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) || n_frames == 1 || (!(options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) && i == 0)) {
+            if (detector->_.d_proc.name_convention != NULL) {
+                detector->_.d_proc.name_convention(detector, filename, PATHSIZE, i + 1, 1, &tp, false);
+            } else {
+                __Detector_default_name_convention(detector, filename, PATHSIZE, i + 1, 1);
+            }
+            if (detector->_.d_proc.tpl_fptr != NULL) {
+                fits_create_file(&fptr, filename, &status);
+                if (status != 0) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+                    break;
+                }
+                fits_copy_file(detector->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
+                if (status != 0) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+                    break;
+                }
+            } else {
+                fits_create_template(&fptr, filename, detector->_.d_proc.tpl_filename, &status);
+                if (status != 0) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+                    break;
+                }
+            }
+            if (detector->_.d_proc.pre_acquisition != NULL) {
+                detector->_.d_proc.pre_acquisition(detector, filename, fptr);
+            } else {
+                __Detector_default_pre_acquisition(detector, filename, fptr);
+            }
+        }
+
+        buffer = data->buffer;
+        pixel_size = ARV_PIXEL_FORMAT_BIT_PER_PIXEL(arv_buffer_get_image_pixel_format(buffer));
+        arv_buffer_get_image_region(buffer, &x, &y, &width, &height);
+        img_data = arv_buffer_get_data(buffer, &size);
+        switch (pixel_size) {
+            case 8:
+                bitpix = BYTE_IMG;
+                datatype = TBYTE;
+                break;
+            case 16:
+                bitpix = USHORT_IMG;
+                datatype = TUSHORT;
+                break;
+            case 32:
+                bitpix = ULONG_IMG;
+                datatype = TULONG;
+                break;
+            case 64:
+                bitpix = ULONGLONG_IMG;
+                datatype = TULONGLONG;
+                break;
+            default:
+                break;
+        }
+        naxes[0] = width;
+        naxes[1] = height;
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        tp2str(&tp, date_time, TIMESTAMPSIZE);
+        fits_create_img(fptr, bitpix, 2, naxes, &status);
+        fits_write_img(fptr, datatype, 1, width * height, (void *) img_data, &status);
+        //fits_update_key_lng(fptr, "X_OFFSET", x, "X offset", &status);
+        //fits_update_key_lng(fptr, "Y_OFFSET", x, "Y offset", &status);
+        fits_update_key_longstr(fptr, "DATE-OBS", date_time, NULL, &status);
+        if (!(options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
+            fits_update_key_str(fptr, "EXTNAME", "raw", "extension name", &status);
+            fits_update_key_lng(fptr, "EXTVER", i + 1, "extension version", &status);
+        }
+        
+        if (options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
+            fits_close_file(fptr, &status);
+            if (detector->_.d_proc.post_acquisition != NULL) {
+                detector->_.d_proc.post_acquisition(detector, filename, fptr, string, 0, rpc);
+            } else {
+                __Detector_default_post_acquisition(detector, filename, fptr, string, 0, rpc);
+            }
+            fptr = NULL;
+        }
+        free(data);
+    }
+
+    if (fptr != NULL) {
+        if (detector->_.d_proc.post_acquisition != NULL) {
+            detector->_.d_proc.post_acquisition(detector, filename, fptr, string, 0, rpc);
+        } else {
+            __Detector_default_post_acquisition(detector, filename, fptr, string, 0, rpc);
+        }
+        fits_close_file(fptr, &status);
+    }
+	
+    return NULL;
+}
+
 static int
-GenICam_expose(void *_self, double exposure_time, uint32_t n_frames, va_list *app)
+GenICam_expose_video(struct GenICam *self, double exposure_time, uint32_t n_frames, va_list *app)
+{
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    ArvStream *stream = NULL;
+    gint payload;
+    GError *error = NULL;
+    
+    struct GenICamExposureArg *arg;
+    uint32_t i;
+    unsigned int state;
+    uint16_t options;
+    void *rpc;
+    void *string;
+    void *retval;
+    int ret = AAOS_OK;
+    
+    rpc = va_arg(*app, void *);
+    string = va_arg(*app, char *);
+    
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.stop_flag = false;
+    self->_.d_exp.rpc = rpc;
+    self->_.d_exp.count = 0;
+    self->_.d_exp.success_frames = 0;
+    self->_.d_exp.request_frames = n_frames;
+    //Pthread_cond_broadcast(&self->_.d_exp.cond);
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    if ((ret = GenICam_set_exposure_time_nl(self, exposure_time)) != AAOS_OK) {
+        goto error;
+    }
+    stream = arv_camera_create_stream (camera, GenICam_stream_callback, self, &error);
+    if (error != NULL) {
+        g_clear_error(&error);
+        ret = AAOS_ERROR;
+        goto error;
+    }
+    self->stream = (void *) stream;
+    payload = arv_camera_get_payload (camera, &error);
+    for (i = 0; i < n_frames + 10; i++) {
+        arv_stream_push_buffer(stream, arv_buffer_new(payload, NULL));
+    }
+    arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
+    if (error != NULL) {
+        g_clear_error(&error);
+        ret = AAOS_ERROR;
+        goto error;
+    }
+    arv_camera_start_acquisition(camera, &error);
+    if (error != NULL) {
+        g_clear_error(&error);
+        ret = AAOS_ERROR;
+        goto error;
+    }
+
+    arg = (struct GenICamExposureArg *) Malloc(sizeof(struct GenICamExposureArg));
+    arg->detector = self;
+    arg->rpc = rpc;
+    arg->string = string;
+    Pthread_create(&self->_.d_state.tid, NULL, GenICam_process_image_thr, (void *) arg);
+    self->_.d_state.state = (self->_.d_state.state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_EXPOSING;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    if (!(options&DETECTOR_OPTION_NOTIFY_LAST_FILLING)) {
+        Pthread_join(self->_.d_state.tid, &retval);
+        g_object_unref(stream);
+        self->stream = NULL;
+    }
+	
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+	
+    if (options&DETECTOR_OPTION_NOTIFY_LAST_FILLING) {
+
+    } else {
+        arv_camera_stop_acquisition(camera, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+        }
+        self->_.d_state.state = (self->_.d_state.state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_IDLE;
+        Pthread_cond_broadcast(&self->_.d_state.cond);
+    }
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
+GenICam_expose_snapshot(struct GenICam *self, double exposure_time, uint32_t n_frames, va_list *app)
+{
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    ArvBuffer *buffer;
+    GError *error = NULL;
+    gint64 timeout = exposure_time * 1000000 + 20;
+    gint x, y, width, height;
+    unsigned int state;
+    uint16_t options;
+    uint32_t i;
+    struct timespec tp;
+    char filename[PATHSIZE];
+    fitsfile *fptr = NULL;
+    const void *data;
+    size_t size, pixel_size;
+    long naxes[2];
+    int bitpix, datatype;
+    char date_time[TIMESTAMPSIZE];
+    int ret = AAOS_OK;
+    char *string;
+    void *rpc;
+    int status = 0;
+    
+    rpc = va_arg(*app, void *);
+    string = va_arg(*app, char *);
+    
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.stop_flag = false;
+    self->_.d_exp.rpc = rpc;
+    self->_.d_exp.count = 0;
+    self->_.d_exp.success_frames = 0;
+    self->_.d_exp.request_frames = n_frames;
+    //Pthread_cond_broadcast(&self->_.d_exp.cond);
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    if ((ret = GenICam_set_exposure_time_nl(self, exposure_time)) != AAOS_OK) {
+        goto error;
+    }
+    self->_.d_state.state = (self->_.d_state.state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_EXPOSING;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+
+    for (i = 0; i < n_frames; i++) {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        if (self->_.d_exp.stop_flag) {
+            self->_.d_exp.stop_flag = false;
+            Pthread_cond_broadcast(&self->_.d_exp.cond);
+            Pthread_mutex_unlock(&self->_.d_exp.mtx);
+            ret = AAOS_ECANCELED;
+            break;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        if ((self->_.d_state.options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) || n_frames == 1 || (!(self->_.d_state.options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) && i == 0)) {
+            if (self->_.d_proc.name_convention != NULL) {
+                self->_.d_proc.name_convention(self, filename, PATHSIZE, i + 1, 1, &tp, false);
+            } else {
+                __Detector_default_name_convention(self, filename, PATHSIZE, i + 1, 1);
+            }
+            if (self->_.d_proc.tpl_fptr != NULL) {
+                fits_create_file(&fptr, filename, &status);
+                if (status != 0) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+                    break;
+                }
+                fits_copy_file(self->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
+                if (status != 0) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+                    break;
+                }
+                
+            } else {
+                fits_create_template(&fptr, filename, self->_.d_proc.tpl_filename, &status);
+                if (status != 0) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+                    break;
+                }
+            }
+            if (self->_.d_proc.pre_acquisition != NULL) {
+                self->_.d_proc.pre_acquisition(self, filename, fptr);
+            } else {
+                __Detector_default_pre_acquisition(self, filename, fptr);
+            }
+        }
+        buffer = arv_camera_acquisition(camera, timeout, &error);
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.count++;
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        if (error != NULL) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- arv_camera_acquisition error: %s\n", __FILE__, __func__, __LINE__ - 3, error->message);
+#endif
+            ret = AAOS_ERROR;
+            break;
+        }
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.success_frames++;
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        data = arv_buffer_get_data (buffer, &size);
+        pixel_size = ARV_PIXEL_FORMAT_BIT_PER_PIXEL(arv_buffer_get_image_pixel_format(buffer));
+        arv_buffer_get_image_region(buffer, &x, &y, &width, &height);
+        switch (pixel_size) {
+            case 8:
+                bitpix = BYTE_IMG;
+                datatype = TBYTE;
+                break;
+            case 16:
+                bitpix = USHORT_IMG;
+                datatype = TUSHORT;
+                break;
+            case 32:
+                bitpix = ULONG_IMG;
+                datatype = TULONG;
+                break;
+            case 64:
+                bitpix = ULONGLONG_IMG;
+                datatype = TULONGLONG;
+                break;
+            default:
+                break;
+        }
+        
+        naxes[0] = width;
+        naxes[1] = height;
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        tp2str(&tp, date_time, TIMESTAMPSIZE);
+        fits_create_img(fptr, bitpix, 2, naxes, &status);
+        fits_write_img(fptr, datatype, 1, width * height, (void *) data, &status);
+        //fits_update_key_lng(fptr, "X_OFFSET", x, "X offset", &status);
+        //fits_update_key_lng(fptr, "Y_OFFSET", x, "Y offset", &status);
+        fits_update_key_longstr(fptr, "DATE-OBS", date_time, NULL, &status);
+        if (!(self->_.d_state.options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
+            fits_update_key_str(fptr, "EXTNAME", "raw", "extension name", &status);
+            fits_update_key_lng(fptr, "EXTVER", i + 1, "extension version", &status);
+        }
+        
+        if (self->_.d_state.options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
+            fits_close_file(fptr, &status);
+            if (self->_.d_proc.post_acquisition != NULL) {
+                self->_.d_proc.post_acquisition(self, filename, fptr, string, 0, rpc);
+            } else {
+                __Detector_default_post_acquisition(self, filename, fptr, string, 0, rpc);
+            }
+            fptr = NULL;
+        }
+        g_object_unref(buffer);
+    }
+    
+    if (fptr != NULL) {
+        if (self->_.d_proc.post_acquisition != NULL) {
+            self->_.d_proc.post_acquisition(self, filename, fptr, string, 0, rpc);
+        } else {
+            __Detector_default_post_acquisition(self, filename, fptr, string, 0, rpc);
+        }
+        fits_close_file(fptr, &status);
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state = (self->_.d_state.state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_IDLE;
+    Pthread_cond_broadcast(&self->_.d_state.cond);
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    if (error != NULL) {
+        g_clear_error(&error);
+    }
+    return ret;
+}
+/*
+static int
+GenICam_expose_video2(void *_self, double exposure_time, uint32_t n_frames, va_list *app)
 {
     struct GenICam *self = cast(GenICam(), _self);
     
@@ -6971,10 +8227,6 @@ GenICam_expose(void *_self, double exposure_time, uint32_t n_frames, va_list *ap
     self->_.d_exp.count = 0;
     self->_.d_exp.request_frames = n_frames;
     
-    /*
-     * Do not allow cancel while set exposure time, since it is a fast
-     * instruction.
-     */
     Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
 
     g_return_val_if_fail (ARV_IS_CAMERA (camera), EXIT_FAILURE);
@@ -7084,9 +8336,6 @@ GenICam_expose(void *_self, double exposure_time, uint32_t n_frames, va_list *ap
         }
     }
     
-    /*
-     * return just after last frame's exposure completes.
-     */
     if (self->_.d_exp.notify_last_frame_filling) {
         Pthread_mutex_lock(&self->_.d_exp.mtx);
         while (self->_.d_exp.last_frame_filling_flag == 0) {
@@ -7130,7 +8379,70 @@ error:
     Pthread_setcancelstate(old_state, NULL);
     return ret;
 }
+ */
 
+static int
+GenICam_expose(void *_self, double exposure_time, uint32_t n_frames, va_list *app)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    uint32_t capture_mode;
+    int ret = AAOS_ENOTSUP;
+    
+    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+    capture_mode = self->_.d_param.capture_mode;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    
+
+    switch (capture_mode) {
+        case DETECTOR_CAPTURE_MODE_SNAPSHOT:
+            ret = GenICam_expose_snapshot(self, exposure_time, n_frames, app);
+            break;
+		case DETECTOR_CAPTURE_MODE_VIDEO:
+		    ret = GenICam_expose_video(self, exposure_time, n_frames, app);
+			break;
+        default:
+            break;
+    }
+    
+    return ret;
+}
+
+static int
+GenICam_wait_for_last_completion(void *_self)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+	
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    ArvStream *stream = (ArvStream *) self->stream;
+    GError *error = NULL;
+    uint16_t options;
+    void *retval = NULL;
+    int ret = AAOS_OK;
+	
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    if (!self->_.d_exp.notify_last_frame_filling) {
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        return AAOS_OK;
+    }
+    while (self->_.d_exp.success_frames != self->_.d_exp.request_frames) {
+        Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
+    }
+       
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    arv_camera_stop_acquisition(camera, &error);
+    Pthread_join(self->_.d_state.tid, &retval);
+    g_object_unref(stream);
+    self->stream = NULL;
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state = (self->_.d_state.state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_IDLE;
+    Pthread_cond_broadcast(&self->_.d_state.cond);
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+    return ret;
+}
+
+/*
 static int
 GenICam_wait_for_last_completion(void *_self)
 {
@@ -7175,6 +8487,7 @@ error:
     
     return ret;
 }
+*/
 
 static int
 GenICam_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t width, uint32_t height)
@@ -7183,6 +8496,8 @@ GenICam_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t w
     
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
     int ret = AAOS_OK;
     
     if (x_offset > self->_.d_cap.x_offset_max || x_offset < self->_.d_cap.x_offset_min || y_offset > self->_.d_cap.y_offset_max || y_offset < self->_.d_cap.y_offset_min || width > self->_.d_cap.image_width_max || width < self->_.d_cap.image_width_min || height > self->_.d_cap.image_height_max || height < self->_.d_cap.image_height_min) {
@@ -7190,58 +8505,41 @@ GenICam_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t w
     }
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            arv_camera_set_region(camera, x_offset, y_offset, width, height, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.x_offset = x_offset;
-            self->_.d_param.y_offset = y_offset;
-            self->_.d_param.image_width = width;
-            self->_.d_param.image_height = height;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    arv_camera_set_region(camera, x_offset, y_offset, width, height, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.x_offset = x_offset;
-                    self->_.d_param.y_offset = y_offset;
-                    self->_.d_param.image_width = width;
-                    self->_.d_param.image_height = height;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
-    
-error:
-    if (error != NULL) {
+    arv_camera_set_region(camera, x_offset, y_offset, width, height, &error);
+    if (error == NULL) {
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.image_width = width;
+        self->_.d_param.image_height = height;
+        self->_.d_param.x_offset = x_offset;
+        self->_.d_param.y_offset = y_offset;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    } else {
+        ret = AAOS_ERROR;
         g_clear_error(&error);
     }
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7250,73 +8548,47 @@ GenICam_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32_t
 {
     struct GenICam *self = cast(GenICam(), _self);
     
+    unsigned int state;
+    uint16_t options;
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
     int ret = AAOS_OK;
-    
     gint x, y, w, h;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            arv_camera_get_region(camera, &x, &y, &w, &h, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            *x_offset = (uint32_t) x;
-            *y_offset = (uint32_t) y;
-            *width = (uint32_t) w;
-            *height = (uint32_t) h;
-            self->_.d_param.x_offset = *x_offset;
-            self->_.d_param.y_offset = *y_offset;
-            self->_.d_param.image_width = *width;
-            self->_.d_param.image_height = *height;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    arv_camera_get_region(camera, &x, &y, &w, &h, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    *x_offset = (uint32_t) x;
-                    *y_offset = (uint32_t) y;
-                    *width = (uint32_t) w;
-                    *height = (uint32_t) h;
-                    self->_.d_param.x_offset = *x_offset;
-                    self->_.d_param.y_offset = *y_offset;
-                    self->_.d_param.image_width = *width;
-                    self->_.d_param.image_height = *height;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-error:
-    if (error != NULL) {
+    arv_camera_get_region(camera, &x, &y, &w, &h, &error);
+    if (error == NULL) {
+        *x_offset = (uint32_t) x;
+        *y_offset = (uint32_t) y;
+        *width = (uint32_t) w;
+        *height = (uint32_t) h;
+    } else {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        *x_offset = self->_.d_param.x_offset;
+        *y_offset = self->_.d_param.y_offset;
+        *width = self->_.d_param.image_width;
+        *height = self->_.d_param.image_height;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
         g_clear_error(&error);
     }
+    return ret;
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7327,6 +8599,8 @@ GenICam_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
     
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
     int ret = AAOS_OK;
     
     if (x_binning > self->_.d_cap.x_binning_max || x_binning < self->_.d_cap.x_binning_min || y_binning > self->_.d_cap.y_binning_max || y_binning < self->_.d_cap.y_binning_min) {
@@ -7334,54 +8608,40 @@ GenICam_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
     }
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            arv_camera_set_binning(camera, x_binning, y_binning, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.x_binning = x_binning;
-            self->_.d_param.y_binning = y_binning;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    arv_camera_set_binning(camera, x_binning, y_binning, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.x_binning = x_binning;
-                    self->_.d_param.y_binning = y_binning;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-error:
-    if (error != NULL) {
+    arv_camera_set_binning(camera, (gint) x_binning, (gint) y_binning, &error);
+    if (error == NULL) {
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.x_binning = x_binning;
+        self->_.d_param.y_binning = y_binning;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    } else {
+        ret = AAOS_ERROR;
         g_clear_error(&error);
     }
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7390,65 +8650,163 @@ GenICam_get_binning(void *_self, uint32_t *x_binning, uint32_t *y_binning)
 {
     struct GenICam *self = cast(GenICam(), _self);
     
+    unsigned int state;
+    uint16_t options;
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
     int ret = AAOS_OK;
-    
     gint x, y;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            arv_camera_get_binning(camera, &x, &y, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            *x_binning = (uint32_t) x;
-            *y_binning = (uint32_t) y;
-            self->_.d_param.x_binning = *x_binning;
-            self->_.d_param.y_binning = *y_binning;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    arv_camera_get_binning(camera, &x, &y, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    *x_binning = (uint32_t) x;
-                    *y_binning = (uint32_t) y;
-                    self->_.d_param.x_binning = *x_binning;
-                    self->_.d_param.y_binning = *y_binning;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-error:
-    if (error != NULL) {
+    arv_camera_get_binning(camera, &x, &y, &error);
+    if (error == NULL) {
+        *x_binning = (uint32_t) x;
+        *y_binning = (uint32_t) y;
+    } else {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        *x_binning = self->_.d_param.x_binning;
+        *y_binning = self->_.d_param.y_binning;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
         g_clear_error(&error);
     }
+    return ret;
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
+GenICam_set_capture_mode(void *_self, uint32_t capture_mode)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
+    int ret = AAOS_OK;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    
+    switch (capture_mode) {
+        case DETECTOR_CAPTURE_MODE_SNAPSHOT:
+            arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_SINGLE_FRAME, &error);
+            break;
+        case DETECTOR_CAPTURE_MODE_MULTIFRAME:
+            arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_MULTI_FRAME, &error);
+            break;
+        case DETECTOR_CAPTURE_MODE_VIDEO:
+            arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
+            break;
+        default:
+            ret = AAOS_EINVAL;
+            goto error;
+            break;
+    }
+    
+    if (error == NULL) {
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.capture_mode = capture_mode;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    } else {
+        g_clear_error(&error);
+        ret = AAOS_ERROR;
+    }
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
+GenICam_get_capture_mode(void *_self, uint32_t *capture_mode)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    ArvAcquisitionMode mode;
+    GError *error = NULL;
+    int ret = AAOS_OK;
+    gint x, y;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    mode = arv_camera_get_acquisition_mode(camera, &error);
+    if (error == NULL) {
+        switch (mode) {
+            case ARV_ACQUISITION_MODE_SINGLE_FRAME:
+                *capture_mode = DETECTOR_CAPTURE_MODE_SNAPSHOT;
+                break;
+            case ARV_ACQUISITION_MODE_MULTI_FRAME:
+                *capture_mode = DETECTOR_CAPTURE_MODE_MULTIFRAME;
+                break;
+            case ARV_ACQUISITION_MODE_CONTINUOUS:
+                *capture_mode = DETECTOR_CAPTURE_MODE_VIDEO;
+                break;
+            default:
+                break;
+        }
+    } else {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        *capture_mode = self->_.d_param.capture_mode;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        g_clear_error(&error);
+    }
+    
+    return ret;
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7459,59 +8817,59 @@ GenICam_set_frame_rate(void *_self, double frame_rate)
     
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
     int ret = AAOS_OK;
+    gint us_per_frame;
     
     if (frame_rate > self->_.d_cap.frame_rate_max || frame_rate < self->_.d_cap.frame_rate_min) {
         return AAOS_EINVAL;
     }
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            arv_camera_set_frame_rate(camera, frame_rate, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.frame_rate = frame_rate;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    arv_camera_set_frame_rate(camera, frame_rate, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.frame_rate = frame_rate;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-error:
+    arv_camera_set_frame_rate(camera, frame_rate, &error);
     if (error != NULL) {
         g_clear_error(&error);
+        gint64 us_per_second = 1000000. / frame_rate, min_, max_;
+        arv_camera_set_boolean(camera, "ProgFrameTimeEnable", true, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+            ret = AAOS_ERROR;
+            goto error;
+        }
+        arv_camera_set_integer(camera, "ProgFrameTimeAbs", us_per_frame, &error);
+        if (error != NULL) {
+            g_clear_error(&error);
+            ret = AAOS_ERROR;
+            goto error;
+        }
     }
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.frame_rate = frame_rate;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7520,57 +8878,44 @@ GenICam_get_frame_rate(void *_self, double *frame_rate)
 {
     struct GenICam *self = cast(GenICam(), _self);
     
+    unsigned int state;
+    uint16_t options;
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
     int ret = AAOS_OK;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            *frame_rate = arv_camera_get_frame_rate(camera, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.frame_rate = *frame_rate;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    *frame_rate = arv_camera_get_frame_rate(camera, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.frame_rate = *frame_rate;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-error:
+    *frame_rate = arv_camera_get_frame_rate(camera, &error);
     if (error != NULL) {
         g_clear_error(&error);
+        gint64 us_per_second;
+        us_per_second = arv_camera_get_integer(camera, "ProgFrameTimeAbs", &error);
+        if (error == NULL) {
+            *frame_rate = 1000000. / us_per_second;
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            *frame_rate = self->_.d_param.frame_rate;
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        }
     }
+    return ret;
+
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7581,6 +8926,8 @@ GenICam_set_gain(void *_self, double gain)
     
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
     int ret = AAOS_OK;
     
     if (gain > self->_.d_cap.gain_max || gain < self->_.d_cap.gain_min) {
@@ -7588,52 +8935,39 @@ GenICam_set_gain(void *_self, double gain)
     }
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            arv_camera_set_gain(camera, gain, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.gain = gain;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    arv_camera_set_gain(camera, gain, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.gain = gain;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    arv_camera_set_gain(camera, gain, &error);
+    if (error == NULL) {
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.gain = gain;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    } else {
+        g_clear_error(&error);
+        ret = AAOS_ERROR;
+    }
     
 error:
-    if (error != NULL) {
-        g_clear_error(&error);
-    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7642,57 +8976,38 @@ GenICam_get_gain(void *_self, double *gain)
 {
     struct GenICam *self = cast(GenICam(), _self);
     
+    unsigned int state;
+    uint16_t options;
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
     int ret = AAOS_OK;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            *gain = arv_camera_get_gain(camera, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.gain = *gain;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    *gain = arv_camera_get_gain(camera, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.gain = *gain;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-error:
+    *gain = arv_camera_get_gain(camera, &error);
     if (error != NULL) {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        *gain = self->_.d_param.gain;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
         g_clear_error(&error);
     }
+    return ret;
+
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
 
@@ -7701,59 +9016,204 @@ GenICam_get_exposure_time(void *_self, double *exposure_time)
 {
     struct GenICam *self = cast(GenICam(), _self);
     
+    unsigned int state;
+    uint16_t options;
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
     int ret = AAOS_OK;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    switch (self->_.d_state.state) {
-        case DETECTOR_STATE_IDLE:
-            *exposure_time = arv_camera_get_exposure_time(camera, &error);
-            if (error != NULL) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-            self->_.d_param.exposure_time = *exposure_time;
-            break;
-        case DETECTOR_STATE_EXPOSING:
-        case DETECTOR_STATE_READING:
-            while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-                Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-            }
-            switch (self->_.d_state.state) {
-                case DETECTOR_STATE_MALFUNCTION:
-                    ret = AAOS_EDEVMAL;
-                    break;
-                case DETECTOR_STATE_OFFLINE:
-                case DETECTOR_STATE_UNINITIALIZED:
-                    ret = AAOS_EUNINIT;
-                    break;
-                default:
-                    *exposure_time = arv_camera_get_exposure_time(camera, &error);
-                    if (error != NULL) {
-                        Pthread_mutex_unlock(&self->_.d_state.mtx);
-                        ret = AAOS_ERROR;
-                        goto error;
-                    }
-                    self->_.d_param.exposure_time = *exposure_time;
-                    break;
-            }
-            break;
-        case DETECTOR_STATE_MALFUNCTION:
-            ret = AAOS_EDEVMAL;
-            break;
-        default:
-            break;
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-error:
+    *exposure_time = arv_camera_get_exposure_time(camera, &error);
+    *exposure_time /= 1000000.;
     if (error != NULL) {
         g_clear_error(&error);
+        *exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+        *exposure_time /= 1000000.;
+        if (error != NULL) {
+            g_clear_error(&error);
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            *exposure_time = self->_.d_param.exposure_time;
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        }
     }
     return ret;
+
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
 }
+
+
+static int
+GenICam_set_pixel_format(void *_self, uint32_t pixel_format)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
+    int ret = AAOS_OK;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    
+    switch (pixel_format) {
+        case DETECTOR_PIXEL_FORMAT_MONO_8:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_8, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_10:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_10, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_10_PACKED, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_12:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_12, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_12_PACKED, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_14:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_14, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_16:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_16, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_RGB_24:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_RGB_8_PACKED, &error);
+            break;
+        case DETECTOR_PIXEL_FORMAT_YUV422:
+            arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_YUV_422_PACKED, &error);
+            break;
+        default:
+            ret = AAOS_EINVAL;
+            goto error;
+            break;
+    }
+    
+    if (error == NULL) {
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.pixel_format = pixel_format;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    } else {
+        g_clear_error(&error);
+        ret = AAOS_ERROR;
+    }
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
+GenICam_get_pixel_format(void *_self, uint32_t *pixel_format)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    GError *error = NULL;
+    int ret = AAOS_OK;
+    gint x, y;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    *pixel_format = arv_camera_get_pixel_format(camera, &error);
+    if (error == NULL) {
+        switch (*pixel_format) {
+            case ARV_PIXEL_FORMAT_MONO_8:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_MONO_8;
+                break;
+            case ARV_PIXEL_FORMAT_MONO_10:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_MONO_10;
+                break;
+            case ARV_PIXEL_FORMAT_MONO_10_PACKED:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_MONO_10_PACKED;
+                break;
+            case ARV_PIXEL_FORMAT_MONO_12:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_MONO_12;
+                break;
+            case ARV_PIXEL_FORMAT_MONO_12_PACKED:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_MONO_12_PACKED;
+                break;
+            case ARV_PIXEL_FORMAT_MONO_14:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_MONO_14;
+                break;
+            case ARV_PIXEL_FORMAT_MONO_16:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_MONO_16;
+                break;
+            case ARV_PIXEL_FORMAT_RGB_8_PACKED:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_RGB_24;
+                break;
+            case ARV_PIXEL_FORMAT_YUV_422_PACKED:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_YUV422;
+                break;
+            default:
+                *pixel_format = DETECTOR_PIXEL_FORMAT_UNKNOWN;
+                break;
+        }
+    } else {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        *pixel_format = self->_.d_param.pixel_format;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        g_clear_error(&error);
+    }
+    
+    return ret;
+    
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
 
 static int
 GenICam_inspect(void *_self)
@@ -7780,10 +9240,404 @@ GenICam_inspect(void *_self)
 }
 
 static int
-GenICam_info(void *_self, void *res, size_t res_size, size_t *res_len)
+GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *res_len)
+{
+    cJSON *root_json, *genicam_json;
+    
+    unsigned int state;
+    uint16_t options;
+    
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    ArvDevice *device = arv_camera_get_device(camera);
+    
+    gint x, y, width, height;
+    gint dx, dy;
+    gint64 feature_64;
+    
+    ArvAcquisitionMode acquisition_mode;
+    double frame_rate, exposure_time, gain;
+    ArvPixelFormat pixel_format;
+    ArvAuto auto_mode;
+    const char *string;
+    GError *error = NULL;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    cJSON_AddStringToObject(root_json, "name", self->_.name);
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "description", self->_.description);
+    }
+    
+    if (state&DETECTOR_STATE_MALFUNCTION) {
+        cJSON_AddStringToObject(root_json, "status", "MALFUNCTION");
+    }
+    switch (state&(~DETECTOR_STATE_MALFUNCTION)) {
+        case DETECTOR_STATE_IDLE:
+            cJSON_AddStringToObject(root_json, "state", "IDLE");
+            break;
+        case DETECTOR_STATE_OFFLINE:
+            cJSON_AddStringToObject(root_json, "state", "OFFLINE");
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            cJSON_AddStringToObject(root_json, "state", "UNINITIALIZED");
+            break;
+        case DETECTOR_STATE_EXPOSING:
+            cJSON_AddStringToObject(root_json, "state", "EXPOSING");
+            break;
+        case DETECTOR_STATE_READING:
+            cJSON_AddStringToObject(root_json, "state", "READING");
+            break;
+        default:
+            break;
+    }
+    
+    if (self->_.d_cap.offset_available) {
+        arv_camera_get_region(camera, &x, &y, &width, &height, &error);
+        if (error == NULL) {
+            cJSON_AddNumberToObject(root_json, "image_width", (double) width);
+            cJSON_AddNumberToObject(root_json, "image_height", (double) height);
+            cJSON_AddNumberToObject(root_json, "x_offset", (double) x);
+            cJSON_AddNumberToObject(root_json, "y_offset", (double) y);
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            cJSON_AddNumberToObject(root_json, "image_width", (double) self->_.d_param.image_width);
+            cJSON_AddNumberToObject(root_json, "image_height", (double) self->_.d_param.image_height);
+            cJSON_AddNumberToObject(root_json, "x_offset", (double) self->_.d_param.x_offset);
+            cJSON_AddNumberToObject(root_json, "y_offset", (double) self->_.d_param.y_offset);
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            g_clear_error(&error);
+        }
+    } else {
+        cJSON_AddNumberToObject(root_json, "image_width", (double) self->_.d_cap.width);
+        cJSON_AddNumberToObject(root_json, "image_height", (double) self->_.d_cap.height);
+        cJSON_AddNumberToObject(root_json, "x_offset", (double) 0);
+        cJSON_AddNumberToObject(root_json, "y_offset", (double) 0);
+    }
+    
+    if (self->_.d_cap.binning_available) {
+        arv_camera_get_binning(camera, &dx, &dy, &error);
+        if (error == NULL) {
+            cJSON_AddNumberToObject(root_json, "x_binning", (double) dx);
+            cJSON_AddNumberToObject(root_json, "y_binning", (double) dy);
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            cJSON_AddNumberToObject(root_json, "x_binning", (double) self->_.d_param.x_binning);
+            cJSON_AddNumberToObject(root_json, "y_binning", (double) self->_.d_param.y_binning);
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            g_clear_error(&error);
+        }
+    }
+    
+    if (self->_.d_cap.capture_mode_available) {
+        acquisition_mode = arv_camera_get_acquisition_mode(camera, &error);
+        if (error == NULL) {
+            switch (acquisition_mode) {
+                case ARV_ACQUISITION_MODE_SINGLE_FRAME:
+                    cJSON_AddStringToObject(root_json, "capture_mode", "snapshot");
+                    break;
+                case ARV_ACQUISITION_MODE_MULTI_FRAME:
+                    cJSON_AddStringToObject(root_json, "capture_mode", "multiframe");
+                    break;
+                case ARV_ACQUISITION_MODE_CONTINUOUS:
+                    cJSON_AddStringToObject(root_json, "capture_mode", "video");
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            switch (self->_.d_param.capture_mode) {
+                case DETECTOR_CAPTURE_MODE_SNAPSHOT:
+                    cJSON_AddStringToObject(root_json, "capture_mode", "snapshot");
+                    break;
+                case DETECTOR_CAPTURE_MODE_MULTIFRAME:
+                    cJSON_AddStringToObject(root_json, "capture_mode", "multiframe");
+                    break;
+                case DETECTOR_CAPTURE_MODE_VIDEO:
+                    cJSON_AddStringToObject(root_json, "capture_mode", "video");
+                    break;
+                default:
+                    break;
+            }
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            g_clear_error(&error);
+        }
+    }
+    
+    if (self->_.d_cap.frame_rate_available) {
+        frame_rate = arv_camera_get_frame_rate(camera, &error);
+        if (error == NULL) {
+            cJSON_AddNumberToObject(root_json, "frame_rate", frame_rate);
+        } else {
+            g_clear_error(&error);
+            gint64 us_per_second;
+            us_per_second = arv_camera_get_integer(camera, "ProgFrameTimeAbs", &error);
+            if (error == NULL) {
+                cJSON_AddNumberToObject(root_json, "frame_rate", 1000000. / us_per_second);
+            } else {
+                g_clear_error(&error);
+                Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+                cJSON_AddNumberToObject(root_json, "frame_rate", self->_.d_param.frame_rate);
+                Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            }
+        }
+    }
+    
+    if (self->_.d_cap.exposure_time_available) {
+        exposure_time = arv_camera_get_exposure_time(camera, &error);
+        if (error == NULL) {
+            cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time / 1000000.);
+        } else {
+            g_clear_error(&error);
+            exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+            if (error == NULL) {
+                cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time / 1000000.);
+            } else {
+                g_clear_error(&error);
+                Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+                cJSON_AddNumberToObject(root_json, "exposure_time", self->_.d_param.exposure_time);
+                Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            }
+        }
+    }
+    
+    if (self->_.d_cap.auto_exposure_time_available) {
+        auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
+        if (error == NULL) {
+            if (auto_mode == ARV_AUTO_OFF) {
+                cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", false);
+            } else {
+                cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", true);
+            }
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", self->_.d_param.auto_exposure_time_enable);
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        }
+    }
+    
+    if (self->_.d_cap.gain_available) {
+        gain = arv_camera_get_gain(camera, &error);
+        if (error == NULL) {
+            cJSON_AddNumberToObject(root_json, "gain", gain);
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            cJSON_AddNumberToObject(root_json, "gain", self->_.d_param.gain);
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            g_clear_error(&error);
+        }
+    }
+    if (self->_.d_cap.auto_gain_available) {
+        auto_mode = arv_camera_get_gain_auto(camera, &error);
+        if (error == NULL) {
+            if (auto_mode == ARV_AUTO_OFF) {
+                cJSON_AddBoolToObject(root_json, "auto_gain_enable", false);
+            } else {
+                cJSON_AddBoolToObject(root_json, "auto_gain_enable", true);
+            }
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", self->_.d_param.auto_gain_enable);
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            g_clear_error(&error);
+        }
+    }
+    
+    if (self->_.d_cap.pixel_format_available) {
+        pixel_format = arv_camera_get_pixel_format(camera, &error);
+        if (error == NULL) {
+            switch (pixel_format) {
+                case ARV_PIXEL_FORMAT_MONO_8:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono8");
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_10:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono10");
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_10_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono10_packed");
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_12:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono12");
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_12_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono12_packed");
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_14:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono14");
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_16:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono16");
+                    break;
+                case ARV_PIXEL_FORMAT_RGB_8_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "rgb24");
+                    break;
+                case ARV_PIXEL_FORMAT_YUV_422_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "yuv422");
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+            switch (self->_.d_param.pixel_format) {
+                case DETECTOR_PIXEL_FORMAT_MONO_8:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono8");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_10:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono10");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono10_packed");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_12:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono12");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono12_packed");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_14:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono14");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono14_packed");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_16:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono16");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_18:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono18");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono18_packed");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_24:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono24");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono24_packed");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_32:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono32");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_64:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "mono64");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_RGB_24:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "rgb24");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_YUV422:
+                    cJSON_AddStringToObject(root_json, "pixel_format", "yuv422");
+                    break;
+                default:
+                    break;
+            }
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+            g_clear_error(&error);
+        }
+    } else {
+        cJSON_AddStringToObject(root_json, "pixel_format", "mono16");
+    }
+    
+    if (self->_.d_cap.trigger_available) {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        switch (self->_.d_param.trigger_mode) {
+            case DETECTOR_TRIGGER_MODE_DEFAULT:
+                cJSON_AddStringToObject(root_json, "trigger_mode", "default");
+                break;
+            case DETECTOR_TRIGGER_MODE_SOFTWARE_EDGE:
+                cJSON_AddStringToObject(root_json, "trigger_mode", "software_edge");
+                break;
+            case DETECTOR_TRIGGER_MODE_SOFTWARE_LEVEL:
+                cJSON_AddStringToObject(root_json, "trigger_mode", "software_level");
+                break;
+            case DETECTOR_TRIGGER_MODE_HARDWARE_EDGE_FALL:
+                cJSON_AddStringToObject(root_json, "trigger_mode", "edge_fall");
+                break;
+            case DETECTOR_TRIGGER_MODE_HARDWARE_EDGE_RISE:
+                cJSON_AddStringToObject(root_json, "trigger_mode", "edge_rise");
+                break;
+            case DETECTOR_TRIGGER_MODE_HARDWARE_LEVEL_LOW:
+                cJSON_AddStringToObject(root_json, "trigger_mode", "level_low");
+                break;
+            case DETECTOR_TRIGGER_MODE_HARDWARE_LEVEL_HIGH:
+                cJSON_AddStringToObject(root_json, "trigger_mode", "level_high");
+                break;
+            default:
+                break;
+        }
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    } else {
+        cJSON_AddStringToObject(root_json, "trigger_mode", "default");
+    }
+    
+    feature_64 = arv_device_get_integer_feature_value(device, "CurrentTemperature", &error);
+    if (error == NULL) {
+        if (feature_64 > 128) {
+            cJSON_AddNumberToObject(root_json, "temperature", feature_64 - 255);
+        } else {
+            cJSON_AddNumberToObject(root_json, "temperature", feature_64 );
+        }
+    } else {
+        g_clear_error(&error);
+    }
+    
+    if ((genicam_json = cJSON_CreateObject()) == NULL) {
+        cJSON_Delete(root_json);
+        return AAOS_ENOMEM;
+    }
+    
+    string = arv_camera_get_vendor_name(camera, &error);
+    if (error == NULL) {
+        cJSON_AddStringToObject(genicam_json, "vendor", string);
+    } else {
+        g_clear_error(&error);
+    }
+    string = arv_camera_get_model_name(camera, &error);
+    if (error == NULL) {
+        cJSON_AddStringToObject(genicam_json, "model", string);
+    } else {
+        g_clear_error(&error);
+    }
+    string = arv_camera_get_device_id(camera, &error);
+    if (error == NULL) {
+        cJSON_AddStringToObject(genicam_json, "device_id", string);
+    } else {
+        g_clear_error(&error);
+    }
+    cJSON_AddItemToObject(root_json, "genicam", genicam_json);
+    
+    cJSON_PrintPreallocated(root_json, res, (int) res_size, 1);
+    cJSON_Delete(root_json);
+    
+    if (res_len != NULL) {
+        *res_len = strlen((char *) res);
+    }
+    
+    return AAOS_OK;
+}
+
+static int
+GenICam_status(void *_self, void *res, size_t res_size, size_t *res_len)
 {
     struct GenICam *self = cast(GenICam(), _self);
     
+    int ret;
+    
+    ret = GenICam_status_json(self, res, res_size, res_len);
+    
+    return ret;
+}
+
+static int
+GenICam_info_plain(struct GenICam *self, void *res, size_t res_size, size_t *res_len)
+{
     ArvCamera *camera = (ArvCamera *) self->camera;
     GError *error = NULL;
     FILE *fp;
@@ -7886,6 +9740,114 @@ GenICam_info(void *_self, void *res, size_t res_size, size_t *res_len)
     return ret;
 }
 
+static int
+GenICam_info_json(struct GenICam *self, void *res, size_t res_size, size_t *res_len)
+{
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    gint x, y, width, height;
+    gint dx, dy;
+    ArvAcquisitionMode acquisition_mode;
+    double frame_rate, exposure_time, gain;
+    ArvPixelFormat pixel_format;
+    ArvAuto auto_mode;
+    const char *string;
+    GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
+    cJSON *root_json;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+
+    if ((root_json = cJSON_CreateObject()) == NULL) {
+        return AAOS_ENOMEM;
+    }
+    
+    cJSON_AddStringToObject(root_json, "name", self->_.name);
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "description", self->_.description);
+    }
+    
+    
+    return AAOS_OK;
+}
+
+static int
+GenICam_info(void *_self, void *res, size_t res_size, size_t *res_len)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    int ret;
+    
+    ret = GenICam_info_plain(self, res, res_size, res_len);
+    
+    return ret;
+}
+
+static int
+GenICam_stop(void *_self)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if (state&DETECTOR_STATE_MALFUNCTION && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.stop_flag = true;
+        while (self->_.d_exp.stop_flag) {
+            Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    } else {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+    }
+    
+    return AAOS_OK;
+}
+
+static int
+GenICam_abort(void *_self)
+{
+    struct GenICam *self = cast(GenICam(), _self);
+    
+    ArvCamera *camera = (ArvCamera *) self->camera;
+    GError *error = NULL;
+    unsigned int state;
+    uint16_t options;
+    int ret = AAOS_OK;
+    
+
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if (state&DETECTOR_STATE_MALFUNCTION && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        goto error;
+    }
+    if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        arv_camera_abort_acquisition(camera, &error);
+    }
+    
+error:
+    if (error != NULL) {
+        ret = AAOS_ERROR;
+        g_clear_error(&error);
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
 static const void *_genicam_virtual_table;
 
 static void
@@ -7899,7 +9861,10 @@ genicam_virtual_table_initialize(void)
 {
     _genicam_virtual_table = new(__DetectorVirtualTable(),
                                  __detector_init, "init", GenICam_init,
+                                 __detector_status, "status", GenICam_status,
                                  __detector_info, "info", GenICam_info,
+                                 __detector_power_on, "power_on", GenICam_power_on,
+                                 __detector_power_off, "power_off", GenICam_power_off,
                                  __detector_expose, "expose", GenICam_expose,
                                  __detector_set_binning, "set_binning", GenICam_set_binning,
                                  __detector_get_binning, "get_binning", GenICam_get_binning,
@@ -7911,9 +9876,16 @@ genicam_virtual_table_initialize(void)
                                  __detector_get_gain, "get_gain", GenICam_get_gain,
                                  __detector_set_region, "set_region", GenICam_set_region,
                                  __detector_get_region, "get_region", GenICam_get_region,
+                                 __detector_set_capture_mode, "set_capture_mode", GenICam_set_capture_mode,
+                                 __detector_get_capture_mode, "get_capture_mode", GenICam_get_capture_mode,
+                                 __detector_set_pixel_format, "set_pixel_format", GenICam_set_pixel_format,
+                                 __detector_get_pixel_format, "get_pixel_format", GenICam_get_pixel_format,
                                  __detector_raw, "raw", GenICam_raw,
                                  __detector_inspect, "inspect", GenICam_inspect,
                                  __detector_wait_for_completion, "wait_for_completion", GenICam_wait_for_last_completion,
+                                 __detector_stop, "stop", GenICam_stop,
+                                 __detector_abort, "abotr", GenICam_abort,
+                                 
                                  (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(genicam_virtual_table_destroy);
@@ -10714,7 +12686,6 @@ ASICamera_ctor(void *_self, va_list *app)
     self->_.d_proc.post_acquisition = __Detector_default_post_acquisition;
     self->_.d_proc.queue = new(ThreadsafeQueue(), DetectorDataFrame_cleanup);
 
-    
     return (void *) self;
 }
 
@@ -10914,29 +12885,29 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         cJSON_AddItemToObject(root_json, "SupportedVideoFormat", array_json);
         cJSON_AddNumberToObject(root_json, "PixelSize", camera_info.PixelSize);
         if (camera_info.MechanicalShutter) {
-            cJSON_AddStringToObject(root_json, "MechanicalShutter", "true");
+            cJSON_AddBoolToObject(root_json, "MechanicalShutter", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "MechanicalShutter", "false");
+            cJSON_AddBoolToObject(root_json, "MechanicalShutter", cJSON_False);
         }
         if (camera_info.ST4Port) {
-            cJSON_AddStringToObject(root_json, "ST4Port", "true");
+            cJSON_AddBoolToObject(root_json, "ST4Port", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "ST4Port", "false");
+            cJSON_AddBoolToObject(root_json, "ST4Port", cJSON_False);
         }
         if (camera_info.IsCoolerCam) {
-            cJSON_AddStringToObject(root_json, "IsCoolerCam", "true");
+            cJSON_AddBoolToObject(root_json, "IsCoolerCam", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "IsCoolerCam", "false");
+            cJSON_AddBoolToObject(root_json, "IsCoolerCam", cJSON_False);
         }
         if (camera_info.IsUSB3Host) {
-            cJSON_AddStringToObject(root_json, "IsUSB3Host", "true");
+            cJSON_AddBoolToObject(root_json, "IsUSB3Host", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "IsUSB3Host", "false");
+            cJSON_AddBoolToObject(root_json, "IsUSB3Host", cJSON_False);
         }
         if (camera_info.IsUSB3Camera) {
-            cJSON_AddStringToObject(root_json, "IsUSB3Camera", "true");
+            cJSON_AddBoolToObject(root_json, "IsUSB3Camera", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "IsUSB3Camera", "false");
+            cJSON_AddBoolToObject(root_json, "IsUSB3Camera", cJSON_False);
         }
         cJSON_AddNumberToObject(root_json, "ElecPerADU", (double) camera_info.ElecPerADU);
         cJSON_AddNumberToObject(root_json, "BitDepth", (double) camera_info.BitDepth);
@@ -11061,14 +13032,14 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         cJSON_AddNumberToObject(root_json, "MinValue", (double) control_caps.MinValue);
         cJSON_AddNumberToObject(root_json, "DefaultValue", (double) control_caps.DefaultValue);
         if (control_caps.IsAutoSupported) {
-            cJSON_AddStringToObject(root_json, "IsAutoSupported", "true");
+            cJSON_AddBoolToObject(root_json, "IsAutoSupported", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "IsAutoSupported", "false");
+            cJSON_AddBoolToObject(root_json, "IsAutoSupported", cJSON_False);
         }
         if (control_caps.IsWritable) {
-            cJSON_AddStringToObject(root_json, "IsWritable", "true");
+            cJSON_AddBoolToObject(root_json, "IsWritable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "IsWritable", "false");
+            cJSON_AddBoolToObject(root_json, "IsWritable", cJSON_False);
         }
         string = cJSON_Print(root_json);
         snprintf(read_buffer, read_buffer_size, "%s", string);
@@ -11097,9 +13068,9 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         root_json = cJSON_CreateObject();
         cJSON_AddNumberToObject(root_json, "Value", (double) value);
         if (is_auto) {
-            cJSON_AddStringToObject(root_json, "IsAuto", "true");
+            cJSON_AddBoolToObject(root_json, "IsAuto", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "IsAuto", "false");
+            cJSON_AddBoolToObject(root_json, "IsAuto", cJSON_False);
         }
         string = cJSON_Print(root_json);
         snprintf(read_buffer, read_buffer_size, "%s", string);
@@ -11723,14 +13694,12 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
             *read_size = 0;
         }
     } else if (strcmp(func_name, "ASIGetSerialNumber") == 0) {
-	ASI_SN camera_sn;
-	ASI_ERROR_CODE (*ASIGetSerialNumber)(int, ASI_SN *);
+        ASI_SN camera_sn;
+        ASI_ERROR_CODE (*ASIGetSerialNumber)(int, ASI_SN *);
         cJSON *root_json;
         char *string;
-		
-	ASIGetSerialNumber = dlsym(self->dlh, "ASIGetSerialNumber");
-		
-	if ((ret = ASIGetSerialNumber(self->camera_id, &camera_sn)) !=  ASI_SUCCESS) {
+        ASIGetSerialNumber = dlsym(self->dlh, "ASIGetSerialNumber");
+        if ((ret = ASIGetSerialNumber(self->camera_id, &camera_sn)) !=  ASI_SUCCESS) {
             ret = asi_error_mapping(ret);
             goto error;
         }
@@ -11744,70 +13713,68 @@ ASICamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
             *read_size = strlen((char *) read_buffer) + 1;
         }
     } else if (strcmp(func_name, "ASISetTriggerOutputIOConf") == 0) {
-	int pin, is_pin_high;
-	long delay, duration;
-	ASI_ERROR_CODE (*ASISetTriggerOutputIOConf)(int, ASI_TRIG_OUTPUT_PIN, ASI_BOOL, long, long);
-
-	ASISetTriggerOutputIOConf = dlsym(self->dlh, "ASISetTriggerOutputIOConf");
-	if ((ret = (fscanf(fp, "%d %d %ld %ld", &pin, &is_pin_high, &delay, &duration))) != 4) {
+        int pin, is_pin_high;
+        long delay, duration;
+        ASI_ERROR_CODE (*ASISetTriggerOutputIOConf)(int, ASI_TRIG_OUTPUT_PIN, ASI_BOOL, long, long);
+        ASISetTriggerOutputIOConf = dlsym(self->dlh, "ASISetTriggerOutputIOConf");
+        if ((ret = (fscanf(fp, "%d %d %ld %ld", &pin, &is_pin_high, &delay, &duration))) != 4) {
             ret = AAOS_EBADCMD;
-	    goto error;
+            goto error;
         }
-	if (is_pin_high) {
-	    is_pin_high = ASI_TRUE;
-	}
-	if ((ret = ASISetTriggerOutputIOConf(self->camera_id, pin, is_pin_high, delay, duration)) !=  ASI_SUCCESS) {
-	    ret = asi_error_mapping(ret);
-	    goto error;
-	}
-	if (read_size != NULL) {
-	    *read_size = 0;
-	}
+        if (is_pin_high) {
+            is_pin_high = ASI_TRUE;
+        }
+        if ((ret = ASISetTriggerOutputIOConf(self->camera_id, pin, is_pin_high, delay, duration)) !=  ASI_SUCCESS) {
+            ret = asi_error_mapping(ret);
+            goto error;
+        }
+        if (read_size != NULL) {
+            *read_size = 0;
+        }
     } else if (strcmp(func_name, "ASIGPSGetData") == 0) {
-	ASI_GPS_DATA start_gps_data, end_gps_data;
-	ASI_ERROR_CODE (*ASIGPSGetData)(int, ASI_GPS_DATA *, ASI_GPS_DATA *);
-	cJSON *root_json, *gps_json, *datetime_json;
-	char *string;
-        
-	ASIGPSGetData = dlsym(self->dlh, "ASIGPSGetData");
+        ASI_GPS_DATA start_gps_data, end_gps_data;
+        ASI_ERROR_CODE (*ASIGPSGetData)(int, ASI_GPS_DATA *, ASI_GPS_DATA *);
+        cJSON *root_json, *gps_json, *datetime_json;
+        char *string;
+        ASIGPSGetData = dlsym(self->dlh, "ASIGPSGetData");
         if ((ret = ASIGPSGetData(self->camera_id, &start_gps_data, &end_gps_data)) !=  ASI_SUCCESS) {
             ret = asi_error_mapping(ret);
             goto error;
         }
         root_json = cJSON_CreateObject();
-	datetime_json = cJSON_CreateObject();
-	cJSON_AddNumberToObject(datetime_json, "Year", (double) start_gps_data.Datetime.Year);
-	cJSON_AddNumberToObject(datetime_json, "Month", (double) start_gps_data.Datetime.Month);
-	cJSON_AddNumberToObject(datetime_json, "Day", (double) start_gps_data.Datetime.Day);
-	cJSON_AddNumberToObject(datetime_json, "Hour", (double) start_gps_data.Datetime.Hour);
-	cJSON_AddNumberToObject(datetime_json, "Minute", (double) start_gps_data.Datetime.Minute);
-	cJSON_AddNumberToObject(datetime_json, "Second", (double) start_gps_data.Datetime.Second);
-	cJSON_AddNumberToObject(datetime_json, "Msecond", (double) start_gps_data.Datetime.Msecond);
-	cJSON_AddNumberToObject(datetime_json, "Usecond", (double) start_gps_data.Datetime.Usecond);
-	gps_json = cJSON_CreateObject();
-	cJSON_AddItemToObject(gps_json, "Datetime", datetime_json);
-	cJSON_AddNumberToObject(gps_json, "Latitude", start_gps_data.Latitude);
-	cJSON_AddNumberToObject(gps_json, "Longitude", start_gps_data.Longitude);
-	cJSON_AddNumberToObject(gps_json, "Altitude", (double) start_gps_data.Altitude);
-	cJSON_AddNumberToObject(gps_json, "SatelliteNum", (double) start_gps_data.SatelliteNum);
-	cJSON_AddItemToObject(gps_json, "StartGPSData", gps_json);
-	datetime_json = cJSON_CreateObject();
-	cJSON_AddNumberToObject(datetime_json, "Year", (double) end_gps_data.Datetime.Year);
-	cJSON_AddNumberToObject(datetime_json, "Month", (double) end_gps_data.Datetime.Month);
-	cJSON_AddNumberToObject(datetime_json, "Day", (double) end_gps_data.Datetime.Day);
-	cJSON_AddNumberToObject(datetime_json, "Hour", (double) end_gps_data.Datetime.Hour);
-	cJSON_AddNumberToObject(datetime_json, "Minute", (double) end_gps_data.Datetime.Minute);
-	cJSON_AddNumberToObject(datetime_json, "Second", (double) end_gps_data.Datetime.Second);
-	cJSON_AddNumberToObject(datetime_json, "Msecond", (double) end_gps_data.Datetime.Msecond);
-	cJSON_AddNumberToObject(datetime_json, "Usecond", (double) end_gps_data.Datetime.Usecond);
-	gps_json = cJSON_CreateObject();
-	cJSON_AddItemToObject(gps_json, "Datetime", datetime_json);
-	cJSON_AddNumberToObject(gps_json, "Latitude", end_gps_data.Latitude);
-	cJSON_AddNumberToObject(gps_json, "Longitude", end_gps_data.Longitude);
-	cJSON_AddNumberToObject(gps_json, "Altitude", (double) end_gps_data.Altitude);
-	cJSON_AddNumberToObject(gps_json, "SatelliteNum", (double) end_gps_data.SatelliteNum);
-	cJSON_AddItemToObject(gps_json, "EndGPSData", gps_json);
-	string = cJSON_Print(root_json);
+        datetime_json = cJSON_CreateObject();
+        cJSON_AddNumberToObject(datetime_json, "Year", (double) start_gps_data.Datetime.Year);
+        cJSON_AddNumberToObject(datetime_json, "Month", (double) start_gps_data.Datetime.Month);
+        cJSON_AddNumberToObject(datetime_json, "Day", (double) start_gps_data.Datetime.Day);
+        cJSON_AddNumberToObject(datetime_json, "Hour", (double) start_gps_data.Datetime.Hour);
+        cJSON_AddNumberToObject(datetime_json, "Minute", (double) start_gps_data.Datetime.Minute);
+        cJSON_AddNumberToObject(datetime_json, "Second", (double) start_gps_data.Datetime.Second);
+        cJSON_AddNumberToObject(datetime_json, "Msecond", (double) start_gps_data.Datetime.Msecond);
+        cJSON_AddNumberToObject(datetime_json, "Usecond", (double) start_gps_data.Datetime.Usecond);
+        gps_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(gps_json, "Datetime", datetime_json);
+        cJSON_AddNumberToObject(gps_json, "Latitude", start_gps_data.Latitude);
+        cJSON_AddNumberToObject(gps_json, "Longitude", start_gps_data.Longitude);
+        cJSON_AddNumberToObject(gps_json, "Altitude", (double) start_gps_data.Altitude);
+        cJSON_AddNumberToObject(gps_json, "SatelliteNum", (double) start_gps_data.SatelliteNum);
+        cJSON_AddItemToObject(gps_json, "StartGPSData", gps_json);
+        datetime_json = cJSON_CreateObject();
+        cJSON_AddNumberToObject(datetime_json, "Year", (double) end_gps_data.Datetime.Year);
+        cJSON_AddNumberToObject(datetime_json, "Month", (double) end_gps_data.Datetime.Month);
+        cJSON_AddNumberToObject(datetime_json, "Day", (double) end_gps_data.Datetime.Day);
+        cJSON_AddNumberToObject(datetime_json, "Hour", (double) end_gps_data.Datetime.Hour);
+        cJSON_AddNumberToObject(datetime_json, "Minute", (double) end_gps_data.Datetime.Minute);
+        cJSON_AddNumberToObject(datetime_json, "Second", (double) end_gps_data.Datetime.Second);
+        cJSON_AddNumberToObject(datetime_json, "Msecond", (double) end_gps_data.Datetime.Msecond);
+        cJSON_AddNumberToObject(datetime_json, "Usecond", (double) end_gps_data.Datetime.Usecond);
+        gps_json = cJSON_CreateObject();
+        cJSON_AddItemToObject(gps_json, "Datetime", datetime_json);
+        cJSON_AddNumberToObject(gps_json, "Latitude", end_gps_data.Latitude);
+        cJSON_AddNumberToObject(gps_json, "Longitude", end_gps_data.Longitude);
+        cJSON_AddNumberToObject(gps_json, "Altitude", (double) end_gps_data.Altitude);
+        cJSON_AddNumberToObject(gps_json, "SatelliteNum", (double) end_gps_data.SatelliteNum);
+        cJSON_AddItemToObject(gps_json, "EndGPSData", gps_json);
+        string = cJSON_Print(root_json);
         snprintf(read_buffer, read_buffer_size, "%s", string);
         if (read_size != NULL) {
             *read_size = strlen(read_buffer) + 1;
@@ -12306,9 +14273,7 @@ error:
 static void
 ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMERA_INFO *camera_info)
 {
-	
     cJSON *root_json, *asi_json, *capability_json, *array_json;
-    char *string = NULL;
     size_t i;
 	
     root_json = cJSON_CreateObject();
@@ -12322,7 +14287,7 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 	cJSON_AddNumberToObject(asi_json, "camera_index", self->camera_index);
 	cJSON_AddNumberToObject(asi_json, "camera_id", self->camera_id);
 	if (camera_info->IsColorCam) {
-	    cJSON_AddStringToObject(asi_json, "ColorCamera", "true");
+	    cJSON_AddBoolToObject(asi_json, "ColorCamera", cJSON_True);
 	    switch (camera_info->BayerPattern) {
 			case ASI_BAYER_RG:
 			    cJSON_AddStringToObject(asi_json, "BayerPattern", "ASI_BAYER_RG");
@@ -12341,37 +14306,37 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 		        break;	
 	    }
 	} else {
-		cJSON_AddStringToObject(asi_json, "ColorCamera", "false");	
+		cJSON_AddBoolToObject(asi_json, "ColorCamera", cJSON_False);	
 	}
 	if (camera_info->MechanicalShutter) {
-	    cJSON_AddStringToObject(asi_json, "MechanicalShutter", "true");	
+	    cJSON_AddBoolToObject(asi_json, "MechanicalShutter", cJSON_True);	
 	} else {
-		cJSON_AddStringToObject(asi_json, "MechanicalShutter", "false");	
+		cJSON_AddBoolToObject(asi_json, "MechanicalShutter", cJSON_False);	
 	}
 	if (camera_info->ST4Port) {
-	    cJSON_AddStringToObject(asi_json, "ST4Port", "true");	
+	    cJSON_AddBoolToObject(asi_json, "ST4Port", cJSON_True);	
 	} else {
-		cJSON_AddStringToObject(asi_json, "ST4Port", "false");	
+		cJSON_AddBoolToObject(asi_json, "ST4Port", cJSON_False);	
 	}
     if (camera_info->IsCoolerCam) {
-        cJSON_AddStringToObject(asi_json, "CoolerCamera", "true");
+        cJSON_AddBoolToObject(asi_json, "CoolerCamera", cJSON_True);
     } else {
-        cJSON_AddStringToObject(asi_json, "CoolerCamera", "false");
+        cJSON_AddBoolToObject(asi_json, "CoolerCamera", cJSON_False);
     }
 	if (camera_info->IsUSB3Host) {
-	    cJSON_AddStringToObject(asi_json, "IsUSB3Host", "true");
+	    cJSON_AddBoolToObject(asi_json, "IsUSB3Host", cJSON_True);
 	} else {
-		cJSON_AddStringToObject(asi_json, "IsUSB3Host", "false");
+		cJSON_AddBoolToObject(asi_json, "IsUSB3Host", cJSON_False);
 	}
     if (camera_info->IsUSB3Camera) {
-        cJSON_AddStringToObject(asi_json, "IsUSB3Camera", "true");
+        cJSON_AddBoolToObject(asi_json, "IsUSB3Camera", cJSON_True);
     } else {
-        cJSON_AddStringToObject(asi_json, "IsUSB3Camera", "false");
+        cJSON_AddBoolToObject(asi_json, "IsUSB3Camera", cJSON_False);
     }
     if (camera_info->IsTriggerCam) {
-        cJSON_AddStringToObject(asi_json, "IsTriggerCam", "true");
+        cJSON_AddBoolToObject(asi_json, "IsTriggerCam", cJSON_True);
     } else {
-        cJSON_AddStringToObject(asi_json, "IsTriggerCam", "false");
+        cJSON_AddBoolToObject(asi_json, "IsTriggerCam", cJSON_False);
     }
     cJSON_AddNumberToObject(asi_json, "ElecPerADU", camera_info->ElecPerADU);
     cJSON_AddNumberToObject(asi_json, "BitDepth", camera_info->BitDepth);
@@ -12393,7 +14358,7 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 	}	
 	
 	if (self->_.d_cap.binning_available) {
-		cJSON_AddStringToObject(capability_json, "binning_available", "true");
+		cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_True);
         if (self->_.d_cap.x_binning_array != NULL && self->_.d_cap.y_binning_array != NULL) {
             char binning_buffer[BUFSIZE];
             FILE *fp;
@@ -12411,17 +14376,17 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 			cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_max);
         }		
 	} else {
-		cJSON_AddStringToObject(capability_json, "binning_available", "false");
+		cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.offset_available) {
-		cJSON_AddStringToObject(capability_json, "offset_available", "true");
+		cJSON_AddBoolToObject(capability_json, "offset_available", cJSON_True);
 	} else {
-		cJSON_AddStringToObject(capability_json, "offset_available", "false");
+		cJSON_AddBoolToObject(capability_json, "offset_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.gain_available) {
-		cJSON_AddStringToObject(capability_json, "gain_available", "true");
+		cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_True);
 		if (self->_.d_cap.gain_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
 			cJSON_AddNumberToObject(capability_json, "gain_max", self->_.d_cap.gain_max);
@@ -12433,18 +14398,18 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 			cJSON_AddItemToObject(capability_json, "gain_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "gain_available", "false");
+		cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_gain_available) {
-		cJSON_AddStringToObject(capability_json, "auto_gain_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_gain_min", self->_.d_cap.auto_gain_min);
 		cJSON_AddNumberToObject(capability_json, "auto_gain_max", self->_.d_cap.auto_gain_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_gain_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.exposure_time_available) {
-		cJSON_AddStringToObject(capability_json, "exposure_time_available", "true");
+		cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_True);
 		if (self->_.d_cap.exposure_time_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "exposure_time_min", self->_.d_cap.exposure_time_min);
 			cJSON_AddNumberToObject(capability_json, "exposure_time_max", self->_.d_cap.exposure_time_max);
@@ -12456,18 +14421,18 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 			cJSON_AddItemToObject(capability_json, "exposure_time_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "exposure_time_available", "false");
+		cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_frame_rate_available) {
-		cJSON_AddStringToObject(capability_json, "auto_exposure_time_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_exposure_time_min", self->_.d_cap.auto_exposure_time_min);
 		cJSON_AddNumberToObject(capability_json, "auto_exposure_time_max", self->_.d_cap.auto_exposure_time_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_exposure_time_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.frame_rate_available) {
-		cJSON_AddStringToObject(capability_json, "frame_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_True);
 		if (self->_.d_cap.frame_rate_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "frame_rate_min", self->_.d_cap.frame_rate_min);
 			cJSON_AddNumberToObject(capability_json, "frame_rate_max", self->_.d_cap.frame_rate_max);
@@ -12479,18 +14444,18 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 			cJSON_AddItemToObject(capability_json, "frame_rate_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "frame_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_frame_rate_available) {
-		cJSON_AddStringToObject(capability_json, "auto_frame_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_frame_rate_min", self->_.d_cap.auto_frame_rate_min);
 		cJSON_AddNumberToObject(capability_json, "auto_frame_rate_max", self->_.d_cap.auto_frame_rate_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_frame_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.pixel_format_available) {
-		cJSON_AddStringToObject(capability_json, "pixel_format_available", "true");
+		cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_True);
 		array_json = cJSON_CreateArray();
 		for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
 			switch (self->_.d_cap.pixel_format_array[i]) {
@@ -12545,11 +14510,11 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 		}
 		cJSON_AddItemToObject(capability_json, "pixel_format_array", array_json);
 	} else {
-		cJSON_AddStringToObject(capability_json, "pixel_format_available", "false");
+		cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.readout_rate_available) {
-		cJSON_AddStringToObject(capability_json, "readout_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_True);
 		if (self->_.d_cap.readout_rate_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "readout_rate_min", self->_.d_cap.readout_rate_min);
 			cJSON_AddNumberToObject(capability_json, "readout_rate_max", self->_.d_cap.readout_rate_max);
@@ -12561,41 +14526,39 @@ ASICamera_info_json(struct ASICamera *self, void *buffer, size_t size, ASI_CAMER
 			cJSON_AddItemToObject(capability_json, "readout_rate_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "readout_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_readout_rate_available) {
-		cJSON_AddStringToObject(capability_json, "auto_readout_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_readout_rate_min", self->_.d_cap.auto_readout_rate_min);
 		cJSON_AddNumberToObject(capability_json, "auto_readout_rate_max", self->_.d_cap.auto_readout_rate_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_readout_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.cooling_available) {
-		cJSON_AddStringToObject(capability_json, "cooling_available", "true");
+		cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "cooling_temperature_min", self->_.d_cap.cooling_temperature_min);
 		cJSON_AddNumberToObject(capability_json, "cooling_temperature_max", self->_.d_cap.cooling_temperature_max);
 			
 	} else {
-		cJSON_AddStringToObject(capability_json, "cooling_available", "false");
+		cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_cooling_available) {
-		cJSON_AddStringToObject(capability_json, "auto_cooling_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_min", self->_.d_cap.auto_cooling_temperature_min);
 		cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_max", self->_.d_cap.auto_cooling_temperature_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_cooling_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_False);
 	}
 	cJSON_AddItemToObject(root_json, "capability", capability_json);
     
-    string = cJSON_Print(root_json);
+    cJSON_PrintPreallocated(root_json, buffer, (int) size, 1);
 	cJSON_Delete(root_json);
-    snprintf(buffer, size, "%s", string);
-    free(string);
 }
 
 static int
-ASICamera_info(void *_self, void *buffer, size_t size)
+ASICamera_info(void *_self, void *buffer, size_t size, size_t *len)
 {
 	struct ASICamera *self = cast(ASICamera(), _self);
 	
@@ -12611,13 +14574,17 @@ ASICamera_info(void *_self, void *buffer, size_t size)
 	    goto error;
 	}
 	ASICamera_info_json(self, buffer, size, &camera_info);
+    
+    if (len != NULL) {
+        len = strlen((char *) buffer);
+    }
 	
 error:
     return ret;
 }
 
-static void
-ASICamera_status_json(struct ASICamera *self, void *buffer, size_t size)
+static int
+ASICamera_status_json(struct ASICamera *self, void *buffer, size_t size, size_t *len)
 {
     unsigned int state, options;
     uint32_t image_width, image_height, x_offset, y_offset, x_binning, y_binning;
@@ -12626,7 +14593,6 @@ ASICamera_status_json(struct ASICamera *self, void *buffer, size_t size)
     long value;
     ASI_BOOL is_auto;
     cJSON *root_json;
-    char *string;
     
     ASI_ERROR_CODE (*ASIGetControlValue)(int, ASI_CONTROL_TYPE, long *, ASI_BOOL *);
     ASIGetControlValue = dlsym(self->dlh, "ASIGetControlValue");
@@ -12684,55 +14650,55 @@ ASICamera_status_json(struct ASICamera *self, void *buffer, size_t size)
     cJSON_AddNumberToObject(root_json, "y_binning", (double) y_binning);
     if (self->_.d_cap.auto_exposure_time_available) {
         if (auto_exposure_time_enable) {
-            cJSON_AddStringToObject(root_json, "auto_exposure_time_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_exposure_time_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time);
     if (self->_.d_cap.auto_frame_rate_available) {
         if (auto_frame_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "frame_rate", frame_rate);
     if (self->_.d_cap.auto_frame_rate_available) {
         if (auto_frame_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "gain", gain);
     if (self->_.d_cap.auto_gain_available) {
         if (auto_gain_enable) {
-            cJSON_AddStringToObject(root_json, "auto_gain_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_gain_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_False);
         }
     }
     if (self->_.d_cap.auto_readout_rate_available) {
         if (auto_readout_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_readout_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_readout_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "readout_rate", readout_rate);
 
     if (self->_.d_param.is_cooling_enable) {
-	cJSON_AddStringToObject(root_json, "cooling_enabled", "true");
+	cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_True);
     } else {
-	cJSON_AddStringToObject(root_json, "cooling_enabled", "false");
+	cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_False);
     }
 
     if (self->_.d_cap.auto_cooling_available) {
         if (auto_cooling_enable) {
-            cJSON_AddStringToObject(root_json, "auto_cooling_enabled", "true");
+            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_cooling_enabled", "false");
+            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", cJSON_False);
         }
     }
 
@@ -12744,20 +14710,22 @@ ASICamera_status_json(struct ASICamera *self, void *buffer, size_t size)
         cJSON_AddNumberToObject(root_json, "actual_temperature", value/10.);
     }
     
-    string = cJSON_Print(root_json);
+    cJSON_PrintPreallocated(root_json, buffer, (int) size, 1);
     cJSON_Delete(root_json);
-    snprintf(buffer, size, "%s", string);
-    free(string);
+
+    if (len != NULL) {
+        *len = strlen((char *) buffer);
+    }
+    
+    return AAOS_OK;
 }
 
 static int
-ASICamera_status(void *_self, void *buffer, size_t size)
+ASICamera_status(void *_self, void *buffer, size_t size, size_t *len)
 {
     struct ASICamera *self = cast(ASICamera(), _self);
     
-    ASICamera_status_json(self, buffer, size);
-    
-    return AAOS_OK;
+    return ASICamera_status_json(self, buffer, size, len);
 }
 
 struct ASICameraExposureArg {
@@ -12832,20 +14800,20 @@ ASICamera_process_image_thr(void *arg)
             fits_create_file(&fptr, filename, &status);
             if (status != 0) {
 #ifdef DEBUG
-                fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+                fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
             }
             fits_copy_file(detector->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
             if (status != 0) {
 #ifdef DEBUG
-                fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+                fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
             }
         } else {
             fits_create_template(&fptr, filename, detector->_.d_proc.tpl_filename, &status);
             if (status != 0) {
 #ifdef DEBUG
-                fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+                fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
             }
         }
@@ -13290,14 +15258,17 @@ ASICamera_stop(void *_self)
     state = self->_.d_state.state;
     options = self->_.d_state.options;
     if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
         Pthread_mutex_lock(&self->_.d_exp.mtx);
         self->_.d_exp.stop_flag = true;
         while (self->_.d_exp.stop_flag) {
             Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
         }
         Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    } else {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
     }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
     
     return AAOS_OK;
 }
@@ -13856,9 +15827,66 @@ asi_camera_virtual_table(void)
  * Leading InGaAs infrared camera.
  * http://leadingoe.com.cn
  */
-#ifdef __USE_LEADING_CAMERA__
 
+#ifdef __USE_LEADING_CAMERA__
 static const void *leading_camera_virtual_table(void);
+
+static void
+LeadingCamera_name_convention(void *_self, char *pathname, size_t size, ...)
+{
+    struct LeadingCamera *self = cast(LeadingCamera(), _self);
+	
+    va_list ap;
+    size_t i, n;
+    int i_subdir;
+    bool subdir;
+    FILE *fp;
+    struct timespec *tp;
+    static __thread struct tm tm_buf;
+    char time_buf[TIMESTAMPSIZE], directory[PATHSIZE];
+	
+    va_start(ap, size);
+    i = va_arg(ap, size_t);
+    n = va_arg(ap, size_t);
+    tp = va_arg(ap, struct timespec *);
+    i_subdir = va_arg(ap, int);
+    va_end(ap);
+
+    subdir = i_subdir;
+    if (i == 1 || n == 1) {
+        //Clock_gettime(CLOCK_REALTIME, &tp);
+        gmtime_r(&tp->tv_sec, &tm_buf);
+    }
+	
+    if ((fp = fmemopen(pathname, size, "w+")) == NULL) {
+        return;
+    }
+    fprintf(fp, "%s/", self->_.d_proc.image_directory);
+    if (subdir) {
+        strftime(time_buf, TIMESTAMPSIZE, "%Y/%m/%d/", &tm_buf);
+        fprintf(fp, "%s", time_buf);
+        fflush(fp);
+        mkdirp(pathname);
+    }
+    strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S", &tm_buf);
+    if (n == 1) {
+        if (self->_.d_proc.image_prefix != NULL) {
+            fprintf(fp, "%s_%s.fits", self->_.d_proc.image_prefix, time_buf);
+        } else {
+            fprintf(fp, "%s.fits", time_buf);
+        }
+    } else {
+        if (self->_.d_proc.image_prefix != NULL) {
+            fprintf(fp, "%s_%s_%04zd.fits", self->_.d_proc.image_prefix, time_buf, i);
+        } else {
+            fprintf(fp, "%s_%04zd.fits", time_buf, i);
+        }
+    }
+    if (self->_.d_state.state&DETECTOR_OPTION_COMPRESS_IMAGE) {
+        fprintf(fp, ".fz");
+    }
+    fclose(fp);
+}
 
 static void *
 LeadingCamera_ctor(void *_self, va_list *app)
@@ -13867,12 +15895,15 @@ LeadingCamera_ctor(void *_self, va_list *app)
     
     const char *s;
     
-    bool (*EnumerateDevices_C_API)(int *, void **, void **);
+    bool (*EnumerateDevices_C_API)(int *, void ***, void ***);
     bool (*connectCamera_C_API)(void *, int *);
     void* (*LeadingCameraGetDeviceByName)(const char *, int, void **, void **, int *);
-    bool (*releaseCameras_C_API)(void **, void **);
-    void (*LeadingCameraCopyInfo)(void *, void *, char *, char *, char *, char *, char *, char *, char *, char *, char *);
+    bool (*releaseCameras_C_API)(int, void **, void **);
+    void (*LeadingCameraCopyInfo)(void *, void *, struct LeadingCameraInfo *cam_info, struct LeadingInterfaceInfo *iface_info);
     int n_camera;
+    
+    struct LeadingCameraInfo cam_info;
+    struct LeadingInterfaceInfo iface_info;
 
     self->_.d_state.state = (DETECTOR_STATE_OFFLINE|DETECTOR_STATE_UNINITIALIZED);
     self->camera_index = -1;
@@ -13890,59 +15921,65 @@ LeadingCamera_ctor(void *_self, va_list *app)
 #endif
     
     EnumerateDevices_C_API = dlsym(self->dlh, "EnumerateDevices_C_API");
+    releaseCameras_C_API = dlsym(self->dlh, "releaseCameras_C_API");
     connectCamera_C_API = dlsym(self->dlh, "connectCamera_C_API");
     LeadingCameraGetDeviceByName = dlsym(self->dlh, "LeadingCameraGetDeviceByName");
     LeadingCameraCopyInfo = dlsym(self->dlh, "LeadingCameraCopyInfo");
-    if (EnumerateDevices_C_API(&n_camera, self->device_list, self->interface_list)) {
+    if (EnumerateDevices_C_API(&n_camera, &self->device_list, &self->interface_list)) {
         self->n_camera = n_camera;
         void *leading_camera;
         if (self->camera_index < 0) {
             if (self->_.name != NULL) {
                 if ((leading_camera = LeadingCameraGetDeviceByName(self->_.name, n_camera, self->device_list, self->interface_list, &self->camera_index)) == NULL) {
-                    free(self->so_path);
-                    dlclose(self->dlh);
+#ifdef DEBUG
+		    fprintf(stderr, "%s %s %d: camera \"%s\" is not found.\n", __FILE__, __func__, __LINE__ - 3, self->_.name);
+#endif
                     Pthread_mutex_destroy(&self->mtx);
                     Pthread_cond_destroy(&self->cond);
+                    releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+		
+                    free(self->so_path);
+                    dlclose(self->dlh);
                     super_dtor(LeadingCamera(), self);
-                    releaseCameras_C_API(self->device_list, self->interface_list);
                     return NULL;
                 }
                 if (!connectCamera_C_API(leading_camera, &self->camera_id)) {
-                    free(self->so_path);
-                    dlclose(self->dlh);
+                    
                     Pthread_mutex_destroy(&self->mtx);
                     Pthread_cond_destroy(&self->cond);
+                    releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                    free(self->so_path);
+                    dlclose(self->dlh);
                     super_dtor(LeadingCamera(), self);
-                    releaseCameras_C_API(self->device_list, self->interface_list);
                     return NULL;
                 }
             } else {
-                free(self->so_path);
-                dlclose(self->dlh);
                 Pthread_mutex_destroy(&self->mtx);
                 Pthread_cond_destroy(&self->cond);
+                releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                free(self->so_path);
+                dlclose(self->dlh);
                 super_dtor(LeadingCamera(), self);
-                releaseCameras_C_API(self->device_list, self->interface_list);
                 return NULL;
             }
         } else {
             if (self->camera_index >= n_camera) {
-                free(self->so_path);
-                dlclose(self->dlh);
                 Pthread_mutex_destroy(&self->mtx);
                 Pthread_cond_destroy(&self->cond);
+                releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                free(self->so_path);
+                dlclose(self->dlh);
                 super_dtor(LeadingCamera(), self);
-                releaseCameras_C_API(self->device_list, self->interface_list);
                 return NULL;
             }
             leading_camera = self->device_list[self->camera_index];
             if (!connectCamera_C_API(leading_camera, &self->camera_id)) {
-                free(self->so_path);
-                dlclose(self->dlh);
                 Pthread_mutex_destroy(&self->mtx);
                 Pthread_cond_destroy(&self->cond);
+                releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                free(self->so_path);
+                dlclose(self->dlh);
                 super_dtor(LeadingCamera(), self);
-                releaseCameras_C_API(self->device_list, self->interface_list);
                 return NULL;
             }
         }
@@ -13955,11 +15992,13 @@ LeadingCamera_ctor(void *_self, va_list *app)
         return NULL;
     }
     
-    LeadingCameraCopyInfo(self->device_list[self->camera_index], self->interface_list[self->camera_index], self->camera_info.model_name, self->camera_info.device_version, self->camera_info.manufacture_spec_info, self->camera_info.serial_number, self->camera_info.user_define_name, self->camera_info.ip, self->camera_info.mask, self->camera_info.gateway, self->camera_info.description);
+    
+    LeadingCameraCopyInfo(self->device_list[self->camera_index], self->interface_list[self->camera_index], &cam_info, &iface_info);
+    
     self->_._vtab= leading_camera_virtual_table();
-    //self->_.d_proc.name_convention = ASICamera_name_convention;
-    //self->_.d_proc.pre_acquisition = ASICamera_pre_acquisition;
-    //self->_.d_proc.post_acquisition = __Detector_default_post_acquisition;
+    self->_.d_proc.name_convention = LeadingCamera_name_convention;
+    self->_.d_proc.pre_acquisition = __Detector_default_pre_acquisition;
+    self->_.d_proc.post_acquisition = __Detector_default_post_acquisition;
     self->_.d_proc.queue = new(ThreadsafeQueue(), DetectorDataFrame_cleanup);
     
     return (void *) self;
@@ -13970,12 +16009,14 @@ LeadingCamera_dtor(void *_self)
 {
     struct LeadingCamera *self = cast(LeadingCamera(), _self);
     
-    bool (*releaseCameras_C_API)(void **, void **);
+    bool (*releaseCameras_C_API)(int, void **, void **);
+    bool (*disconnectCamera_C_API)(int);
     
     releaseCameras_C_API = dlsym(self->dlh, "releaseCameras_C_API");
-    if (self->device_list != NULL && self->interface_list != NULL) {
-        releaseCameras_C_API(self->device_list[self->camera_index], self->interface_list[self->camera_index]);
-    }
+    disconnectCamera_C_API = dlsym(self->dlh, "disconnectCamera_C_API");
+    disconnectCamera_C_API(self->camera_index);
+    releaseCameras_C_API(self->n_camera, self->device_list[self->camera_index], self->interface_list[self->camera_index]);
+    
     Pthread_mutex_destroy(&self->mtx);
     Pthread_cond_destroy(&self->cond);
     free(self->so_path);
@@ -14096,7 +16137,7 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
         return AAOS_ERROR;
     }
     
-    if ((ret = fscanf(fp, "%s", &func_name)) != 1) {
+    if ((ret = fscanf(fp, "%s", func_name)) != 1) {
         fclose(fp);
         return AAOS_ERROR;
     }
@@ -14194,7 +16235,7 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
         unsigned char command[COMMANDSIZE];
         
         sendCommandToCamera_C_API = dlsym(self->dlh, "sendCommandToCamera_C_API");
-        if (fscanf(fp, "%s", &command) != 1) {
+        if (fscanf(fp, "%s", command) != 1) {
             fclose(fp);
             return AAOS_EINVAL;
         }
@@ -14335,12 +16376,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
         bool (*setCrossLineShow_C_API)(int, bool, unsigned char, unsigned char);
         bool b_value;
         unsigned char uc_value, uc_value2;
+        unsigned int ui_value;
         
         setCrossLineShow_C_API = dlsym(self->dlh, "setPseudoColorMode_C_API");
-        if (fscanf(fp, "%d %c %c", &b_value, &uc_value, &uc_value2) != 3) {
+        if (fscanf(fp, "%b %c %c", &ui_value, &uc_value, &uc_value2) != 3) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+	b_value = ui_value;
         if (!setCrossLineShow_C_API(self->camera_id, b_value, uc_value, uc_value2)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -14387,12 +16430,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setTriggerLevel") == 0) {
         bool (*setTriggerLevel_C_API)(int, bool);
         bool b_value;
+	unsigned int ui_value;
         
         setTriggerLevel_C_API = dlsym(self->dlh, "setTriggerLevel_C_API");
-        if (fscanf(fp, "%d", &b_value) != 1) {
+        if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+	b_value = ui_value;
         if (!setTriggerLevel_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -14402,17 +16447,17 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
         }
     } else if (strcmp(func_name, "getTriggerLevel") == 0) {
         bool (*getTriggerLevel_C_API)(int, unsigned char *);
-        bool b_value;
+        char uc_value;
         char *string;
         cJSON *root_json;
         
         getTriggerLevel_C_API = dlsym(self->dlh, "getTriggerLevel_C_API");
-        if (!getTriggerLevel_C_API(self->camera_id, &b_value)) {
+        if (!getTriggerLevel_C_API(self->camera_id, &uc_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
         }
         root_json = cJSON_CreateObject();
-        cJSON_AddNumberToObject(root_json, "TriggerLevel", b_value);
+        cJSON_AddNumberToObject(root_json, "TriggerLevel", uc_value);
         string = cJSON_Print(root_json);
         snprintf(read_buffer, read_buffer_size, "%s", string);
         free(string);
@@ -14423,12 +16468,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setTriggerEdge") == 0) {
         bool (*setTriggerEdge_C_API)(int, bool);
         bool b_value;
+	unsigned int ui_value;
         
         setTriggerEdge_C_API = dlsym(self->dlh, "setTriggerEdge_C_API");
-        if (fscanf(fp, "%d", &b_value) != 1) {
+        if (fscanf(fp, "%d", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+	b_value = ui_value;
         if (!setTriggerEdge_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -14588,12 +16635,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setExposureMode") == 0) {
         bool (*setExposureMode_C_API)(int, bool);
         bool b_value;
+        unsigned int ui_value;
         
         setExposureMode_C_API = dlsym(self->dlh, "setExposureMode_C_API");
-        if (fscanf(fp, "%d", &b_value) != 1) {
+        if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+        b_value = ui_value;
         if (!setExposureMode_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -14696,12 +16745,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setAutoExposeTimeLimitState") == 0) {
         bool (*setAutoExposeTimeLimitState_C_API)(int, bool);
         bool b_value;
+	unsigned int ui_value;
         
         setAutoExposeTimeLimitState_C_API = dlsym(self->dlh, "setAutoExposeTimeLimitState_C_API");
-        if (fscanf(fp, "%d", &b_value) != 1) {
+        if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+	b_value = ui_value;
         if (!setAutoExposeTimeLimitState_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -14824,12 +16875,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setGainMode") == 0) {
         bool (*setGainMode_C_API)(int, bool);
         bool b_value;
+        unsigned int ui_value;
         
         setGainMode_C_API = dlsym(self->dlh, "setGainMode_C_API");
-        if (fscanf(fp, "%d", &b_value) != 2) {
+        if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+        b_value = ui_value;
         if (!setGainMode_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -15148,12 +17201,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setNoUniformCorrectionState") == 0) {
         bool (*setNoUniformCorrectionState_C_API)(int, bool);
         bool b_value;
+        unsigned int ui_value;
         
         setNoUniformCorrectionState_C_API = dlsym(self->dlh, "setNoUniformCorrectionState_C_API");
-        if (fscanf(fp, "%d", &b_value) != 1) {
+        if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+        b_value = ui_value;
         if (!setNoUniformCorrectionState_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -15184,12 +17239,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setBadPointCorrectionState") == 0) {
         bool (*setBadPointCorrectionState_C_API)(int, bool);
         bool b_value;
+        unsigned int ui_value;
         
         setBadPointCorrectionState_C_API = dlsym(self->dlh, "setBadPointCorrectionState_C_API");
-        if (fscanf(fp, "%d", &b_value) != 2) {
+        if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+        b_value = ui_value;
         if (!setBadPointCorrectionState_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -15310,12 +17367,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setPalNtscType") == 0) {
         bool (*setPalNtscType_C_API)(int, bool);
         bool b_value;
+        unsigned int ui_value;
         
         setPalNtscType_C_API = dlsym(self->dlh, "setPalNtscType_C_API");
-        if (fscanf(fp, "%d", &b_value) != 1) {
+        if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
+        b_value = ui_value;
         if (!setPalNtscType_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -15549,9 +17608,59 @@ error:
 }
 
 static int
+LeadingCamera_power_on(void *_self)
+{
+    struct LeadingCamera *self = cast(LeadingCamera(), _self);
+	
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    if (self->_.d_state.state&DETECTOR_STATE_OFFLINE) {
+        self->_.d_state.state = (self->_.d_state.state&(~DETECTOR_STATE_OFFLINE))&DETECTOR_STATE_UNINITIALIZED;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+
+    return AAOS_OK;
+}
+
+static int
+LeadingCamera_power_off(void *_self)
+{
+    struct LeadingCamera *self = cast(LeadingCamera(), _self);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    while (self->_.d_state.state&DETECTOR_STATE_EXPOSING||self->_.d_state.state&DETECTOR_STATE_READING) {
+        Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+    }
+    self->_.d_state.state |= DETECTOR_STATE_OFFLINE;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+
+    return AAOS_OK;
+}
+
+
+static int
 LeadingCamera_init(void *_self)
 {
     struct LeadingCamera *self = cast(LeadingCamera(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    if (state&DETECTOR_STATE_OFFLINE) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EPWROFF;
+    }
+    if (state&DETECTOR_STATE_IDLE || state&DETECTOR_STATE_EXPOSING || state&DETECTOR_STATE_READING) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_OK;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     
     bool (*getMaxResolution_C_API)(int, unsigned int*, unsigned int *);
     bool (*getAutoExposeMinTime_C_API)(int, unsigned int *);
@@ -15569,8 +17678,8 @@ LeadingCamera_init(void *_self)
     
     unsigned short x_offset, y_offset, image_width, image_height;
     unsigned int width, height, auto_exposure_time_min, auto_exposure_time_max;
-    unsigned char gain, tap;
-    
+    unsigned char gain, tap;   
+
     getMaxResolution_C_API = dlsym(self->dlh, "getMaxResolution_C_API");
     getAutoExposeMinTime_C_API = dlsym(self->dlh, "getAutoExposeMinTime_C_API");
     getAutoExposeMaxTime_C_API = dlsym(self->dlh, "getAutoExposeMaxTime_C_API");
@@ -15583,6 +17692,7 @@ LeadingCamera_init(void *_self)
     getROIZoonOffset_C_API = dlsym(self->dlh, "getROIZoonOffset_C_API");
     getROIZoonSize_C_API = dlsym(self->dlh, "getROIZoonSize_C_API");
     setTecCtrlTempMode_C_API = dlsym(self->dlh, "setTecCtrlTempMode_C_API");
+    getTecCtrlTemp_C_API = dlsym(self->dlh, "getTecCtrlTemp_C_API");
     
     if (getMaxResolution_C_API(self->camera_id, &width, &height)) {
         self->_.d_cap.width = (size_t) width;
@@ -15595,6 +17705,7 @@ LeadingCamera_init(void *_self)
     self->_.d_cap.pixel_format_array[0] = DETECTOR_PIXEL_FORMAT_MONO_8;
     self->_.d_cap.pixel_format_array[1] = DETECTOR_PIXEL_FORMAT_MONO_14;
     self->_.d_cap.pixel_format_array[2] = DETECTOR_PIXEL_FORMAT_YUV422;
+    
     if (setImageFormat_C_API(self->camera_id, 1)) {
         self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_MONO_14;
     }
@@ -15609,7 +17720,10 @@ LeadingCamera_init(void *_self)
     if (setTriggerMode_C_API(self->camera_id, 0)) {
         self->_.d_param.trigger_mode = DETECTOR_TRIGGER_MODE_DEFAULT;
     }
-    
+ 
+    self->_.d_cap.exposure_time_available = true;   
+    self->_.d_cap.exposure_time_max = 20.;
+    self->_.d_cap.exposure_time_min = 0.;
     self->_.d_cap.auto_exposure_time_available = true;
     if (getAutoExposeMinTime_C_API(self->camera_id, &auto_exposure_time_min)) {
         self->_.d_cap.auto_exposure_time_min = auto_exposure_time_min/1000000.;
@@ -15663,11 +17777,15 @@ LeadingCamera_init(void *_self)
     }
     getTecCtrlTemp_C_API(self->camera_id, &self->_.d_param.temperature, &tap);
     
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state = (state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_IDLE;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
     return AAOS_OK;
 }
 
 static int
-LeadingCamera_status_json(struct LeadingCamera *self, void *buffer, size_t size)
+LeadingCamera_status_json(struct LeadingCamera *self, void *buffer, size_t size, size_t *len)
 {
     unsigned int state, options;
     uint32_t image_width, image_height, x_offset, y_offset, x_binning, y_binning, pixel_format;
@@ -15703,9 +17821,12 @@ LeadingCamera_status_json(struct LeadingCamera *self, void *buffer, size_t size)
     auto_cooling_enable = self->_.d_param.auto_cooling_enable;
     Pthread_rwlock_unlock(&self->_.d_param.rwlock);
     
-    
     root_json = cJSON_CreateObject();
     cJSON_AddStringToObject(root_json, "name", self->_.name);
+	if (self->_.description != NULL) {
+		cJSON_AddStringToObject(root_json, "description", self->_.description);
+	}
+	
     if (state&DETECTOR_STATE_MALFUNCTION) {
         cJSON_AddStringToObject(root_json, "status", "MALFUNCTION");
     }
@@ -15739,56 +17860,56 @@ LeadingCamera_status_json(struct LeadingCamera *self, void *buffer, size_t size)
     }
     if (self->_.d_cap.auto_exposure_time_available) {
         if (auto_exposure_time_enable) {
-            cJSON_AddStringToObject(root_json, "auto_exposure_time_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_exposure_time_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time);
     if (self->_.d_cap.auto_frame_rate_available) {
         if (auto_frame_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "frame_rate", frame_rate);
     if (self->_.d_cap.auto_frame_rate_available) {
         if (auto_frame_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "gain", gain);
     if (self->_.d_cap.auto_gain_available) {
         if (auto_gain_enable) {
-            cJSON_AddStringToObject(root_json, "auto_gain_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_gain_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_False);
         }
     }
     if (self->_.d_cap.auto_readout_rate_available) {
         if (auto_readout_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_readout_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_readout_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_False);
         }
     }
     cJSON_AddNumberToObject(root_json, "readout_rate", readout_rate);
-    cJSON_AddStringToObject(root_json, "pixel_format", pixel_format_string[pixel_format]);
+    cJSON_AddStringToObject(root_json, "pixel_format", pixel_format_string[pixel_format - 1]);
 
     if (self->_.d_param.is_cooling_enable) {
-    cJSON_AddStringToObject(root_json, "cooling_enabled", "true");
+	cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_True);
     } else {
-    cJSON_AddStringToObject(root_json, "cooling_enabled", "false");
+	cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_False);
     }
 
     if (self->_.d_cap.auto_cooling_available) {
         if (auto_cooling_enable) {
-            cJSON_AddStringToObject(root_json, "auto_cooling_enabled", "true");
+            cJSON_AddBoolToObject(root_json, "auto_cooling_available", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_cooling_enabled", "false");
+            cJSON_AddBoolToObject(root_json, "auto_cooling_available", cJSON_False);
         }
     }
 
@@ -15801,53 +17922,61 @@ LeadingCamera_status_json(struct LeadingCamera *self, void *buffer, size_t size)
         cJSON_AddNumberToObject(root_json, "actual_temperature", d_value);
     }
     
-    string = cJSON_Print(root_json);
+    cJSON_PrintPreallocated(root_json, buffer, (int) size, 1);
     cJSON_Delete(root_json);
-    snprintf(buffer, size, "%s", string);
-    free(string);
+    
+    if (len != NULL) {
+        *len = strlen((char *) buffer);
+    }
     
     return AAOS_OK;
 }
 
 static int
-LeadingCamera_status(void *_self, void *buffer, size_t size)
+LeadingCamera_status(void *_self, void *buffer, size_t size, size_t *len)
 {
     struct LeadingCamera *self = cast(LeadingCamera(), _self);
     
-    LeadingCamera_status_json(self, buffer, size);
+    LeadingCamera_status_json(self, buffer, size, len);
     
     return AAOS_OK;
 }
 
 static void
-LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
+LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size, size_t *info)
 {
     cJSON *root_json, *leading_json, *capability_json, *array_json;
-    char *string = NULL;
     size_t i;
-    void (*LeadingCameraCopyInfo)(void *, void *, char *, char *, char *, char *, char *, char *, char *, char *, char *);
-    char model_name[32], device_version[32], manufacture_spec_info[48], serial_number[16], user_defined_name[16], ip[16], mask[16], gateway[16], description[132];
+    struct LeadingCameraInfo cam_info;
+    struct LeadingInterfaceInfo iface_info;
+    void (*LeadingCameraCopyInfo)(void *, void *, struct LeadingCameraInfo *, struct LeadingInterfaceInfo *);
     
     root_json = cJSON_CreateObject();
     cJSON_AddStringToObject(root_json, "name", self->_.name);
     if (self->_.description != NULL) {
         cJSON_AddStringToObject(root_json, "description", self->_.description);
     }
-    
+ 
     LeadingCameraCopyInfo = dlsym(self->dlh, "LeadingCameraCopyInfo");
-    LeadingCameraCopyInfo(self->device_list[self->camera_index], self->interface_list[self->camera_index], model_name, device_version, manufacture_spec_info, serial_number, user_defined_name, ip, mask, gateway, description);
+    LeadingCameraCopyInfo(self->device_list[self->camera_index], self->interface_list[self->camera_index], &cam_info, &iface_info);
     leading_json = cJSON_CreateObject();
     cJSON_AddNumberToObject(leading_json, "camera_index", self->camera_index);
     cJSON_AddNumberToObject(leading_json, "camera_id", self->camera_id);
-    cJSON_AddStringToObject(leading_json, "ModelName", model_name);
-    cJSON_AddStringToObject(leading_json, "DeviceVersion", device_version);
-    cJSON_AddStringToObject(leading_json, "ManufactureSpecInfo", manufacture_spec_info);
-    cJSON_AddStringToObject(leading_json, "SerialNumber", serial_number);
-    cJSON_AddStringToObject(leading_json, "UserDefinedName", user_defined_name);
-    cJSON_AddStringToObject(leading_json, "IP", ip);
-    cJSON_AddStringToObject(leading_json, "Mask", mask);
-    cJSON_AddStringToObject(leading_json, "Gateway", gateway);
-    cJSON_AddStringToObject(leading_json, "Description", description);
+    cJSON_AddStringToObject(leading_json, "ModelName", cam_info.modelName);
+    cJSON_AddStringToObject(leading_json, "DeviceVersion", cam_info.deviceVersion);
+    cJSON_AddStringToObject(leading_json, "ManufactureSpecInfo", cam_info.manufactureSpecInfo);
+    cJSON_AddStringToObject(leading_json, "SerialNumber", cam_info.serialNumber);
+    cJSON_AddStringToObject(leading_json, "UserDefineName", cam_info.userDefineName);
+    cJSON_AddStringToObject(leading_json, "MAC", cam_info.mac);
+    cJSON_AddStringToObject(leading_json, "IP", cam_info.address);
+    cJSON_AddStringToObject(leading_json, "Mask", cam_info.mask);
+    cJSON_AddStringToObject(leading_json, "Gateway", cam_info.gateway);
+    /*
+    cJSON_AddStringToObject(leading_json, "Host_IP", iface_info.ip);
+    cJSON_AddStringToObject(leading_json, "Host_Mask", iface_info.mask);
+    cJSON_AddStringToObject(leading_json, "Host_Gateway", iface_info.gateway);
+    cJSON_AddStringToObject(leading_json, "Description", iface_info.description);
+    */
     cJSON_AddItemToObject(root_json, "LeadingCamera", leading_json);
      
     capability_json = cJSON_CreateObject();
@@ -15857,14 +17986,12 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
     cJSON_AddNumberToObject(capability_json, "y_n_chip", self->_.d_cap.y_n_chip);
     cJSON_AddNumberToObject(capability_json, "n_chip", self->_.d_cap.n_chip);
     if (self->_.d_cap.flip_map != NULL) {
-        
     }
-    if (self->_.d_cap.mirror_map != NULL) {
-        
+    if (self->_.d_cap.mirror_map != NULL) {        
     }
     
     if (self->_.d_cap.binning_available) {
-        cJSON_AddStringToObject(capability_json, "binning_available", "true");
+        cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_True);
         if (self->_.d_cap.x_binning_array != NULL && self->_.d_cap.y_binning_array != NULL) {
             char binning_buffer[BUFSIZE];
             FILE *fp;
@@ -15882,17 +18009,17 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
             cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_max);
         }
     } else {
-        cJSON_AddStringToObject(capability_json, "binning_available", "false");
+        cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_False);
     }
     
     if (self->_.d_cap.offset_available) {
-        cJSON_AddStringToObject(capability_json, "offset_available", "true");
+        cJSON_AddBoolToObject(capability_json, "offset_available", cJSON_True);
     } else {
-        cJSON_AddStringToObject(capability_json, "offset_available", "false");
+        cJSON_AddBoolToObject(capability_json, "offset_available", cJSON_False);
     }
     
     if (self->_.d_cap.gain_available) {
-        cJSON_AddStringToObject(capability_json, "gain_available", "true");
+        cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_True);
         if (self->_.d_cap.gain_array == NULL) {
             cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
             cJSON_AddNumberToObject(capability_json, "gain_max", self->_.d_cap.gain_max);
@@ -15904,18 +18031,18 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
             cJSON_AddItemToObject(capability_json, "gain_array", array_json);
         }
     } else {
-        cJSON_AddStringToObject(capability_json, "gain_available", "false");
+        cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_False);
     }
     if (self->_.d_cap.auto_gain_available) {
-        cJSON_AddStringToObject(capability_json, "auto_gain_available", "true");
+        cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_True);
         cJSON_AddNumberToObject(capability_json, "auto_gain_min", self->_.d_cap.auto_gain_min);
         cJSON_AddNumberToObject(capability_json, "auto_gain_max", self->_.d_cap.auto_gain_max);
     } else {
-        cJSON_AddStringToObject(capability_json, "auto_gain_available", "false");
+        cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_False);
     }
     
     if (self->_.d_cap.exposure_time_available) {
-        cJSON_AddStringToObject(capability_json, "exposure_time_available", "true");
+        cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_True);
         if (self->_.d_cap.exposure_time_array == NULL) {
             cJSON_AddNumberToObject(capability_json, "exposure_time_min", self->_.d_cap.exposure_time_min);
             cJSON_AddNumberToObject(capability_json, "exposure_time_max", self->_.d_cap.exposure_time_max);
@@ -15927,18 +18054,18 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
             cJSON_AddItemToObject(capability_json, "exposure_time_array", array_json);
         }
     } else {
-        cJSON_AddStringToObject(capability_json, "exposure_time_available", "false");
+        cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_False);
     }
     if (self->_.d_cap.auto_frame_rate_available) {
-        cJSON_AddStringToObject(capability_json, "auto_exposure_time_available", "true");
+        cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_True);
         cJSON_AddNumberToObject(capability_json, "auto_exposure_time_min", self->_.d_cap.auto_exposure_time_min);
         cJSON_AddNumberToObject(capability_json, "auto_exposure_time_max", self->_.d_cap.auto_exposure_time_max);
     } else {
-        cJSON_AddStringToObject(capability_json, "auto_exposure_time_available", "false");
+        cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_False);
     }
     
     if (self->_.d_cap.frame_rate_available) {
-        cJSON_AddStringToObject(capability_json, "frame_rate_available", "true");
+        cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_True);
         if (self->_.d_cap.frame_rate_array == NULL) {
             cJSON_AddNumberToObject(capability_json, "frame_rate_min", self->_.d_cap.frame_rate_min);
             cJSON_AddNumberToObject(capability_json, "frame_rate_max", self->_.d_cap.frame_rate_max);
@@ -15950,18 +18077,18 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
             cJSON_AddItemToObject(capability_json, "frame_rate_array", array_json);
         }
     } else {
-        cJSON_AddStringToObject(capability_json, "frame_rate_available", "false");
+        cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_False);
     }
     if (self->_.d_cap.auto_frame_rate_available) {
-        cJSON_AddStringToObject(capability_json, "auto_frame_rate_available", "true");
+        cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_True);
         cJSON_AddNumberToObject(capability_json, "auto_frame_rate_min", self->_.d_cap.auto_frame_rate_min);
         cJSON_AddNumberToObject(capability_json, "auto_frame_rate_max", self->_.d_cap.auto_frame_rate_max);
     } else {
-        cJSON_AddStringToObject(capability_json, "auto_frame_rate_available", "false");
+        cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_False);
     }
     
     if (self->_.d_cap.pixel_format_available) {
-        cJSON_AddStringToObject(capability_json, "pixel_format_available", "true");
+        cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_True);
         array_json = cJSON_CreateArray();
         for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
             switch (self->_.d_cap.pixel_format_array[i]) {
@@ -16019,11 +18146,11 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
         }
         cJSON_AddItemToObject(capability_json, "pixel_format_array", array_json);
     } else {
-        cJSON_AddStringToObject(capability_json, "pixel_format_available", "false");
+        cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_False);
     }
     
     if (self->_.d_cap.readout_rate_available) {
-        cJSON_AddStringToObject(capability_json, "readout_rate_available", "true");
+        cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_True);
         if (self->_.d_cap.readout_rate_array == NULL) {
             cJSON_AddNumberToObject(capability_json, "readout_rate_min", self->_.d_cap.readout_rate_min);
             cJSON_AddNumberToObject(capability_json, "readout_rate_max", self->_.d_cap.readout_rate_max);
@@ -16035,37 +18162,38 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
             cJSON_AddItemToObject(capability_json, "readout_rate_array", array_json);
         }
     } else {
-        cJSON_AddStringToObject(capability_json, "readout_rate_available", "false");
+        cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_False);
     }
     if (self->_.d_cap.auto_readout_rate_available) {
-        cJSON_AddStringToObject(capability_json, "auto_readout_rate_available", "true");
+        cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_True);
         cJSON_AddNumberToObject(capability_json, "auto_readout_rate_min", self->_.d_cap.auto_readout_rate_min);
         cJSON_AddNumberToObject(capability_json, "auto_readout_rate_max", self->_.d_cap.auto_readout_rate_max);
     } else {
-        cJSON_AddStringToObject(capability_json, "auto_readout_rate_available", "false");
+        cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_False);
     }
     
     if (self->_.d_cap.cooling_available) {
-        cJSON_AddStringToObject(capability_json, "cooling_available", "true");
+        cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_True);
         cJSON_AddNumberToObject(capability_json, "cooling_temperature_min", self->_.d_cap.cooling_temperature_min);
         cJSON_AddNumberToObject(capability_json, "cooling_temperature_max", self->_.d_cap.cooling_temperature_max);
             
     } else {
-        cJSON_AddStringToObject(capability_json, "cooling_available", "false");
+        cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_False);
     }
     if (self->_.d_cap.auto_cooling_available) {
-        cJSON_AddStringToObject(capability_json, "auto_cooling_available", "true");
+        cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_True);
         cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_min", self->_.d_cap.auto_cooling_temperature_min);
         cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_max", self->_.d_cap.auto_cooling_temperature_max);
     } else {
-        cJSON_AddStringToObject(capability_json, "auto_cooling_available", "false");
+        cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_False);
     }
     cJSON_AddItemToObject(root_json, "capability", capability_json);
-    
-    string = cJSON_Print(root_json);
+
+    cJSON_PrintPreallocated(root_json, buffer, (int) size, 1);
     cJSON_Delete(root_json);
-    snprintf(buffer, size, "%s", string);
-    free(string);
+    if (len != NULL) {
+        *len = strlen((char *) buffer);
+    }
 }
 
 static int
@@ -16673,6 +18801,7 @@ LeadingCamera_set_pixel_format(void *_self, uint32_t pixel_format)
                     break;
                 case DETECTOR_PIXEL_FORMAT_MONO_14:
                     uc_value = 1;
+                    break;
                 case DETECTOR_PIXEL_FORMAT_YUV422:
                     uc_value = 2;
                     break;
@@ -16888,7 +19017,12 @@ LeadingCamera_process_image_thr(void *arg)
     }
     
     if (!(options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
-        detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, 1, 1, &tp);
+        if (detector->_.d_proc.name_convention && detector->_.d_proc.name_convention != __Detector_default_name_convention) {
+            detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, 1, 1, &tp, true);
+        } else {
+            __Detector_default_name_convention(detector, filename, FILENAMESIZE, 1, 1);
+        }
+        
         if (detector->_.d_proc.tpl_fptr != NULL) {
             fits_create_file(&fptr, filename, &status);
             if (status != 0) {
@@ -16930,25 +19064,29 @@ LeadingCamera_process_image_thr(void *arg)
             break;
         }
         if (options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
-            detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, i + 1, n, &tp);
+            if (detector->_.d_proc.name_convention && detector->_.d_proc.name_convention != __Detector_default_name_convention) {
+                detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, i + 1, n, &tp, true);
+            } else {
+                __Detector_default_name_convention(detector, filename, FILENAMESIZE, i + 1, n);
+            }
             if (detector->_.d_proc.tpl_fptr != NULL) {
                 fits_create_file(&fptr, filename, &status);
                 if (status != 0) {
 #ifdef DEBUG
-                    fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+                    fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
                 }
                 fits_copy_file(detector->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
                 if (status != 0) {
 #ifdef DEBUG
-                    fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+                    fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
                 }
             } else {
                 fits_create_template(&fptr, filename, detector->_.d_proc.tpl_filename, &status);
                 if (status != 0) {
 #ifdef DEBUG
-                    fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+                    fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
                 }
             }
@@ -16960,7 +19098,7 @@ LeadingCamera_process_image_thr(void *arg)
         fits_create_img(fptr, bitpix, naxis, naxes, &status);
         if (status != 0) {
 #ifdef DEBUG
-            fprintf(stderr, "%s %s %d --- fits_create_img error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+            fprintf(stderr, "%s %s %d --- fits_create_img error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
         }
         gmtime_r(&data->tp.tv_sec, &tm_buf);
@@ -17007,12 +19145,13 @@ LeadingCamera_process_image_thr(void *arg)
         if (getGainValue_C_API(detector->camera_id, &uc_value)) {
             fits_update_key_fixflt(fptr, "GAIN", (float) uc_value, 2, "commanded gain of detector", &status);
         }
-        if (getImageEnhanceMode_C_API(detector->camera_id, &uc_value)) {
+        if (getImageEnhanceMode_C_API != NULL && getImageEnhanceMode_C_API(detector->camera_id, &uc_value)) {
             fits_update_key_lng(fptr, "IMGENH", (long) uc_value, "image enhance mode, 0:off -- 1:hist -- 2:linear -- 3:mixed", &status);
         }
-        if (getImageEnhanceBrightness_C_API(detector->camera_id, &uc_value)) {
+        if (getImageEnhanceBrightness_C_API != NULL && getImageEnhanceBrightness_C_API(detector->camera_id, &uc_value)) {
             fits_update_key_lng(fptr, "BRTENH", (long) uc_value, "image brightness enhance coefficiency", &status);
         }
+        
         if (getImageEnhanceContrast_C_API(detector->camera_id, &uc_value)) {
             fits_update_key_lng(fptr, "CTRENH", (long) uc_value, "image contrast enhance coefficiency", &status);
         }
@@ -17093,7 +19232,7 @@ LeadingCamera_process_image_thr(void *arg)
         fits_write_img(fptr, datatype, 1, naxes[0] * naxes[1], data->buffer, &status);
         if (status != 0) {
 #ifdef DEBUG
-            fprintf(stderr, "%s %s %d --- fits_write_img error: %d\n", __FILE__, __func__, __LINE__ - 2, status);
+            fprintf(stderr, "%s %s %d --- fits_write_img error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
         }
         
@@ -17102,7 +19241,7 @@ LeadingCamera_process_image_thr(void *arg)
             fits_close_file(fptr, &status);
             if (status != 0) {
 #ifdef DEBUG
-                fprintf(stderr, "fits_close_file error: %d\n", status);
+                fprintf(stderr, "%s %s %d: fits_close_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
             }
             detector->_.d_proc.img_fptr = NULL;
@@ -17116,7 +19255,7 @@ LeadingCamera_process_image_thr(void *arg)
         fits_close_file(fptr, &status);
         if (status != 0) {
 #ifdef DEBUG
-            fprintf(stderr, "fits_close_file error: %d\n", status);
+            fprintf(stderr, "%s %s %d: fits_close_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
 #endif
         }
         detector->_.d_proc.img_fptr = NULL;
@@ -17133,47 +19272,51 @@ LeadingCamera_frame_capture_cb(unsigned char *frame_buffer, int w, int h, int t,
     unsigned int state;
     struct DetectorDataFrame *data;
     uint32_t i, n;
-    
+ 
     Pthread_mutex_lock(&detector->_.d_state.mtx);
     state = detector->_.d_state.state;
-    if (!(state&DETECTOR_STATE_EXPOSING) || !(state&DETECTOR_STATE_READING)) {
+    if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        i = detector->_.d_exp.count;
+        detector->_.d_exp.count++;
+        detector->_.d_exp.success_frames++;
+        n = detector->_.d_exp.request_frames;
+        if (i == n - 1) {
+            Pthread_mutex_unlock(&detector->_.d_state.mtx);
+            return;
+        }
         Pthread_mutex_unlock(&detector->_.d_state.mtx);
-        return;
-    }
-    i = detector->_.d_exp.count;
-    detector->_.d_exp.count++;
-    detector->_.d_exp.success_frames++;
-    n = detector->_.d_exp.request_frames;
-    Pthread_mutex_unlock(&detector->_.d_state.mtx);
-    
-    data = (struct DetectorDataFrame *) Malloc(sizeof(struct DetectorDataFrame));
-    data->i = (size_t) i;
-    data->n = (size_t) n;
-    data->width = w;
-    data->height = h;
-    Clock_gettime(CLOCK_REALTIME, &data->tp);
-    switch (t) {
-        case 0:
-            data->pixel_format = DETECTOR_PIXEL_FORMAT_MONO_8;
-            data->buffer = Malloc(w*h);
-            memcpy(data->buffer, frame_buffer, w*h);
-            break;
-        case 1:
-            data->pixel_format = DETECTOR_PIXEL_FORMAT_MONO_14;
-            data->buffer = Malloc(2*w*h);
-            memcpy(data->buffer, frame_buffer, 2*w*h);
-            break;
-        case 2:
-            data->pixel_format = DETECTOR_PIXEL_FORMAT_YUV422;
-            data->buffer = Malloc(2*w*h);
-            memcpy(data->buffer, frame_buffer, 2*w*h);
-            break;
-        default:
-            break;
-    }
-    threadsafe_queue_push(detector->_.d_proc.queue, data);
-    if (i == n - 1) {
-        threadsafe_queue_push(detector->_.d_proc.queue, NULL);
+        data = (struct DetectorDataFrame *) Malloc(sizeof(struct DetectorDataFrame));
+        data->i = (size_t) i;
+        data->n = (size_t) n;
+        data->width = w;
+        data->height = h;
+        Clock_gettime(CLOCK_REALTIME, &data->tp);
+        
+        switch (t) {
+            case 0:
+                data->pixel_format = DETECTOR_PIXEL_FORMAT_MONO_8;
+                data->buffer = Malloc(w*h);
+                memcpy(data->buffer, frame_buffer, w*h);
+                break;
+            case 1:
+                data->pixel_format = DETECTOR_PIXEL_FORMAT_MONO_14;
+                data->buffer = Malloc(2*w*h);
+                memcpy(data->buffer, frame_buffer, 2*w*h);
+                break;
+            case 2:
+                data->pixel_format = DETECTOR_PIXEL_FORMAT_YUV422;
+                data->buffer = Malloc(2*w*h);
+                memcpy(data->buffer, frame_buffer, 2*w*h);
+                break;
+            default:
+                break;
+        }
+        threadsafe_queue_push(detector->_.d_proc.queue, data);
+        if (i == n - 1) {
+            threadsafe_queue_push(detector->_.d_proc.queue, NULL);
+        }
+    } else {
+        Pthread_mutex_unlock(&detector->_.d_state.mtx);
     }
 }
 
@@ -17199,22 +19342,23 @@ LeadingCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_lis
     
     bool (*startCameraCapture_C_API)(int);
     bool (*stopCameraCapture_C_API)(int);
+    bool (*setCameraFrameChangedHook_C_API)(int, void (*)(unsigned char *, int, int, int, void *), void *p);
 
     startCameraCapture_C_API = dlsym(self->dlh, "startCameraCapture_C_API");
+    setCameraFrameChangedHook_C_API = dlsym(self->dlh, "setCameraFrameChangedHook_C_API");
     stopCameraCapture_C_API = dlsym(self->dlh, "stopCameraCapture_C_API");
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
     if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
-    
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
         return AAOS_EDEVMAL;
     }
     
     if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
         if (options&DETECTOR_OPTION_NOWAIT) {
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
             return AAOS_EBUSY;
         }
         while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
@@ -17245,6 +19389,7 @@ LeadingCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_lis
     arg->rpc = rpc;
     arg->string = string;
     arg->format = format;
+    setCameraFrameChangedHook_C_API(self->camera_id, LeadingCamera_frame_capture_cb, self);
     Pthread_create(&self->_.d_state.tid, NULL, LeadingCamera_process_image_thr, (void *) arg);
     
     Pthread_mutex_unlock(&self->_.d_state.mtx);
@@ -17261,6 +19406,7 @@ LeadingCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_lis
     threadsafe_queue_push(self->_.d_proc.queue, data);
     
     if (!startCameraCapture_C_API(self->camera_id)) {
+	
         ret = AAOS_EDEVMAL;
         threadsafe_queue_push(self->_.d_proc.queue, NULL);
         Pthread_join(self->_.d_state.tid, NULL);
@@ -17279,19 +19425,23 @@ LeadingCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_lis
         Pthread_mutex_unlock(&self->_.d_exp.mtx);
         free(arg);
         return ret;
+    }  else {
+        Pthread_mutex_lock(&self->_.d_state.mtx);
+        self->_.d_state.state = (state&DETECTOR_STATE_MALFUNCTION) | DETECTOR_STATE_EXPOSING;
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
     }
+        
     Pthread_join(self->_.d_state.tid, &retval);
     
     Pthread_mutex_lock(&self->_.d_exp.mtx);
     if (self->_.d_exp.stop_flag) {
+        self->_.d_exp.stop_flag = false;
         ret = AAOS_ECANCELED;
-    } else {
-        if (!stopCameraCapture_C_API(self->camera_id)) {
-            ret = AAOS_EDEVMAL;
-        }
-        
+        Pthread_cond_broadcast(&self->_.d_exp.cond);
     }
-    self->_.d_exp.stop_flag = false;
+    if (!stopCameraCapture_C_API(self->camera_id)) {
+        ret = AAOS_EDEVMAL;
+    }
     self->_.d_exp.rpc = NULL;
     Pthread_mutex_unlock(&self->_.d_exp.mtx);
     free(arg);
@@ -17306,6 +19456,36 @@ LeadingCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_lis
     }
     
     return ret;
+}
+
+static int
+LeadingCamera_stop(void *_self)
+{
+	struct LeadingCamera *self = cast(LeadingCamera(), _self);
+		
+	unsigned int state;
+    uint16_t options;
+
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if (state&DETECTOR_STATE_MALFUNCTION && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    } 
+    if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);	
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.stop_flag = true;
+        while (self->_.d_exp.stop_flag) {
+            Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    } else {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+    }
+    
+    return AAOS_OK;
 }
 
 static const void *_leading_camera_virtual_table;
@@ -17326,10 +19506,10 @@ leading_camera_virtual_table_initialize(void)
                                         __detector_info, "info", LeadingCamera_info,
                                         __detector_status, "status", LeadingCamera_status,
                                         __detector_expose, "expose", LeadingCamera_expose,
-                                        //__detector_stop, "stop", ASICamera_stop,
+                                        __detector_stop, "stop", LeadingCamera_stop,
                                         //__detector_abort, "abort", ASICamera_abort,
-                                        //__detector_power_on, "power_on", ASICamera_power_on,
-                                        //__detector_power_off, "power_off", ASICamera_power_off,
+                                        __detector_power_on, "power_on", LeadingCamera_power_on,
+                                        __detector_power_off, "power_off", LeadingCamera_power_off,
                                         __detector_set_binning, "set_binning", LeadingCamera_set_binning,
                                         __detector_get_binning, "get_binning", LeadingCamera_get_binning,
                                         __detector_set_exposure_time, "set_exposure_time", LeadingCamera_set_exposure_time,
@@ -17363,7 +19543,7 @@ leading_camera_virtual_table(void)
 
 #endif
 
- #ifdef __USE_QHY_CAMAERA__
+#ifdef __USE_QHY_CAMAERA__
 
 static int
 qhy_error_mapping(int error_code)
@@ -19067,10 +21247,10 @@ QHYCamera_abort(void *_self)
         case DETECTOR_CAPTURE_MODE_SNAPSHOT:
             abort_func = dlsym(self->dlh, "C_CancelQHYCCDExposingAndReadout");
             break;
-        case DETECTOR_CAPTUTE_MODE_MULTIFRAME:
+        case DETECTOR_CAPTURE_MODE_MULTIFRAME:
             abort_func = dlsym(self->dlh, "C_StopQHYCCDLive");
             break;
-        case DETECTOR_CAPTUTE_MODE_VIDEO:
+        case DETECTOR_CAPTURE_MODE_VIDEO:
             abort_func = dlsym(self->dlh, "C_StopQHYCCDLive");
             break;
         default:
@@ -19136,7 +21316,7 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
 	}	
 	
 	if (self->_.d_cap.binning_available) {
-		cJSON_AddStringToObject(capability_json, "binning_available", "true");
+		cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_True);
         if (self->_.d_cap.x_binning_array != NULL && self->_.d_cap.y_binning_array != NULL) {
             char binning_buffer[BUFSIZE];
             FILE *fp;
@@ -19154,17 +21334,17 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
 			cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_max);
         }		
 	} else {
-		cJSON_AddStringToObject(capability_json, "binning_available", "false");
+		cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.offset_available) {
-		cJSON_AddStringToObject(capability_json, "ROI_available", "true");
+		cJSON_AddBoolToObject(capability_json, "ROI_available", cJSON_True);
 	} else {
-		cJSON_AddStringToObject(capability_json, "ROI_available", "false");
+		cJSON_AddBoolToObject(capability_json, "ROI_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.gain_available) {
-		cJSON_AddStringToObject(capability_json, "gain_available", "true");
+		cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_True);
 		if (self->_.d_cap.gain_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
 			cJSON_AddNumberToObject(capability_json, "gain_max", self->_.d_cap.gain_max);
@@ -19176,18 +21356,18 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
 			cJSON_AddItemToObject(capability_json, "gain_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "gain_available", "false");
+		cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_gain_available) {
-		cJSON_AddStringToObject(capability_json, "auto_gain_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_gain_min", self->_.d_cap.auto_gain_min);
 		cJSON_AddNumberToObject(capability_json, "auto_gain_max", self->_.d_cap.auto_gain_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_gain_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.exposure_time_available) {
-		cJSON_AddStringToObject(capability_json, "exposure_time_available", "true");
+		cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_True);
 		if (self->_.d_cap.exposure_time_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "exposure_time_min", self->_.d_cap.exposure_time_min);
 			cJSON_AddNumberToObject(capability_json, "exposure_time_max", self->_.d_cap.exposure_time_max);
@@ -19199,18 +21379,18 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
 			cJSON_AddItemToObject(capability_json, "exposure_time_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "exposure_time_available", "false");
+		cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_exposure_available) {
-		cJSON_AddStringToObject(capability_json, "auto_exposure_time_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_exposure_time_min", self->_.d_cap.auto_exposure_time_min);
 		cJSON_AddNumberToObject(capability_json, "auto_exposure_time_max", self->_.d_cap.auto_exposure_time_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_exposure_time_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.frame_rate_available) {
-		cJSON_AddStringToObject(capability_json, "frame_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_True);
 		if (self->_.d_cap.frame_rate_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "frame_rate_min", self->_.d_cap.frame_rate_min);
 			cJSON_AddNumberToObject(capability_json, "frame_rate_max", self->_.d_cap.frame_rate_max);
@@ -19222,18 +21402,18 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
 			cJSON_AddItemToObject(capability_json, "frame_rate_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "frame_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_frame_rate_available) {
-		cJSON_AddStringToObject(capability_json, "auto_frame_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_frame_rate_min", self->_.d_cap.auto_frame_rate_min);
 		cJSON_AddNumberToObject(capability_json, "auto_frame_rate_max", self->_.d_cap.auto_frame_rate_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_frame_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.pixel_format_available) {
-		cJSON_AddStringToObject(capability_json, "pixel_format_available", "true");
+		cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_True);
 		array_json = cJSON_CreateArray();
 		for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
 			switch (self->_.d_cap.pixel_format_array[i]) {
@@ -19288,11 +21468,11 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
 		}
 		cJSON_AddItemToObject(capability_json, "pixel_format_array", array_json);
 	} else {
-		cJSON_AddStringToObject(capability_json, "pixel_format_available", "false");
+		cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.readout_rate_available) {
-		cJSON_AddStringToObject(capability_json, "readout_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_True);
 		if (self->_.d_cap.readout_rate_array == NULL) {
 			cJSON_AddNumberToObject(capability_json, "readout_rate_min", self->_.d_cap.readout_rate_min);
 			cJSON_AddNumberToObject(capability_json, "readout_rate_max", self->_.d_cap.readout_rate_max);
@@ -19304,30 +21484,30 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
 			cJSON_AddItemToObject(capability_json, "readout_rate_array", array_json);
 		}
 	} else {
-		cJSON_AddStringToObject(capability_json, "readout_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_readout_rate_available) {
-		cJSON_AddStringToObject(capability_json, "auto_readout_rate_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_readout_rate_min", self->_.d_cap.auto_readout_rate_min);
 		cJSON_AddNumberToObject(capability_json, "auto_readout_rate_max", self->_.d_cap.auto_readout_rate_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_readout_rate_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_False);
 	}
 	
 	if (self->_.d_cap.cooling_available) {
-		cJSON_AddStringToObject(capability_json, "cooling_available", "true");
+		cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "cooling_temperature_min", self->_.d_cap.cooling_temperature_min);
 		cJSON_AddNumberToObject(capability_json, "cooling_temperature_max", self->_.d_cap.cooling_temperature_max);
 			
 	} else {
-		cJSON_AddStringToObject(capability_json, "cooling_available", "false");
+		cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_False);
 	}
 	if (self->_.d_cap.auto_cooling_available) {
-		cJSON_AddStringToObject(capability_json, "auto_cooling_available", "true");
+		cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_True);
 		cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_min", self->_.d_cap.auto_cooling_temperature_min);
 		cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_max", self->_.d_cap.auto_cooling_temperature_max);
 	} else {
-		cJSON_AddStringToObject(capability_json, "auto_cooling_available", "false");
+		cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_False);
 	}
 	cJSON_AddItemToObject(root_json, "capability", capability_json);
     
@@ -19430,9 +21610,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
 
     if (self->_.d_cap.auto_exposure_time_available) {
         if (auto_exposure_time_enable) {
-            cJSON_AddStringToObject(root_json, "auto_exposure_time_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_exposure_time_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_False);
             cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time);
         }
     } else { 
@@ -19441,9 +21621,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
     
     if (self->_.d_cap.auto_frame_rate_available) {
         if (auto_frame_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_frame_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_False);
             if (self->_.d_cap.frame_rate_available) {
                 cJSON_AddNumberToObject(root_json, "frame_rate", frame_rate);
             } else {
@@ -19460,9 +21640,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
 
     if (self->_.d_cap.auto_gain_available) {
         if (auto_gain_enable) {
-            cJSON_AddStringToObject(root_json, "auto_gain_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_gain_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_False);
             cJSON_AddNumberToObject(root_json, "gain", gain);
         }
     } else {
@@ -19471,9 +21651,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
 
     if (self->_.d_cap.auto_readout_rate_available) {
         if (auto_readout_rate_enable) {
-            cJSON_AddStringToObject(root_json, "auto_readout_rate_enable", "true");
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_readout_rate_enable", "false");
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_False);
             cJSON_AddNumberToObject(root_json, "readout_rate", readout_rate);
         }
     } else {
@@ -19481,16 +21661,16 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
     }
     
     if (self->_.d_param.is_cooling_enable) {
-        cJSON_AddStringToObject(root_json, "cooling_enabled", "true");
+        cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_True);
     } else {
-        cJSON_AddStringToObject(root_json, "cooling_enabled", "false");
+        cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_False);
     }
 
     if (self->_.d_cap.auto_cooling_available) {
         if (auto_cooling_enable) {
-            cJSON_AddStringToObject(root_json, "auto_cooling_enabled", "true");
+            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", cJSON_True);
         } else {
-            cJSON_AddStringToObject(root_json, "auto_cooling_enabled", "false");
+            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", cJSON_False);
         }
     }
 
@@ -19964,7 +22144,7 @@ QHYCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *a
     case DETECTOR_CAPTURE_MODE_VIDEO:
         return QHYCamera_expose_video(self, exposuretime, n_frame, app);
         break;
-    case DETECTOR_CAPTUTE_MODE_MULTIFRAME:
+    case DETECTOR_CAPTURE_MODE_MULTIFRAME:
         return QHYCamera_expose_multiframe(self, exposuretime, n_frame, app);
         break;
     default:

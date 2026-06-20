@@ -2911,8 +2911,7 @@ APMountSerial_raw(void *_self, void *write_buffer, size_t write_buffer_size, siz
     }
     while (self->state == SERIAL_STATE_WAIT_FOR_READY) {
         Pthread_cond_wait(&self->cond, &self->mtx);
-
-     }
+    }
     /*
      * must flush before IO operation.
      */
@@ -5673,6 +5672,490 @@ ynao_ir_camera_serial_virtual_table(void)
 #endif
     
     return _ynao_ir_camera_serial_virtual_table;
+}
+
+/*
+ * https://wit-motion.yuque.com/wumwnr/ltst03/zzgeadh0zxvx3sht
+ */
+
+static const void *wtgahrs3_serial_virtual_table(void);
+
+static void *
+WTGAHRS3Serial_ctor(void *_self, va_list *app)
+{
+    struct WTGAHRS3Serial *self = super_ctor(WTGAHRS3Serial(), _self, app);
+    
+    const char *name;
+    
+    while ((name = va_arg(*app, const char *))) {
+        if (strcmp(name, "directory") == 0) {
+            const char *value = va_arg(*app, const char *);
+            if (value != NULL) {
+                self->directory = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->directory, strlen(value) + 1, "%s", value);
+            }
+            continue;
+        }
+        if (strcmp(name, "prefix") == 0) {
+            const char *value = va_arg(*app, const char *);
+            if (value != NULL) {
+                self->prefix = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->prefix, strlen(value) + 1, "%s", value);
+            }
+            continue;
+        }
+        if (strcmp(name, "data_fields") == 0) {
+            const char *value = va_arg(*app, const char *);
+            if (value != NULL) {
+                self->data_fields = (char *) Malloc(strlen(value) + 1);
+                snprintf(self->data_fields, strlen(value) + 1, "%s", value);
+            }
+            continue;
+        }
+        if (strcmp(name, "sample_interval") == 0) {
+            self->sample_interval = va_arg(*app, double);
+            continue;
+        }
+        if (strcmp(name, "max_records") == 0) {
+            self->max_records = va_arg(*app, unsigned int);
+            continue;
+        }
+        if (strcmp(name, "save_data") == 0) {
+            unsigned int value = va_arg(*app, unsigned int);
+            if (value) {
+                self->save_data = true;
+            } else {
+                self->save_data = false;
+            }
+            continue;
+        }
+    }
+    
+    self->_._vtab= wtgahrs3_serial_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+WTGAHRS3Serial_dtor(void *_self)
+{
+    struct WTGAHRS3Serial *self = cast(WTGAHRS3Serial(), _self);
+    
+    free(self->prefix);
+    free(self->directory);
+    
+    return super_dtor(WTGAHRS3Serial(), _self);
+}
+
+static void *
+WTGAHRS3SerialClass_ctor(void *_self, va_list *app)
+{
+    struct WTGAHRS3SerialClass *self = super_ctor(WTGAHRS3SerialClass(), _self, app);
+    
+    self->_.raw.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.validate.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_WTGAHRS3SerialClass;
+
+static void
+WTGAHRS3SerialClass_destroy(void)
+{
+    free((void *) _WTGAHRS3SerialClass);
+}
+
+static void
+WTGAHRS3SerialClass_initialize(void)
+{
+    _WTGAHRS3SerialClass = new(__SerialClass(), "WTGAHRS3SerialClass", __SerialClass(), sizeof(struct WTGAHRS3SerialClass),
+                               ctor, "", WTGAHRS3SerialClass_ctor,
+                               (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(WTGAHRS3SerialClass_destroy);
+#endif
+}
+
+const void *
+WTGAHRS3SerialClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, WTGAHRS3SerialClass_initialize);
+#endif
+    
+    return _WTGAHRS3SerialClass;
+}
+
+static const void *_WTGAHRS3Serial;
+
+static void
+WTGAHRS3Serial_destroy(void)
+{
+    free((void *) _WTGAHRS3Serial);
+}
+
+static void
+WTGAHRS3Serial_initialize(void)
+{
+    _WTGAHRS3Serial = new(WTGAHRS3SerialClass(), "WTGAHRS3Serial", __Serial(), sizeof(struct WTGAHRS3Serial),
+                          ctor, "ctor", WTGAHRS3Serial_ctor,
+                          dtor, "dtor", WTGAHRS3Serial_dtor,
+                          (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(WTGAHRS3Serial_destroy);
+#endif
+}
+
+const void *
+WTGAHRS3Serial(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, WTGAHRS3Serial_initialize);
+#endif
+
+    return _WTGAHRS3Serial;
+}
+
+static char WTGAHRS3_AXAYAZ[] = {0x50, 0x03, 0x00, 0x34, 0x00, 0x03};
+static char WTGAHRS3_GXGYGZ[] = {0x50, 0x03, 0x00, 0x37, 0x00, 0x03};
+static char WTGAHRS3_ROLLPITCHYAW[] = {0x50, 0x03, 0x00, 0x3D, 0x00, 0x03};
+static char WTGAHRS3_TEMP[] = {0x50, 0x03, 0x00, 0x40, 0x00, 0x01};
+static char WTGAHRS3_LONLAT[] = {0x50, 0x03, 0x00, 0x49, 0x00, 0x04};
+static char WTGAHRS3_GPSALTYAWSPD[] = {0x50, 0x03, 0x00, 0x4D, 0x00, 0x04};
+static char WTGAHRS3_SVNUMPDOPHDOPVDOP[] = {0x50, 0x03, 0x00, 0x4D, 0x00, 0x04};
+
+
+static void *
+WTGAHRS3Serial_save_data_thr(void *arg)
+{
+    struct WTGAHRS3Serial *self = cast(WTGAHRS3Serial(), arg);
+    
+    unsigned int i;
+    char pathname[FILENAMESIZE], timestamp[TIMESTAMPSIZE], read_buffer[BUFSIZE], *s, *data_fields, *token, *idx;
+    struct timespec tp;
+    struct tm tm_buf;
+    FILE *fp;
+    char **commands;
+    size_t cnt = 0, j, read_buffer_size;
+    int ret;
+    
+    Pthread_detach(pthread_self());
+    
+    data_fields = (char *) Malloc(strlen(self->data_fields) + 1);
+    snprintf(data_fields, strlen(self->data_fields) + 1, "%s", self->data_fields);
+    s = data_fields;
+
+    while ((token = strsep(&data_fields, ";")) != NULL) {
+        if (strcmp(token, "AXAYAZ") == 0) {
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "GXGYGZ") == 0) {
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "ROLLPITCHYAW") == 0) {
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "TEMP") == 0) {
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "LONLAT") == 0) {
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "GPSALTYAWSPD") == 0) {
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "SVNUMPDOPHDOPVDOP") == 0) {
+            cnt++;
+            continue;
+        }
+    }
+    
+
+    data_fields = s;
+    snprintf(data_fields, strlen(self->data_fields) + 1, "%s", self->data_fields);
+    
+    commands = (char **) Malloc(sizeof(char *) * cnt + 6 * cnt);
+    data_fields = s;
+    idx = (char *) commands + cnt * sizeof(char *);
+    cnt = 0;
+
+    while ((token = strsep(&data_fields, ";")) != NULL) {
+        if (strcmp(token, "AXAYAZ") == 0) {
+            memcpy(idx + cnt * 6, WTGAHRS3_AXAYAZ, 6);
+            commands[cnt] = idx + cnt * 6;
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "GXGYGZ") == 0) {
+            memcpy(idx + cnt * 6, WTGAHRS3_GXGYGZ, 6);
+            commands[cnt] = idx + cnt * 6;
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "ROLLPITCHYAW") == 0) {
+            memcpy(idx + cnt * 6, WTGAHRS3_ROLLPITCHYAW, 6);
+            commands[cnt] = idx + cnt * 6;
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "TEMP") == 0) {
+            memcpy(idx + cnt * 6, WTGAHRS3_TEMP, 6);
+            commands[cnt] = idx + cnt * 6;
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "LONLAT") == 0) {
+            memcpy(idx + cnt * 6, WTGAHRS3_LONLAT, 6);
+            commands[cnt] = idx + cnt * 6;
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "GPSALTYAWSPD") == 0) {
+            memcpy(idx + cnt * 6, WTGAHRS3_GPSALTYAWSPD, 6);
+            commands[cnt] = idx + cnt * 6;
+            cnt++;
+            continue;
+        }
+        if (strcmp(token, "SVNUMPDOPHDOPVDOP") == 0) {
+            memcpy(idx + cnt * 6, WTGAHRS3_SVNUMPDOPHDOPVDOP, 6);
+            commands[cnt] = idx + cnt * 6;
+            cnt++;
+            continue;
+        }
+    }
+    free(s);
+    
+    for (; ;) {
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        gmtime_r(&tp.tv_sec, &tm_buf);
+        strftime(timestamp, TIMESTAMPSIZE, "%Y%d%m%H%M%S", &tm_buf);
+        snprintf(pathname, FILENAMESIZE, "%s/%s_%s.dat", self->directory, self->prefix, timestamp);
+        if ((fp = fopen(pathname, "w+")) == NULL) {
+            break;
+        }
+        for (i = 0; i < self->max_records; i++) {
+            for (j = 0; j < cnt; j++) {
+                read_buffer_size = (size_t)(*(idx + 6 * j + 5)) * 2 + 5;
+                if ((ret = __serial_raw(self, commands[j], 6, NULL, read_buffer, read_buffer_size, NULL)) == AAOS_OK) {
+                    fwrite(read_buffer, read_buffer_size, 1, fp);
+                } 
+            }
+            Nanosleep(self->sample_interval);
+        }
+        fclose(fp);
+    }
+    
+    return NULL;
+}
+
+static int
+WTGAHRS3Serial_init(void *_self)
+{
+    struct __Serial *self = cast(__Serial(), _self);
+    struct WTGAHRS3Serial *myself = cast(WTGAHRS3Serial(), _self);
+    struct termios termptr;
+    int ibaud = B9600, obaud = B9600;
+    pthread_t tid;
+    
+    self->fd = Open(self->path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (self->fd < 0) {
+        if (errno == ENOENT && (self->option&SERIAL_OPTION_WAIT_FOR_READY)) {
+            pthread_t tid;
+            self->state = SERIAL_STATE_WAIT_FOR_READY;
+            Pthread_create(&tid, NULL, __Serial_wait_for_tty_ready_thread, self);
+        } else {
+            self->state = SERIAL_STATE_ERROR;
+        }
+        return AAOS_EBADF;
+    } else {
+        self->state = SERIAL_STATE_OK;
+    }
+    
+    Tcgetattr(self->fd, &termptr);
+    Cfsetispeed(&termptr, ibaud);
+    Cfsetospeed(&termptr, obaud);
+    termptr.c_lflag &= ~(ISIG | ICANON | IEXTEN | ISIG | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE);
+    termptr.c_iflag &= ~(IXON | BRKINT | ICRNL | INPCK | ISTRIP);
+    termptr.c_cflag &= ~(CSIZE | PARENB);
+    termptr.c_cflag |= CS8;
+    termptr.c_oflag |= OPOST;
+    termptr.c_cc[VMIN] = 1;
+    termptr.c_cc[VTIME] = 0;
+    
+    Tcsetattr(self->fd, TCSANOW, &termptr);
+    
+    if (myself->save_data) {
+        Pthread_create(&myself->tid, NULL, WTGAHRS3Serial_save_data_thr, myself);
+    }
+    
+    return AAOS_OK;
+}
+
+static int
+WTGAHRS3Serial_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+{
+    struct __Serial *self = cast(__Serial(), _self);
+    
+    int ret = AAOS_OK;
+    Method validate;
+    unsigned char command[COMMANDSIZE], high, low;
+    uint16_t crc;
+    size_t request_size;
+    unsigned char *ptr;
+    
+    
+#ifdef DEBUG
+    size_t i, n;
+#endif
+    
+    memcpy(command, write_buffer, min(write_buffer_size, COMMANDSIZE - 2));
+    
+    crc = MODBUS_CRC16_v3(command, (unsigned int) min(write_buffer_size, COMMANDSIZE - 2));
+    command[min(write_buffer_size, COMMANDSIZE - 2)] = crc&0x00FF;
+    command[min(write_buffer_size, COMMANDSIZE - 2) + 1] = (crc&0xFF00)>>8;
+
+#ifdef DEBUG
+    n = min(write_buffer_size + 2, COMMANDSIZE);
+    fprintf(stderr, "%02X", command[0]);
+    for (i = 1; i < n; i++) {
+        fprintf(stderr, " %02X", command[i]);
+    }
+    fprintf(stderr, "\n");
+#endif
+    
+    if (self->_vtab && (validate = virtualTo(self->_vtab, "validate")) != 0) {
+        ret = ((int (*)(const void *, const void *, size_t)) validate)(self, write_buffer, write_buffer_size);
+        if (ret != AAOS_OK) {
+            return ret;
+        }
+    }
+    
+    request_size = min(command[5] * 2 + 5, read_buffer_size);
+    
+    Pthread_mutex_lock(&self->mtx);
+    switch (self->state) {
+        case SERIAL_STATE_ERROR:
+            Pthread_mutex_unlock(&self->mtx);
+            return AAOS_EDEVMAL;
+            break;
+        case SERIAL_STATE_UNLOADED:
+            Pthread_mutex_unlock(&self->mtx);
+            return AAOS_EDEVNOTLOADED;
+            break;
+        default:
+            break;
+    }
+    while (self->state == SERIAL_STATE_WAIT_FOR_READY) {
+        Pthread_cond_wait(&self->cond, &self->mtx);
+    }
+    
+    if ((ret = __Serial_write(self, command, min(write_buffer_size + 2, COMMANDSIZE), write_size)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
+        return ret;
+    }
+    
+    if ((ret = __Serial_read3(self, read_buffer, request_size, read_size)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
+        return ret;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    ptr = (unsigned char *) read_buffer;
+#ifdef DEBUG
+    fprintf(stderr, "%02X", ptr[0]);
+    for (i = 1; i < request_size; i++) {
+        fprintf(stderr, " %02X", ptr[i]);
+    }
+    fprintf(stderr, "\n");
+#endif
+    crc = MODBUS_CRC16_v3(ptr, (unsigned int) request_size - 2);
+    high = crc&0x00FF;
+    low = (crc&0xFF00)>>8;
+    if (ptr[request_size - 2] != high || ptr[request_size - 1] != low) {
+        return AAOS_EBADMSG;
+    }
+
+    return AAOS_OK;
+}
+
+static int
+WTGAHRS3Serial_feed_dog(void *_self)
+{
+    return AAOS_OK;
+}
+
+static int
+WTGAHRS3Serial_validate(const void *_self, const void *command, size_t size)
+{
+    const unsigned char *cmd = (const unsigned char *) command;
+
+    if (size < 6 || (cmd[1] != 0x03 && cmd[1] != 0x06) || cmd[2] != 0x00 || cmd[4] != 0x00 || cmd[5] == 0x00) {
+        return AAOS_EBADCMD;
+    }
+    
+    if (cmd[1] == 0x03) {
+        if ((cmd[3] > 0x01 && cmd[3] < 0x04) || (cmd[3] > 0x04 && cmd[3] < 0x1A) || (cmd[3] > 0x1A && cmd[3] < 0x1F) || cmd[3] == 0x22 || (cmd[3] > 0x23 && cmd[3] < 0x27) || (cmd[3] > 0x27 && cmd[3] < 0x2E) || (cmd[3] > 0x2E && cmd[3] < 0x34) || (cmd[3] > 0x39 && cmd[3] < 0x3D) || (cmd[3] > 0x44 && cmd[3] < 0x49) || (cmd[3] > 0x50 && cmd[3] < 0x55) || (cmd[3] > 0x58 && cmd[3] < 0x61) || cmd[3] == 0x62 || (cmd[3] > 0x63 && cmd[3] < 0x69) || (cmd[3] > 0x6B && cmd[3] < 0x6E) || (cmd[3] > 0x6F && cmd[3] < 0x79) || (cmd[3] > 0x7A && cmd[3] < 0x8C) || cmd[3] > 0x8C) {
+            return AAOS_EBADCMD;
+        }
+    } else {
+        if (cmd[3] != 0x00 || cmd[3] != 0x01 || cmd[3] != 0x04 || cmd[3] != 0x1A || cmd[3] != 0x1F || cmd[3] != 0x20 || cmd[3] != 0x21 || cmd[3] != 0x23 || cmd[3] != 0x27 || cmd[3] != 0x30 || cmd[3] != 0x31 || cmd[3] != 0x32 || cmd[3] != 0x33 || cmd[3] != 0x61 || cmd[3] != 0x63 || cmd[3] != 0x69 || cmd[3] != 0x6B || cmd[3] != 0x6E || cmd[3] != 0x6F || cmd[3] != 0x8C) {
+            return AAOS_EBADCMD;
+        }
+    }
+
+    return AAOS_OK;
+}
+
+static int
+WTGAHRS3Serial_inspect(void *_self)
+{
+    char buf[BUFSIZE];
+    
+    return WTGAHRS3Serial_raw(_self, "GG", 2, NULL, buf, BUFSIZE, NULL);
+}
+
+static const void *_wtgahrs3_serial_virtual_table;
+
+static void
+wtgahrs3_serial_virtual_table_destroy(void)
+{
+    delete((void *) _wtgahrs3_serial_virtual_table);
+}
+
+static void
+wtgahrs3_serial_virtual_table_initialize(void)
+{
+    _wtgahrs3_serial_virtual_table = new(__SerialVirtualTable(),
+                                         __serial_init, "init", WTGAHRS3Serial_init,
+                                         __serial_feed_dog, "feed_dog", WTGAHRS3Serial_feed_dog,
+                                         __serial_validate, "validate", WTGAHRS3Serial_validate,
+                                         __serial_raw, "raw", WTGAHRS3Serial_raw,
+                                         __serial_inspect, "inspect", WTGAHRS3Serial_inspect,
+                                         (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(wtgahrs3_serial_virtual_table_destroy);
+#endif
+}
+
+static const void *
+wtgahrs3_serial_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, wtgahrs3_serial_virtual_table_initialize);
+#endif
+    
+    return _wtgahrs3_serial_virtual_table;
 }
 
 /*

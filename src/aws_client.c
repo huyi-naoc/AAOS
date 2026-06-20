@@ -59,7 +59,6 @@ fatal_handler(int error, const char *fmt, ...)
         default:
             vfprintf(stderr, fmt, ap);
             break;
-            break;
     }
     
     va_end(ap);

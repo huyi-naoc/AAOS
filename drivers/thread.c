@@ -158,14 +158,13 @@ __ObservationThread_cycle(void *_self)
     bool is_daytime = false, is_badweather = false;
     double ra, dec, exptime = 60.;
     uint32_t nframes = 1;
-    uint64_t tel_id = 0, task_id = 0;
+    uint64_t task_id = 0;
     struct timespec tp;
-    char *detname;
+    char *detname = NULL;
     int ret = AAOS_OK;
     pthread_t dome_tid = pthread_self();
     struct DomeArg *dome_arg = NULL;
     char *header = NULL;
-    
     
     Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
     
@@ -347,6 +346,10 @@ __ObservationThread_cycle(void *_self)
             ret = telescope_switch_detector(self->telescope, value_json->valuestring);
             detname = value_json->valuestring;
         }
+        
+        if ((target_json = cJSON_GetObjectItemCaseSensitive(root_json, "TARGET-INFO")) == NULL) {
+        }
+        
         ra_json = cJSON_GetObjectItemCaseSensitive(target_json, "targ_ra");
         dec_json = cJSON_GetObjectItemCaseSensitive(target_json, "targ_dec");
         if (ra_json != NULL && dec_json != NULL && cJSON_IsNumber(ra_json) && cJSON_IsNumber(dec_json)) {
@@ -617,7 +620,7 @@ __ObservationThread_start(void *_self)
 {
     struct __ObservationThread *self = cast(__ObservationThread(), _self);
     
-    int ret;
+    //int ret;
     
     Pthread_mutex_lock(&self->mtx);
     if (pthread_kill(self->tid, 0) == ESRCH) {
@@ -882,7 +885,7 @@ __ObservationThread_set_member(void *_self, const char *name, va_list *app)
 {
     struct __ObservationThread *self = cast(__ObservationThread(), _self);
     
-    int ret;
+    //int ret;
     if (strcmp(name, "scheduler") == 0) {
         const char *addr, *port;
         addr = va_arg(*app, const char *);

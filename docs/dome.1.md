@@ -64,7 +64,10 @@ Currently just one dome type is supported: virtual domes conformed to AAOS stand
 :   Open the dome's window.
 
 `close_window`
-:   Close the dome's windows.
+:   Close the dome's window.
+
+`stop_window`
+:   Stop open/close dome window.
 
 `set` *parameter* [*value1* [*value2* …]]
 :   Set a runtime parameter of the dome. Supported *parameter* values are:

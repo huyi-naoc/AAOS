@@ -34,48 +34,35 @@ If the telescope has already been powered off, calling this function does nothin
 
 On success, **telescope_power_off**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-ERRORS
-======
+# ERRORS
 
-This functions shall fail if:
+The functions may fail with any of the following error codes:
 
-AAOS\_EDEVMAL
-------------
+# AAOS\_ENOTSUP
 
-The underline telescope is in *MALFUNCTION* state.
+The underlying telescope does not support this operation.
 
-AAOS\_ENOTSUP
-------------
-
-The underline telescope does not support this operation.
-
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-NOTES
-=====
+# NOTES
 
-The **telescope_power_off**() function is usually called after **telescope_go_home**(), and before **dome_close**().
+The function is typically called after **telescope_go_home**() and before **dome_close_window**() to ensure the telescope is safely parked before the dome is closed.
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-These functions are thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_power_off**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**dome_close**(3), **telescope_gpo_home**(3), **telescope_power_init**(3), **telescope_power_on**(3)
+**telescope**(1), **dome_close_window**(3), **telescope_gpo_home**(3), **telescope_power_init**(3), **telescope_power_on**(3), **telescope**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

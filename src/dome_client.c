@@ -7,55 +7,46 @@
 
 #include "def.h"
 #include "dome_rpc.h"
+#include "utils.h"
 #include "wrapper.h"
 
 extern size_t n_dome;
 extern void **domes;
 
 static struct option longopts[] = {
-    {"binary",      no_argument,        NULL,       'b' },
-    {"check",       no_argument,        NULL,       'c' },
+    {"dome",        required_argument,  NULL,       'd' },    
     {"help",        no_argument,        NULL,       'h' },
     {"index",       required_argument,  NULL,       'i' },
     {"name",        required_argument,  NULL,       'n' },
-    {"path",        required_argument,  NULL,       'p' },
-    {"version",     no_argument,        NULL,       'v' },
     { NULL,         0,                  NULL,       0 }
 };
 
 
 static const char *help_string = "\
 Usage:  dome [options]    [COMMAND1, COMMAND2, ...\n\
-        -b, --binary      set how seriald inteprets the input COMMANDs as hex\n\
-                          strings rather than ASCII character strings\n\
-        -c, --check       check whether the serial device works\n\
-        -d, --delay       <timeout>, set timeout of -r option\n\
+        -d, --dome        <address:[port]> address (and port) of domed\n\
         -h, --help        print help doc and exit\n\
-        -i, --index       <index>, specify serial's index\n\
-        -n, --name        <name>, specify serial's name\n\
-        -p, --path        <path>, specify serial's devpath\n\
-        -s, --serial      <address:[port]> address (and port) of seriald\n\
-        -u, --unit        <unit>, specify parameter unit for setting command\n\
-                          supported formats are nature, second, minute,\n\
-                          and degree, default is nature\n\n\
+        -i, --index       <index>, specify dome's index\n\
+        -n, --name        <name>, specify dome's name\n\
 Commands:\n\
     init\n\
-    open\n\
-    close\n\
+    open_window\n\
+    close_window\n\
     stop\n\
     status\n\
     inspect\n\
     register    TIMEOUT\n\
     set         NAME\n\
-                NAME can be open_speed and close_speed\n\
+                NAME can be window_open_speed and window_close_speed\n\
     get         NAME\n\
-                NAME can be position, open_speed and close_speed\n\
+                NAME can be window_position, window_open_speed and window_close_speed\n\
 ";
 
 
 static void
 usage(void)
 {
+    fprintf(stderr, "%s", help_string);
     exit(EXIT_FAILURE);
 }
 
@@ -148,47 +139,9 @@ main(int argc, char *argv[])
     while ((ch = getopt_long(argc, argv, "a:cd:hi:n:r", longopts, NULL)) != -1) {
         switch (ch) {
             case 'a':
-                if (Access(optarg, F_OK) == 0) { // UNIX domain socket
-                    snprintf(address, ADDRSIZE, "%s", optarg);
-                } else {
-                    s = strrchr(optarg, ':');
-                    if (s == NULL) { //input like "example.com"
-                        memset(address, '\0', ADDRSIZE);
-                        if (strlen(optarg) >= ADDRSIZE) {
-                            fprintf(stderr, "Address is too long.\n");
-                            fprintf(stderr, "Exit...\n");
-                            exit(EXIT_FAILURE);
-                        }
-                        snprintf(address, ADDRSIZE, "%s", optarg);
-                    } else {
-                        if (s == optarg) { // input like :8000
-                            s++;
-                            if (strlen(s) >= PORTSIZE) {
-                                fprintf(stderr, "Port is too long.\n");
-                                fprintf(stderr, "Exit...\n");
-                                exit(EXIT_FAILURE);
-                            }
-                            snprintf(address, PORTSIZE, "%s", s);
-                        } else { //input like localhost:8000
-                            memset(address, '\0', ADDRSIZE);
-                            memset(port, '\0', PORTSIZE);
-                            if (s - optarg < ADDRSIZE) {
-                                memcpy(address, optarg, s - optarg);
-                            } else {
-                                fprintf(stderr, "Address is too long.\n");
-                                fprintf(stderr, "Exit...\n");
-                                exit(EXIT_FAILURE);
-                            }
-                            if (strlen(s + 1) < PORTSIZE) {
-                                snprintf(port, PORTSIZE, "%s", s + 1);
-                            } else {
-                                fprintf(stderr, "Port is too long.\n");
-                                fprintf(stderr, "Exit...\n");
-                                exit(EXIT_FAILURE);
-                            }
-                        }
-                    }
-                }
+                memset(address, '\0', ADDRSIZE);
+                memset(port, '\0', PORTSIZE);
+                parse_addr_port(optarg, address, ADDRSIZE, port, PORTSIZE, "localhost", DOM_RPC_PORT);
                 break;
             case 'c':
                 check = true;

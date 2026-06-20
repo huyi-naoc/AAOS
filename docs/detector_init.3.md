@@ -2,10 +2,10 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-telescope\_init - initialize the detector
+
+detector\_init - initialize the detector
 
 SYNOPSIS
 ========
@@ -18,56 +18,54 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
 
-The **detector_init**() function initializes the detector referenced by *\*\_self*.  
+# DESCRIPTION
 
-If the detector has already been initialized, calling this function does nothing and return successfully. Otherwise, it will change the telescope state to *DETECTOR_STATE_IDLE*.
+The **detector_init**() function initializes the detector referenced by *\*\_self*. By calling this funcntion, **runtime** parameters of the detector, such as capture mode, pixel format, trigger mode, and so on, are approriately set up.  
 
-RETURN VALUE
-============
+If the detector has already been initialized, calling this function does nothing and return successfully. Otherwise, it sets the detector state to **DETECTOR_STATE_IDLE**.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+## Parameters
 
-ERRORS
-======
+*\_self*
+:   Pointer to the detector instance to be initialized.
 
-This functions shall fail if:
+# RETURN VALUE
 
-AAOS\_EDEVMAL
-------------
+On success, **detector_init**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-The underline detector is in *MALFUNCTION* state.
+# ERRORS
 
-AAOS\_EPWROFF
-------------
+The function may fail with any of the following error codes:
 
-The underline detector is not powered.
+## AAOS\_EDEVMAL
 
-CONFORMING TO
-=============
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is set).
+
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_init**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
+# RATIONALE
 
-SEE ALSO
-========
+Detectors may not retain their runtime parameters when powered off. Consequently an explicit initialization step is required after a power‑on to restore capture mode, pixel format, trigger settings, etc., before the detector can be used.
 
-**detector_power_off**(3), **detector_power_on**(3)
+# SEE ALSO
 
-BUGS
-====
+**detector**(1), **detector_power_off**(3), **detector_power_on**(3), **detector**(7)
+
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

@@ -1320,7 +1320,7 @@ VirtualDome_close_window(void *_self)
                 ret = AAOS_EDEVMAL;
             } else {
                 state &= ~DOME_STATE_MALFUNCTION;
-                if (state&DOME_STATE_WINDOW_CLOSED) {
+                if (state == DOME_STATE_WINDOW_CLOSED) {
                     ret = AAOS_OK;
                 } else {
                     ret = AAOS_ECANCELED;
@@ -1617,7 +1617,7 @@ virtual_dome_virtual_table_initialize(void)
                                       __dome_init, "init", VirtualDome_init,
                                       __dome_open_window, "open_window", VirtualDome_open_window,
                                       __dome_close_window, "close_window", VirtualDome_close_window,
-                                      __dome_stop_window, "stop_windows", VirtualDome_stop_window,
+                                      __dome_stop_window, "stop_window", VirtualDome_stop_window,
                                       __dome_status, "status", VirtualDome_status,
                                       __dome_get_window_open_speed, "get_window_open_speed", VirtualDome_get_window_open_speed,
                                       __dome_set_window_open_speed, "set_window_open_speed", VirtualDome_set_window_open_speed,

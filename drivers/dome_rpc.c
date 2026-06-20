@@ -271,7 +271,7 @@ Dome_close_window(void *_self)
 int
 dome_stop_window(void *_self)
 {
-	const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
+    const struct DomeClass *class = (const struct DomeClass *) classOf(_self);
     
     if (isOf(class, DomeClass()) && class->stop_window.method) {
         return ((int (*)(void *)) class->stop_window.method)(_self);
@@ -793,7 +793,7 @@ Dome_execute_stop_window(struct Dome *self)
 {
     uint16_t index;
     void *dome;
-    
+
     protobuf_get(self, PACKET_INDEX, &index);
 
     if ((dome = get_dome_by_index(index)) == NULL) {
@@ -1005,7 +1005,7 @@ Dome_execute_get_window_open_speed(struct Dome *self)
 static int
 Dome_execute_set_window_open_speed(struct Dome *self)
 {
-    int ret;
+    
     void *dome;
     double speed;
     uint16_t index;
@@ -1048,7 +1048,6 @@ Dome_execute_get_window_close_speed(struct Dome *self)
 static int
 Dome_execute_set_window_close_speed(struct Dome *self)
 {
-    int ret;
     void *dome;
     double speed;
     uint16_t index;
@@ -1068,7 +1067,6 @@ Dome_execute_set_window_close_speed(struct Dome *self)
 static int
 Dome_execute_slew(struct Dome *self)
 {
-    int ret;
     void *dome;
     double ra, dec;
     uint16_t index;
@@ -1089,9 +1087,7 @@ Dome_execute_slew(struct Dome *self)
 static int
 Dome_execute_park(struct Dome *self)
 {
-    int ret;
     void *dome;
-    double ra, dec;
     uint16_t index;
     
     protobuf_get(self, PACKET_INDEX, &index);
@@ -1108,9 +1104,8 @@ Dome_execute_park(struct Dome *self)
 static int
 Dome_execute_park_off(struct Dome *self)
 {
-    int ret;
     void *dome;
-    double ra, dec;
+
     uint16_t index;
     
     protobuf_get(self, PACKET_INDEX, &index);
@@ -1127,9 +1122,7 @@ Dome_execute_park_off(struct Dome *self)
 static int
 Dome_execute_abort(struct Dome *self)
 {
-    int ret;
     void *dome;
-    double ra, dec;
     uint16_t index;
     
     protobuf_get(self, PACKET_INDEX, &index);
@@ -1146,9 +1139,8 @@ Dome_execute_abort(struct Dome *self)
 static int
 Dome_execute_stop(struct Dome *self)
 {
-    int ret;
     void *dome;
-    double ra, dec;
+   
     uint16_t index;
     
     protobuf_get(self, PACKET_INDEX, &index);
@@ -1166,9 +1158,8 @@ static int
 Dome_execute_get_name_by_index(struct Dome *self)
 {
     const char *name;
-    int ret;
     void *dome;
-    double speed;
+   
     uint16_t index;
     
     protobuf_get(self, PACKET_INDEX, &index);

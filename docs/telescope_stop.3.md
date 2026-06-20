@@ -33,7 +33,7 @@ On success, **telescope_stop**() returns `0`.  On failure, a non‑zero error co
 
 # ERRORS
 
-The function may fail with the following error codes:
+The function may fail with any of the following error codes:
 
 ## AAOS\_EDEVMAL
 
@@ -65,7 +65,7 @@ None.
 
 # SEE ALSO
 
-**telescope_park**(3), **telescope_park_off**.
+**telescope**(1), **telescope_park**(3), **telescope_park_off**(3), **telescope**(7)
 
 # BUGS
 

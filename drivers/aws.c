@@ -74,6 +74,15 @@ SensorVirtualTable_ctor(void *_self, va_list *app)
             self->set_device.method = method;
             continue;
         }
+        if (selector == (Method) sensor_get_field) {
+            if (tag) {
+                self->get_field.tag = tag;
+                self->get_field.selector = selector;
+            }
+            self->get_field.method = method;
+            continue;
+        }
+        
     }
     
     return _self;
@@ -140,6 +149,32 @@ Sensor_get_name(const void *_self)
     struct Sensor *self = cast(Sensor(), _self);
     
     return self->name;
+}
+
+const char *
+sensor_get_field(const void *_self)
+{
+    const struct SensorClass *class = (const struct SensorClass *) classOf(_self);
+    
+    if (isOf(class, SensorClass()) && class->get_field.method) {
+        return ((const char * (*)(const void *)) class->get_field.method)(_self);
+    } else {
+        const char *result;
+        forward(_self, &result, (Method) sensor_get_field, "get_field", _self);
+        return result;
+    }
+}
+
+static const char *
+Sensor_get_field(const void *_self)
+{
+    struct Sensor *self = cast(Sensor(), _self);
+    
+    if (self->fields != NULL) {
+        return self->fields;
+    } else {
+        return self->name;
+    }
 }
 
 unsigned int
@@ -359,6 +394,8 @@ Sensor_forward(const void *_self, void *result, Method selector, const char *nam
     } else if (selector == (Method) sensor_format_put) {
         FILE *fp = va_arg(*app, FILE *);
         ((void (*)(void *, FILE *)) method)(obj, fp);
+    } else if (selector == (Method) sensor_get_field) {
+        *((const char **) result) = ((const char * (*)(void *)) method)(obj);
     } else {
         assert(0);
     }
@@ -432,6 +469,7 @@ Sensor_dtor(void *_self)
     free(self->model);
     free(self->command);
     free(self->description);
+    free(self->fields);
 
     return super_dtor(Sensor(), _self);
 }
@@ -514,6 +552,14 @@ SensorClass_ctor(void *_self, va_list *app)
                 self->format_put.selector = selector;
             }
             self->format_put.method = method;
+            continue;
+        }
+        if (selector == (Method) sensor_get_field) {
+            if (tag) {
+                self->get_field.tag = tag;
+                self->get_field.selector = selector;
+            }
+            self->get_field.method = method;
             continue;
         }
     }
@@ -3712,6 +3758,557 @@ hcd6817c_virtual_table(void)
     return _hcd6817c_virtual_table;
 }
 
+/*
+ * WTGAHRS3-485 sensor.
+ */
+
+static char WTGAHRS3_AXAYAZ[] = {0x50, 0x03, 0x00, 0x34, 0x00, 0x03};
+static char WTGAHRS3_GXGYGZ[] = {0x50, 0x03, 0x00, 0x37, 0x00, 0x03};
+static char WTGAHRS3_ROLLPITCHYAW[] = {0x50, 0x03, 0x00, 0x3D, 0x00, 0x03};
+static char WTGAHRS3_TEMP[] = {0x50, 0x03, 0x00, 0x40, 0x00, 0x01};
+static char WTGAHRS3_LONLAT[] = {0x50, 0x03, 0x00, 0x49, 0x00, 0x04};
+static char WTGAHRS3_GPSALTYAWSPD[] = {0x50, 0x03, 0x00, 0x4D, 0x00, 0x04};
+static char WTGAHRS3_SVNUMPDOPHDOPVDOP[] = {0x50, 0x03, 0x00, 0x4D, 0x00, 0x04};
+
+
+static const void *wtgahrs3_virtual_table(void);
+
+static void *
+WTGAHRS3_ctor(void *_self, va_list *app)
+{
+    struct WTGAHRS3 *self = super_ctor(WTGAHRS3(), _self, app);
+    
+    char *command, *s, *token, *ptr = NULL;
+    command = (char *) Malloc(strlen(self->_.command) + 1);
+    snprintf(command, strlen(self->_.command) + 1, "%s", self->_.command);
+    s = command;
+    size_t i = 0, size;
+    FILE *fp;
+    
+    while ((token = strsep(&s, ";")) != NULL) {
+        if (strcmp(token, "AXAYAZ") == 0) {
+            self->_.n_field += 3;
+            self->n++;
+            continue;
+        }
+        if (strcmp(token, "GXGYGZ") == 0) {
+            self->_.n_field += 3;
+            self->n++;
+            continue;
+        }
+        if (strcmp(token, "ROLLPITCHYAW") == 0) {
+            self->_.n_field += 3;
+            self->n++;
+            continue;
+        }
+        if (strcmp(token, "TEMP") == 0) {
+            self->_.n_field += 1;
+            self->n++;
+            continue;
+        }
+        if (strcmp(token, "LONLAT") == 0) {
+            self->_.n_field += 2;
+            self->n++;
+            continue;
+        }
+        if (strcmp(token, "GPSALTYAWSPD") == 0) {
+            self->_.n_field += 3;
+            self->n++;
+            continue;
+        }
+        if (strcmp(token, "SVNUMPDOPHDOPVDOP") == 0) {
+            self->_.n_field += 4;
+            self->n++;
+            continue;
+        }
+    }
+    
+    snprintf(command, strlen(self->_.command) + 1, "%s", self->_.command);
+    s = command;
+    
+    self->commands = (char **) Malloc(sizeof(char *));
+    
+    fp = open_memstream(&ptr, &size);
+    
+    while ((token = strsep(&s, ";")) != NULL) {
+        if (strcmp(token, "AXAYAZ") == 0) {
+            self->commands[i] = WTGAHRS3_AXAYAZ;
+            if (i < self->n - 1) {
+                fprintf(fp, "%s_ax %s_ay %s_az ", self->_.name, self->_.name, self->_.name);
+            } else {
+                fprintf(fp, "%s_ax %s_ay %s_az", self->_.name, self->_.name, self->_.name);
+            }
+            i++;
+            continue;
+        }
+        if (strcmp(token, "GXGYGZ") == 0) {
+            self->commands[i] = WTGAHRS3_GXGYGZ;
+            if (i < self->n - 1) {
+                fprintf(fp, "%s_gx %s_gy %s_gz ", self->_.name, self->_.name, self->_.name);
+            } else {
+                fprintf(fp, "%s_gx %s_gy %s_gz", self->_.name, self->_.name, self->_.name);
+            }
+            i++;
+            continue;
+        }
+        if (strcmp(token, "ROLLPITCHYAW") == 0) {
+            self->commands[i] = WTGAHRS3_ROLLPITCHYAW;
+            if (i < self->n - 1) {
+                fprintf(fp, "%s_roll %s_pitch %s_yaw ", self->_.name, self->_.name, self->_.name);
+            } else {
+                fprintf(fp, "%s_roll %s_pitch %s_yaw", self->_.name, self->_.name, self->_.name);
+            }
+            i++;
+            continue;
+        }
+        if (strcmp(token, "TEMP") == 0) {
+            self->commands[i] = WTGAHRS3_TEMP;
+            if (i < self->n - 1) {
+                fprintf(fp, "%s_temp ", self->_.name);
+            } else {
+                fprintf(fp, "%s_temp", self->_.name);
+            }
+            i++;
+            continue;
+        }
+        if (strcmp(token, "LONLAT") == 0) {
+            self->commands[i] = WTGAHRS3_LONLAT;
+            if (i < self->n - 1) {
+                fprintf(fp, "%s_lon %s_lat ", self->_.name, self->_.name);
+            } else {
+                fprintf(fp, "%s_lon %s_lat", self->_.name, self->_.name);
+            }
+            i++;
+            continue;
+        }
+        if (strcmp(token, "GPSALTYAWSPD") == 0) {
+            self->commands[i] = WTGAHRS3_GPSALTYAWSPD;
+            if (i < self->n - 1) {
+                fprintf(fp, "%s_alt %s_gps_yaw, %s_gps_v ", self->_.name, self->_.name, self->_.name);
+            } else {
+                fprintf(fp, "%s_alt %s_gps_yaw, %s_gps_v", self->_.name, self->_.name, self->_.name);
+            }
+            
+            i++;
+            continue;
+        }
+        if (strcmp(token, "SVNUMPDOPHDOPVDOP") == 0) {
+            self->commands[i] = WTGAHRS3_SVNUMPDOPHDOPVDOP;
+            if (i < self->n - 1) {
+                fprintf(fp, "%s_svnum %s_pdop, %s_hdop, %s_vdop ", self->_.name, self->_.name, self->_.name, self->_.name);
+            } else {
+                fprintf(fp, "%s_svnum %s_pdop, %s_hdop, %s_vdop", self->_.name, self->_.name, self->_.name, self->_.name);
+            }
+            i++;
+            continue;
+        }
+    }
+    fclose(fp);
+    free(command);
+    
+    self->_.fields = ptr;
+    self->_._vtab= wtgahrs3_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+WTGAHRS3_dtor(void *_self)
+{
+    struct WTGAHRS3 *self = cast(WTGAHRS3(), _self);
+    
+    free(self->commands);
+    
+    return super_dtor(WTGAHRS3(), _self);
+}
+
+static void *
+WTGAHRS3Class_ctor(void *_self, va_list *app)
+{
+    struct WTGAHRS3Class *self = super_ctor(WTGAHRS3Class(), _self, app);
+    
+    self->_.read_data.method = (Method) 0;
+    self->_.read_raw_data.method = (Method) 0;
+    self->_.format_put.method = (Method) 0;
+    
+    return self;
+}
+
+static const void *_WTGAHRS3Class;
+
+static void
+WTGAHRS3Class_destroy(void)
+{
+    free((void *) _WTGAHRS3Class);
+}
+
+static void
+WTGAHRS3Class_initialize(void)
+{
+    _WTGAHRS3Class = new(SensorClass(), "WTGAHRS3Class", SensorClass(), sizeof(struct WTGAHRS3Class),
+                           ctor, "", WTGAHRS3Class_ctor,
+                           (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(WTGAHRS3Class_destroy);
+#endif
+}
+
+const void *
+WTGAHRS3Class(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, WTGAHRS3Class_initialize);
+#endif
+    
+    return _WTGAHRS3Class;
+}
+
+static const void *_WTGAHRS3;
+
+static void
+WTGAHRS3_destroy(void)
+{
+    free((void *) _WTGAHRS3);
+}
+
+static void
+WTGAHRS3_initialize(void)
+{
+    
+    _WTGAHRS3 = new(WTGAHRS3Class(), "WTGAHRS3", Sensor(), sizeof(struct WTGAHRS3),
+                    ctor, "ctor", WTGAHRS3_ctor,
+                    dtor, "dtor", WTGAHRS3_dtor,
+                    (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(WTGAHRS3_destroy);
+#endif
+}
+
+const void *
+WTGAHRS3(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, WTGAHRS3_initialize);
+#endif
+
+    return _WTGAHRS3;
+}
+
+static int
+WTGAHRS3_read_data(void *_self, double *data, size_t size)
+{
+    struct Sensor *self = cast(Sensor(), _self);
+    struct WTGAHRS3 *myself = cast(WTGAHRS3(), _self);
+
+    int ret = AAOS_OK;
+    char buf[BUFSIZE];
+    void *controller = self->controller, *device = self->device;
+    void *serial = klaws_controller_get_serial(controller);
+    uint16_t index = klaws_device_get_index(device);
+    size_t i = 0, j, n = myself->n;
+    
+    klaws_controller_lock(controller);
+    if (index == 0) {
+        klaws_device_set_index(device, serial);
+        index = klaws_device_get_index(device);
+        if (index == 0) {
+            klaws_controller_unlock(controller);
+            return AAOS_ENOTFOUND;
+        }
+    }
+    protobuf_set(serial, PACKET_INDEX, index);
+        
+    for (j = 0; j < n; j++) {
+        if (i >= size) {
+            break;
+        }
+        if (myself->commands[j] == WTGAHRS3_AXAYAZ) {
+            if ((ret = serial_raw(serial, WTGAHRS3_AXAYAZ, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                data[i] = ((((int16_t) buf[3]) << 8) | buf[4]) / 32768. * 16. * 9.8;
+                if (i < size - 1) {
+                    data[i + 1] = ((((int16_t) buf[5]) << 8) | buf[6]) / 32768. * 16. * 9.8;
+                }
+                if (i < size - 2) {
+                    data[i + 2] = ((((int16_t) buf[7]) << 8) | buf[8]) / 32768. * 16. * 9.8;
+                }
+            } else {
+                break;
+            }
+            i += 3;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_GXGYGZ) {
+            if ((ret = serial_raw(serial, WTGAHRS3_GXGYGZ, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                data[i] = ((((int16_t) buf[3]) << 8) | buf[4]) / 32768. * 2000.;
+                if (i < size - 1) {
+                    data[i + 1] = ((((int16_t) buf[5]) << 8) | buf[6]) / 32768. * 2000.;
+                }
+                if (i < size - 2) {
+                    data[i + 2] = ((((int16_t) buf[7]) << 8) | buf[8]) / 32768. * 2000.;
+                }
+            } else {
+                break;
+            }
+            i += 3;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_ROLLPITCHYAW) {
+            if ((ret = serial_raw(serial, WTGAHRS3_ROLLPITCHYAW, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                data[i] = ((((int16_t) buf[3]) << 8) | buf[4]) / 32768. * 180.;
+                if (i < size - 1) {
+                    data[i + 1] = ((((int16_t) buf[5]) << 8) | buf[6]) / 32768. * 180.;
+                }
+                if (i < size - 2) {
+                    data[i + 2] = ((((int16_t) buf[7]) << 8) | buf[8]) / 32768. * 180.;
+                }
+            } else {
+                break;
+            }
+            i += 3;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_TEMP) {
+            if ((ret = serial_raw(serial, WTGAHRS3_TEMP, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                data[i] = ((((int16_t) buf[3]) << 8) | buf[4]) / 100.;
+            } else {
+                break;
+            }
+            i++;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_LONLAT) {
+            if ((ret = serial_raw(serial, WTGAHRS3_LONLAT, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                int16_t LonH, LonL, LatH, LatL;
+                char LonH0, LonL0, LatH0, LatL0, LonH1, LonL1, LatH1, LatL1;
+                LonL0 = buf[3];
+                LonL1 = buf[4];
+                LonH0 = buf[5];
+                LonH1 = buf[6];
+                LatL0 = buf[7];
+                LatL1 = buf[8];
+                LatH0 = buf[9];
+                LatH1 = buf[10];
+                LonL = (((int16_t) LonL0) << 8) | LonL1;
+                LonH = (((int16_t) LonH0) << 8) | LonH1;
+                LatL = (((int16_t) LatL0) << 8) | LatL1;
+                LatH = (((int16_t) LatH0) << 8) | LatH1;
+                data[i] = ((((int32_t) LonH) << 16) | LonL) / 100000.;
+                if (i < size - 1) {
+                    data[i + 1] = ((((int32_t) LatH) << 16) | LatL) / 100000.;
+                }
+            } else {
+                break;
+            }
+            i += 2;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_GPSALTYAWSPD) {
+            if ((ret = serial_raw(serial, WTGAHRS3_GPSALTYAWSPD, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                data[i] = ((((int16_t) buf[3]) << 8) | buf[4]) / 10.;
+                if (i < size - 1) {
+                    data[i + 1] = ((((int16_t) buf[5]) << 8) | buf[6]) / 32768. * 180.;
+                }
+                if (i < size - 2) {
+                    char GPSVL0, GPSVL1, GPSVH0, GPSVH1;
+                    int16_t GPSVL, GPSVH;
+                    GPSVL0 = buf[7];
+                    GPSVL1 = buf[8];
+                    GPSVH0 = buf[9];
+                    GPSVH1 = buf[10];
+                    GPSVL = (((int16_t) GPSVL0) << 8) | GPSVL1;
+                    GPSVH = (((int16_t) GPSVH0) << 8) | GPSVH1;
+                    data[i + 2] = ((((int32_t) GPSVH) << 16) | GPSVL) / 32768. * 180.;
+                }
+            } else {
+                break;
+            }
+            i += 3;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_SVNUMPDOPHDOPVDOP) {
+            if ((ret = serial_raw(serial, WTGAHRS3_SVNUMPDOPHDOPVDOP, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                data[i + 1] = (((uint16_t) buf[3]) << 8) | buf[4];
+                if (i < size - 1) {
+                    data[i + 1] = ((((uint16_t) buf[5]) << 8) | buf[6]) / 100.;
+                }
+                if (i < size - 2) {
+                    data[i + 2] = ((((uint16_t) buf[7]) << 8) | buf[8]) / 100.;
+                }
+                if (i < size - 4) {
+                    data[i + 3] = ((((uint16_t) buf[9]) << 8) | buf[10]) / 100.;
+                }
+            } else {
+                break;
+            }
+            i += 4;
+            continue;
+        }
+        
+    }
+    klaws_controller_unlock(controller);
+        
+    return ret;
+}
+ 
+static int
+WTGAHRS3_read_raw_data(void *_self, void *data, size_t size)
+{
+    struct Sensor *self = cast(Sensor(), _self);
+    struct WTGAHRS3 *myself = cast(WTGAHRS3(), _self);
+
+    int ret = AAOS_OK;
+    char buf[BUFSIZE], *idx;
+    void *controller = self->controller, *device = self->device;
+    void *serial = klaws_controller_get_serial(controller);
+    uint16_t index = klaws_device_get_index(device);
+    size_t i = 0, j, n = myself->n;
+    
+    klaws_controller_lock(controller);
+    idx = (char *) data;
+    
+    for (j = 0; j < n; j++) {
+        if (i >= size) {
+            break;
+        }
+        if (myself->commands[j] == WTGAHRS3_AXAYAZ) {
+            if ((ret = serial_raw(serial, WTGAHRS3_AXAYAZ, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                memcpy(idx, buf, 11);
+            } else {
+                break;
+            }
+            i += 11;
+            idx += 11;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_GXGYGZ) {
+            if ((ret = serial_raw(serial, WTGAHRS3_GXGYGZ, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                memcpy(idx, buf, 11);
+            } else {
+                break;
+            }
+            i += 11;
+            idx += 11;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_ROLLPITCHYAW) {
+            if ((ret = serial_raw(serial, WTGAHRS3_ROLLPITCHYAW, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                memcpy(idx, buf, 11);
+            } else {
+                break;
+            }
+            i += 11;
+            idx += 11;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_TEMP) {
+            if ((ret = serial_raw(serial, WTGAHRS3_TEMP, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                memcpy(idx, buf, 7);
+            } else {
+                break;
+            }
+            i += 7;
+            idx += 7;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_LONLAT) {
+            if ((ret = serial_raw(serial, WTGAHRS3_LONLAT, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                memcpy(idx, buf, 13);
+            } else {
+                break;
+            }
+            i += 13;
+            idx += 13;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_GPSALTYAWSPD) {
+            if ((ret = serial_raw(serial, WTGAHRS3_GPSALTYAWSPD, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                memcpy(idx, buf, 13);
+            } else {
+                break;
+            }
+            i += 13;
+            idx += 13;
+            continue;
+        }
+        if (myself->commands[j] == WTGAHRS3_SVNUMPDOPHDOPVDOP) {
+            if ((ret = serial_raw(serial, WTGAHRS3_SVNUMPDOPHDOPVDOP, 6, buf, BUFSIZE, NULL)) == AAOS_OK) {
+                memcpy(idx, buf, 13);
+            } else {
+                break;
+            }
+            i += 13;
+            idx += 13;
+            continue;
+        }
+        
+    }
+    
+    klaws_controller_unlock(controller);
+    
+    return ret;
+}
+
+static void
+WTGAHRS3_format_put(void *_self, FILE *fp)
+{
+    struct Sensor *self = cast(Sensor(), _self);
+    
+    double *data = (double *) Malloc(sizeof(double) * self->n_field);
+    size_t i;
+    
+    sensor_read_data(_self, data, self->n_field);
+    
+    for (i = 0; i < self->n_field - 1; i++) {
+        if (self->format == NULL) {
+            fprintf(fp, "%.6f ", data[i]);
+        } else {
+            fprintf(fp, self->format, data[i]);
+            fprintf(fp, " ");
+        }
+    }
+    if (self->format == NULL) {
+        fprintf(fp, "%.6f", data[i]);
+    } else {
+        fprintf(fp, self->format, data[i]);
+    }
+    
+    free(data);
+}
+
+static const void *_wtgahrs3_virtual_table;
+
+static void
+wtgahrs3_virtual_table_destroy(void)
+{
+    delete((void *) _wtgahrs3_virtual_table);
+}
+
+
+static void
+wtgahrs3_virtual_table_initialize(void)
+{
+    _wtgahrs3_virtual_table = new(SensorVirtualTable(),
+                                  sensor_read_data, "read_data", WTGAHRS3_read_data,
+                                  sensor_read_raw_data, "read_raw_data", WTGAHRS3_read_raw_data,
+                                  sensor_format_put, "format_put", WTGAHRS3_format_put,
+                                  (void *)0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(wtgahrs3_virtual_table_destroy);
+#endif
+}
+
+static const void *
+wtgahrs3_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, wtgahrs3_virtual_table_initialize);
+#endif
+    
+    return _wtgahrs3_virtual_table;
+}
 
 /*
  * AWS virtual table.
@@ -4602,7 +5199,7 @@ __AWS_data_field(void *_self, FILE *fp)
     
     size_t i;
         
-    fprintf(fp, "%s", sensor_get_name(self->sensors[0]));
+    fprintf(fp, "%s", sensor_get_field(self->sensors[0]));
     
     for (i = 1; i < self->n_sensors; i++) {
         if (self->delimiter) {
@@ -4610,7 +5207,7 @@ __AWS_data_field(void *_self, FILE *fp)
         } else {
             fputc(' ', fp);
         }
-        fprintf(fp, "%s", sensor_get_name(self->sensors[i]));
+        fprintf(fp, "%s", sensor_get_field(self->sensors[i]));
     }
     if (self->newline) {
         fprintf(fp, "%s", self->newline);

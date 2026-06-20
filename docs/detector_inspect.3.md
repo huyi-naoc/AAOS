@@ -18,55 +18,56 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_inspect**() function inspects on the detector referenced by *\*\_self*. If the detector is malfunction, it will change the state of the detector to *DETECTOR_STATE_MALFUNCTION*. 
+The **detector_inspect**() function performs a hardware‑specific inspection of the detector referenced by *\*\_self*. The inspection determines whether the detector is in a functional state and updates the **DETECTOR_STATE_MALFUNCTION** flag accordingly. 
 
+* If the inspection succeeds, the **DETECTOR_STATE_MALFUNCTION** flag is cleared and any threads that were blocked waiting for the detector to recover are resumed.
+* If the inspection fails, the flag is set, indicating a hardware malfunction. The function does **not** alter any other detector state; it merely updates the malfunction flag and notifies waiting threads.
 
-RETURN VALUE
-============
+## Parameters
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error. If the detector works correctly, it will notify all the processes calling **detector_register** to wait for the recovery of the detector.
+*\_self*
+:   Pointer to the detector instance to be inspected.
 
-ERRORS
-======
+# RETURN VALUE
 
-This functions shall fail if:
+On success, **detector_inspect**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_ENOTSUP
-------------
+# ERRORS
 
-The underline detector does not support this operation.
+The functions may fail with any of the following error codes:
 
-AAOS\_ERROR
------------
+# AAOS\_ENOTSUP
 
-The underline detector is in malfunction state.
+The underlying detector does not support this operation.
 
+# AAOS\_EMALDEV
 
-CONFORMING TO
-=============
+The underlying detector failed to pass the inspection.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_inspect**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# RATIONALE
 
-**detector_register**(3)
+Ordinary operation functions (e.g., **detector_expose**(), **detector_set_frame_rate**()) return error codes for many reasons that do not imply a hardware malfunction (network hiccups, invalid arguments, temporary resource exhaustion, etc.). Automatically marking the detector as malfunctioning on any error would cause unnecessary downtime.
 
-BUGS
-====
+**detector_inspect**() provides a dedicated, hardware‑specific check that decides whether the **DETECTOR_STATE_MALFUNCTION** flag should be set or cleared. In addition, it wakes all threads waiting for the flag to be cleared, allowing them to resume work as soon as the detector is confirmed healthy. Together with detector_register(), it enables an automatic recovery pipeline that can handle transient hardware issues without manual intervention.
+
+# SEE ALSO
+
+**detector**(1), **detector_register**(3), **detector**(7)
+
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_get\_prefix - get filename prefix
+detector\_get\_prefix - retrieve the prefix used for detector image filenames
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,44 +16,47 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_get_prefix**() function get the prefix of the image filename.
+The **detector_get_prefix**() function retrieves the filename prefix that the detector referenced by *\_self* uses when it creates image files.
 
+If the supplied buffer (*prefix*) is too small to hold the entire prefix, only the first *size‑1* bytes are copied and the string is NUL‑terminated; the excess characters are silently discarded.
 
-RETURN VALUE
-============
+## Parameter
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*\_self*
+:   Pointer to the detector instance.
 
-ERRORS
-======
+*prefix*
+:   User supplied buffer that receives the prefix. It will be NUL‑terminated. If the actual directory length exceeds *size* bytes, the result is truncated as described above.
 
-This functions shall never fail.
+*size*
+:   Size of *prefix* in bytes.
 
-CONFORMING TO
-=============
+# RETURN VALUE
+
+Always return **AAOS\_OK** (zero).
+
+# ERRORS
+
+**detector_get_prefix**() shall never faill; therefore no error codes are defined for this call.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_get_prefix**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**detector_set_prefix**(3)
+**detector**(1), **detector_set_prefix**(3), **detector**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

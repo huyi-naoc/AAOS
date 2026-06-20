@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
 telescope\_go\_home - slew then park the telescope at a proper position
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <telescope_rpc.h>**  
 **#include <telescope_def.h>**
@@ -18,70 +16,62 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_go_home**() function slews the telescope referenced by *\*\_self* to a proper position and park it there. The functions will block the calling thread until it returns.
+The **telescope_go_home**() function slews the telescope referenced by *\*\_self* to a safe home position and parks it there. The function blocks the calling thread until the operation completes.
 
-No matter which state the telescope is, the **telescope_go_home**() function will change the telescope state to *TELESCOPE_STATE_PARKED*,  except for current state in *TELESCOPE_STATE_MALFUNCTION*, *TELESCOPE_STATE_PWROFF* and *TELESCOPE_STATE_EUNINIT*.
+Regardless of the current telescope's state, **telescope_go_home**() changes the telescope state to **TELESCOPE_STATE_PARKED**, unless current state is **TELESCOPE_STATE_MALFUNCTION**, **TELESCOPE_STATE_PWROFF* or *TELESCOPE_STATE_EUNINIT**.
+
+## Parameters
+
+*\_self*
+:   Pointer to the telescope instance to be parked at home position.
  
-RETURN VALUE
-============
+# RETURN VALUE
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+On success, **telescope_go_home**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-ERRORS
-======
+# ERRORS
 
-This functions shall fail if:
+The function may fail with any of the following error codes:
 
-AAOS\_ECANCELED
---------------
+## AAOS\_ECANCELED
 
-The current execution is cancelled by a new call of *telescope_go_home*(), *telescope_move*(), *telescope_park*(), *telescope_slew*(), and *telescope_stop*() that operate the same underline telescope. 
+The operation was cancelled because another function call of *telescope_go_home*(), *telescope_move*(), *telescope_park*(), *telescope_slew*(), or *telescope_stop*() by another thread on the same physical telescope was invoked for the same underlying telescope. The state of the telescope depends on how the slew operation was canceled. 
 
-AAOS\_EDEVMAL
-------------
+## AAOS\_EDEVMAL
 
-The underline telescope is in *MALFUNCTION* state.
+The underlying telescope is in a *malfunction* state.
 
-AAOS\_EPWROFF
-------------
+## AAOS\_EPWROFF
 
-The underline telescope is not powered.
+The underlying telescope is not powered.
 
-AAOS\_EUNINT
------------
+## AAOS\_EUNINT
 
-The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+The underlying telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
 
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_go_home**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-RATIONALE
-=========
+# RATIONALE
 
-Almost every professional telescope have an enclosure called dome to protect them from bad weather conditions. However, it may be dangerous to close the dome when the telescope pointing to certain positions. **telescope_go_home**() will slew the telescope to a predefined safe position and park it there.As such, the subsequent operation on closing the dome is guaranteed to be safe.    
+Most professional telescopes have an enclosure, such as a dome, to protect them from adverse weather conditions. However, closing the dome can be dangerous if the telescope is pointing to certain positions. **telescope_go_home**() slews the telescope to a predefined safe position and parks it there. As such, subsequent operations to close the dome are guaranteed to be safe.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_park**(3), **telescope_slew**(3)
+**telescope**(1), **telescope_park**(3), **telescope_slew**(3), **telescope**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

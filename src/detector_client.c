@@ -7,6 +7,7 @@
 
 #include "def.h"
 #include "detector_rpc.h"
+#include "utils.h"
 #include "wrapper.h"
 
 #include <getopt.h>
@@ -27,6 +28,48 @@ static struct option longopts[] = {
     {"version",     no_argument,        NULL,       'v' },
     { NULL,         0,                  NULL,       0 }
 };
+
+static const char *help_string = "\
+Usage:  detector [options] COMMAND [PARAMETERS ... ]\n\
+        -h, --help        print help doc and exit\n\
+        -i, --index       <index>, specify telescope's index\n\
+        -n, --name        <name>, specify telescope's name\n\
+        -t, --telescope   <address:[port]> address (and port) of telescoped\n\
+        -u, --unit        <unit>, specify parameter unit for expose command\n\
+                          supported units can be s (second), or ms (milisecond)\n\
+Commands:\n\
+    abort\n\
+    enable      NAME\n\
+                NAME can be cooling\n\
+    disable     NMAE\n\
+                NAME can be cooling\n\
+    expose      EXPTIME NFRAMES\n\
+    info\n\
+    init\n\
+    inspect\n\
+    status\n\
+    stop\n\
+    get         NAME\n\
+                NAME can be binning, capture_mode, directory, exptime,\n\
+                frame_rate, gain, overscan, pixel_format, prefix,\n\
+                readout_rate, region, temperature, trigger_mode\n\
+    set         NAME VALUE1 ... \n\
+                binning parameter has two values\n\
+                capture_mode parameter has one value\n\
+                directory parameter has one value\n\
+                exptime parameter has one value\n\
+                frame_rate parameter has one value\n\
+                gain parameter has one value\n\
+                overscan parameter has two values\n\
+                pixel_format parameter has one value\n\
+                readout_rate parameter has one value\n\
+                region parameter has four values\n\
+                temperature parameter has one value\n\
+                trigger_mode parameter has one value\n\
+    register    TIMEOUT\n\
+";
+
+
 
 unsigned int unit = 1;
 static const char *header;
@@ -62,6 +105,12 @@ error_handler(int e)
     }
 }
 
+static void
+usage(void)
+{
+    fprintf(stderr, "%s", help_string);
+    exit(EXIT_FAILURE);
+}
 
 int
 main(int argc, char *argv[])
@@ -91,7 +140,7 @@ main(int argc, char *argv[])
     while ((ch = getopt_long(argc, argv, "d:hi:n:u:v", longopts, NULL)) != -1) {
         switch (ch) {
             case 'h':
-                //usage();
+                usage();
                 break;
             case 'i':
                 index = atoi(optarg);
@@ -103,26 +152,7 @@ main(int argc, char *argv[])
             case 'd':
                 memset(address, '\0', ADDRSIZE);
                 memset(port, '\0', PORTSIZE);
-                if (optarg != NULL) {
-                    char *s = strrchr(optarg, ':');
-                    if (s - optarg < ADDRSIZE) {
-                        memcpy(address, optarg, s - optarg);
-                    } else {
-                        fprintf(stderr, "Address is too long.\n");
-                        fprintf(stderr, "Exit...\n");
-                        exit(EXIT_FAILURE);
-                    }
-                    if (strlen(s + 1) < PORTSIZE) {
-                        snprintf(port, PORTSIZE, "%s", s + 1);
-                    } else {
-                        fprintf(stderr, "Port is too long.\n");
-                        fprintf(stderr, "Exit...\n");
-                        exit(EXIT_FAILURE);
-                    }
-                } else {
-                    snprintf(address, ADDRSIZE, "localhost");
-                    snprintf(port, PORTSIZE, DET_RPC_PORT);
-                }
+                parse_addr_port(optarg, address, ADDRSIZE, port, PORTSIZE, "localhost", DET_RPC_PORT);
                 break;
             case 'H':
                 header = optarg;
@@ -138,7 +168,7 @@ main(int argc, char *argv[])
                 }
                 break;
             default:
-                //usage();
+                usage();
                 break;
         }
     }
@@ -333,14 +363,16 @@ main(int argc, char *argv[])
             }
             
             if (strcmp(command, "raw") == 0) {
-                char input[BUFSIZE], output[BUFSIZE];
+                char input[BUFSIZE], *output;
+                output = (char *) Malloc(BUFSIZE * 256);
                 fscanf(stdin, "%s", input);
-                ret = detector_raw(detector, input, strlen(input), output, BUFSIZE, NULL);
+                ret = detector_raw(detector, input, strlen(input), output, BUFSIZE * 256, NULL);
                 if (ret == AAOS_OK) {
                     printf("%s\n", output);
                 } else {
                     printf("wrong command.\n");
                 }
+                free(output);
                 continue;
             }
             if (strcmp(command, "status") == 0) {
@@ -491,6 +523,13 @@ main(int argc, char *argv[])
                 } else {
                     error_handler(ret);
                 }
+            } else if (strcmp(argv[1], "capture_mode") == 0) {
+                uint32_t capture_mode;
+                if ((ret = detector_get_capture_mode(detector, &capture_mode)) == AAOS_OK) {
+                    fprintf(stdout, "%un", capture_mode);
+                } else {
+                    error_handler(ret);
+                }
             } else if (strcmp(argv[1], "directory") == 0) {
                 char directory[PATHSIZE];
                 if ((ret = detector_get_directory(detector, directory, PATHSIZE)) == AAOS_OK) {
@@ -512,14 +551,6 @@ main(int argc, char *argv[])
                 } else {
                     error_handler(ret);
                 }
-                
-            } else if (strcmp(argv[1], "prefix") == 0) {
-                char prefix[PATHSIZE];
-                if ((ret = detector_get_prefix(detector, prefix, PATHSIZE)) == AAOS_OK) {
-                    fprintf(stdout, "%s\n", prefix);
-                } else {
-                    error_handler(ret);
-                }
             } else if (strcmp(argv[1], "gain") == 0) {
                 double frame_rate;
                 if ((ret = detector_get_frame_rate(detector, &frame_rate)) == AAOS_OK) {
@@ -527,7 +558,28 @@ main(int argc, char *argv[])
                 } else {
                     error_handler(ret);
                 }
-            } else if (strcmp(argv[1], "readout_rate") == 0) {
+            } else if (strcmp(argv[1], "overscan") == 0) {
+                uint32_t x_overscan, y_overscan;
+                if ((ret = detector_get_overscan(detector, &x_overscan, &y_overscan)) == AAOS_OK) {
+                    fprintf(stdout, "%u %u\n", x_overscan, y_overscan);
+                } else {
+                    error_handler(ret);
+                }
+            } else if (strcmp(argv[1], "pixel_format") == 0) {
+                uint32_t pixel_format;
+                if ((ret = detector_get_pixel_format(detector, &pixel_format)) == AAOS_OK) {
+                    fprintf(stdout, "%un", pixel_format);
+                } else {
+                    error_handler(ret);
+                }
+            }  else if (strcmp(argv[1], "prefix") == 0) {
+                char prefix[PATHSIZE];
+                if ((ret = detector_get_prefix(detector, prefix, PATHSIZE)) == AAOS_OK) {
+                    fprintf(stdout, "%s\n", prefix);
+                } else {
+                    error_handler(ret);
+                }
+            }  else if (strcmp(argv[1], "readout_rate") == 0) {
                 double readout_rate;
                 if ((ret = detector_get_readout_rate(detector, &readout_rate)) == AAOS_OK) {
                     fprintf(stdout, "%.3f\n", readout_rate);
@@ -552,6 +604,13 @@ main(int argc, char *argv[])
                 char template[PATHSIZE];
                 if ((ret = detector_get_template(detector, template, PATHSIZE)) == AAOS_OK) {
                     fprintf(stdout, "%s\n", template);
+                } else {
+                    error_handler(ret);
+                }
+            } else if (strcmp(argv[1], "trigger_mode") == 0) {
+                uint32_t trigger_mode;
+                if ((ret = detector_get_trigger_mode(detector, &trigger_mode)) == AAOS_OK) {
+                    fprintf(stdout, "%un", trigger_mode);
                 } else {
                     error_handler(ret);
                 }
@@ -582,9 +641,9 @@ main(int argc, char *argv[])
                 fprintf(stderr, "Exit...\n");
                 exit(EXIT_FAILURE);
             }
-            char buf[BUFSIZE];
-            memset(buf, '\0', BUFSIZE);
-            ret = detector_raw(detector, argv[1], strlen(argv[1]), buf, BUFSIZE, NULL);
+            char *buf = (char *) Malloc(BUFSIZE * 256);
+            memset(buf, '\0', BUFSIZE * 256);
+            ret = detector_raw(detector, argv[1], strlen(argv[1]), buf, BUFSIZE * 256, NULL);
             if (ret == AAOS_OK) {
                 if (buf[0] != '\0') {
                     fprintf(stdout, "%s\n", buf);
@@ -594,6 +653,7 @@ main(int argc, char *argv[])
             } else {
                 error_handler(ret);
             }
+            free(buf);
             argc -= 2;
             argv += 2;
             continue;
@@ -611,7 +671,6 @@ main(int argc, char *argv[])
             continue;
         }
         if (strcmp(argv[0], "stop") == 0) {
-            char buf[BUFSIZE];
             ret = detector_stop(detector);
             if (ret != AAOS_OK) {
                 error_handler(ret);
@@ -623,7 +682,6 @@ main(int argc, char *argv[])
             continue;
         }
         if (strcmp(argv[0], "abort") == 0) {
-            char buf[BUFSIZE];
             ret = detector_abort(detector);
             if (ret != AAOS_OK) {
                 error_handler(ret);
@@ -657,6 +715,16 @@ main(int argc, char *argv[])
                 }
                 argc -= 4;
                 argv += 4;
+            } else if (strcmp(argv[1], "capture_mode") == 0) {
+                uint32_t capture_mode;
+                capture_mode = atoi(argv[2]);
+                if ((ret = detector_set_capture_mode(detector, capture_mode)) == AAOS_OK) {
+                    fprintf(stderr, "set capture mode success.\n");
+                } else {
+                    error_handler(ret);
+                }
+                argc -= 3;
+                argv += 3;
             } else if (strcmp(argv[1], "directory") == 0) {
                 if ((ret = detector_set_directory(detector, argv[2])) == AAOS_OK) {
                     fprintf(stderr, "set directory success.\n");
@@ -687,6 +755,33 @@ main(int argc, char *argv[])
                 double gain = atof(argv[2]);
                 if ((ret = detector_set_gain(detector, gain)) == AAOS_OK) {
                     fprintf(stderr, "set gain success.\n");
+                } else {
+                    error_handler(ret);
+                }
+                argc -= 3;
+                argv += 3;
+            } else if (strcmp(argv[1], "overscan") == 0) {
+                if (argc < 4) {
+                    fprintf(stderr, "Too few parameters for \"set overscan\" command.\n");
+                    fprintf(stderr, "Exit...\n");
+                    exit(EXIT_FAILURE);
+                }
+                uint32_t x_overscan, y_overscan;
+                x_overscan = atoi(argv[2]);
+                y_overscan = atoi(argv[3]);
+                
+                if ((ret = detector_set_overscan(detector, x_overscan, y_overscan)) == AAOS_OK) {
+                    fprintf(stderr, "set overscan success.\n");
+                } else {
+                    error_handler(ret);
+                }
+                argc -= 4;
+                argv += 4;
+            } else if (strcmp(argv[1], "pixel_format") == 0) {
+                uint32_t pixel_format;
+                pixel_format = atoi(argv[2]);
+                if ((ret = detector_set_pixel_format(detector, pixel_format)) == AAOS_OK) {
+                    fprintf(stderr, "set pixel format success.\n");
                 } else {
                     error_handler(ret);
                 }
@@ -744,6 +839,16 @@ main(int argc, char *argv[])
                 }
                 argc -= 3;
                 argv += 3;
+            } else if (strcmp(argv[1], "trigger_mode") == 0) {
+                uint32_t trigger_mode;
+                trigger_mode = atoi(argv[2]);
+                if ((ret = detector_set_trigger_mode(detector, trigger_mode)) == AAOS_OK) {
+                    fprintf(stderr, "set trigger mode success.\n");
+                } else {
+                    error_handler(ret);
+                }
+                argc -= 3;
+                argv += 3;
             } else {
                 fprintf(stderr, "Unknown setting entry `%s`.\n", argv[1]);
                 fprintf(stderr, "Exit...\n");
@@ -755,7 +860,6 @@ main(int argc, char *argv[])
         argc-- ;
         argv++;
     }
-    
     delete(client);
     delete(detector);
     

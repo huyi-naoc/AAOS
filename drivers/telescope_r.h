@@ -23,6 +23,32 @@ struct TelescopeState {
     pthread_cond_t cond;
 };
 
+struct TelescopeControl {
+    double home_ra;
+    double home_dec;
+    double home_alt;
+    double home_az;
+    double slew_threshold;
+    double slew_polling_interval;
+    unsigned int max_slew_polling_times;
+    double slew_settle_time;
+    double move_settle_time;
+    double focus_threshold;
+    double focus_polling_interval;
+    unsigned int max_focus_polling_times;
+    double focus_settle_time;
+    double derotator_threshold;
+    double derotator_polling_interval;
+    unsigned int max_derotator_polling_times;
+    double derotator_settle_time;
+    double cover_polling_interval;
+    unsigned int max_cover_polling_times;
+    
+    size_t default_instrument;
+    size_t default_detector;
+    size_t default_filter;
+};
+
 struct TelescopeCapbility {
 	bool dome_available;
 
@@ -59,6 +85,8 @@ struct TelescopeCapbility {
     double min_track_rate_y;
 
     bool derotator_available;
+    double max_derotator_angle;
+    double min_derotator_angle;
 
     bool lid_available;
     
@@ -71,7 +99,7 @@ struct TelescopeCapbility {
 	double primary_axis_min;
 	double primary_axis_max;
 	double secondary_axis_min;
-	double secondary_axis_max;	
+	double secondary_axis_max;
 };
 
 struct TelescopeParameter {
@@ -108,9 +136,11 @@ struct TelescopeParameter {
     size_t filter;
     
     unsigned int move_direction;
+    double move_duration;
     
     pthread_rwlock_t position_rwlock;   /* ra, dec, az, alt */
     pthread_rwlock_t slew_rwlock;       /* ra_from, dec_from, ra_to, dec_to */
+    pthread_rwlock_t move_rwlock;
     
     pthread_rwlock_t move_begin_rwlock;
     pthread_rwlock_t slew_begin_rwlock;
@@ -122,6 +152,7 @@ struct TelescopeParameter {
 	pthread_rwlock_t slew_speed_rwlock;
     
     pthread_rwlock_t cover_rwlock;
+    
     pthread_rwlock_t instrument_rwlock;
     pthread_rwlock_t detector_rwlock;
     pthread_rwlock_t filter_rwlock;
@@ -138,39 +169,14 @@ struct __Telescope {
     double location_lat; /* latitude of the observation, degree */
     double location_ele; /* altitude of the observation, meter */
     double gmt_offset;
-    
-    double track_rate_x; /* unit 15 arcseconds per second */
-    double track_rate_y; /* unit 15 arcseconds per second */
-    double ra;           /* current ra, degree */
-    double dec;          /* current dec, degree */
-    double alt;          /* current altitude of the telescope, degree */
-    double az;           /* current azumith of the telescope, degree */
 
-    double move_speed;
-    unsigned int move_direction;
-    double move_duration;
-    
-    double ra_from;
-    double dec_from;
-    double ra_to;
-    double dec_to;
-    double slew_speed_x;
-    double slew_speed_y;
-    int slew_direction_x;
-    int slew_direction_y;
-    
-    double last_slew_begin_time;  /* slew begin time */
-    double last_track_begin_time; /* track begin time */
-    double last_move_begin_time;  /* move begin time */
-    double last_park_begin_time;  /* park begin time */
-    
     uint16_t option;
     
     pthread_t tid;
-    
     struct TelescopeState t_state;
 	struct TelescopeParameter t_param;
     struct TelescopeCapbility t_cap;
+    struct TelescopeControl t_ctrl;
 };
 
 struct __TelescopeClass {
@@ -202,6 +208,7 @@ struct __TelescopeClass {
     struct Method set_track_rate;
     struct Method get_track_rate;
     struct Method get_derotator_angle;
+    struct Method get_focus_length;
     struct Method enable_derotator;
     struct Method disable_derotator;
 
@@ -215,6 +222,9 @@ struct __TelescopeClass {
     
     struct Method inspect;
     struct Method wait;
+    
+    struct Method get;
+    struct Method set;
 };
 
 struct __TelescopeVirtualTable {
@@ -250,9 +260,9 @@ struct __TelescopeVirtualTable {
     struct Method get_derotator_angle;
     struct Method enable_derotator;
     struct Method disable_derotator;
+    struct Method get_focus_length;
     struct Method inspect;
     struct Method wait;
-    
 };
 
 struct VirtualTelescope {
@@ -294,14 +304,13 @@ struct SYSU80 {
     struct __Telescope _;
     char *address; /* Windows server IP */
     char *port; /* Windows server port, default is 51042 */
+    
+    /*
     char **instruments;
     size_t n_instrument;
     size_t default_instrument;
     size_t current_instrument;
-    double home_ra;
-    double home_dec;
-    double home_alt;
-    double home_az;
+     */
 };
 
 struct SYSU80Class {
@@ -316,15 +325,7 @@ struct AICMount {
     char *port2;
     char *address3;
     char *port3;
-    double home_ra;
-    double home_dec;
-    double home_alt;
-    double home_az;
-    double polling_interval;
-    unsigned int max_polling_times;
-    double focus_polling_interval;
-    unsigned int max_focus_polling_times;
-    double focus_threshold;
+    
     pthread_mutex_t mtx;
 };
 

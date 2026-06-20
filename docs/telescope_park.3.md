@@ -20,12 +20,12 @@ Compile and link with *-laaoscore* *-laaosdriver*.
 
 The **telescope_park**() function stops any motion the telescope referenced by *\*\_self* and de‑energises both axes, leaving it at its current position. 
 
-If the telescope is already parked, the function does nothing and returns success. If the telescope is in a *moving*, *slewing* or *tracking* state, the state is changed to *parked*.
+If the telescope is already parked, the function does nothing and returns success. If the telescope is in a **TELSCOPE_STATE_MOVING**, **TELESCOPE_STATE_SLEWING** or **TELESCOPE_STATE_TRACKING** state, the state is changed to **TELESCOPE_STATE_PARKED**.
 
 ## Parameters
 
 *\_self*
-:   Pointer to the telescope instance.
+:   pointer to the telescope instance to be parked.
 
 # RETURN VALUE
 
@@ -33,7 +33,7 @@ On success, **telescope_park**() returns **0**.  On failure, a non‑zero error 
 
 # ERRORS
 
-The function may fail with the following error codes:
+The function may fail with any of the following error codes:
 
 ## AAOS\_EDEVMAL
 
@@ -61,9 +61,8 @@ None.
 
 # SEE ALSO
 
-**telescope_park_off**(3).
+**telescope**(1), **telescope_park_off**(3), **telescope**(7)
 
 # BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

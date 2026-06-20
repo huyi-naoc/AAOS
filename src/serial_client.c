@@ -42,6 +42,7 @@ Usage:  serial [options]  [COMMAND1, COMMAND2, ...\n\
 static void
 usage(void)
 {
+    fprintf(stderr, "%s", help_string);
     exit(EXIT_FAILURE);
 }
 

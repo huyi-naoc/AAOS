@@ -1026,10 +1026,10 @@ Detector_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32_
         return ret;
     }
     
-    protobuf_get(protobuf, PACKET_U32F0, &x_offset);
-    protobuf_get(protobuf, PACKET_U32F1, &y_offset);
-    protobuf_get(protobuf, PACKET_U32F2, &width);
-    protobuf_get(protobuf, PACKET_U32F3, &height);
+    protobuf_get(protobuf, PACKET_U32F0, x_offset);
+    protobuf_get(protobuf, PACKET_U32F1, y_offset);
+    protobuf_get(protobuf, PACKET_U32F2, width);
+    protobuf_get(protobuf, PACKET_U32F3, height);
     
     return ret;
 }
@@ -1534,7 +1534,7 @@ Detector_get_image(void *_self, const char *filename)
     void *protobuf = self->_.protobuf;
     uint16_t index, error_code;
     int ret;
-    size_t n, nread = 0;
+    size_t nread = 0;
     uint64_t file_size;
     ssize_t nleft, nn;
     int sockfd, fd;
@@ -1786,7 +1786,7 @@ Detector_expose(void *_self, double exposure_time, uint32_t n_frame, void (*imag
     uint16_t option, error_code;
     int ret = AAOS_OK;
     char filename[FILENAMESIZE];
-    uint32_t i, length;
+    uint32_t i;
     
     protobuf_set(protobuf, PACKET_PROTOCOL, PROTO_DETECTOR);
     protobuf_set(protobuf, PACKET_COMMAND, DETECTOR_COMMAND_EXPOSE);
@@ -4776,7 +4776,7 @@ Detector_ctor(void *_self, va_list *app)
 {
     struct Detector *self = super_ctor(Detector(), _self, app);
 
-    protobuf_reallocate(self, 65536);
+    protobuf_reallocate(self, 1048576);
     
     self->_._vtab = detector_virtual_table();
     
@@ -5013,7 +5013,7 @@ DetectorClass_ctor(void *_self, va_list *app)
                 self->get_region.tag = tag;
                 self->get_region.selector = selector;
             }
-            self->get_gain.method = method;
+            self->get_region.method = method;
             continue;
         }
         if (selector == (Method) detector_set_temperature) {

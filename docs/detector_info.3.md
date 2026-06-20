@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_info - retrieve the detector information
+detector\_info -  retrieve static information about a detector
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 
@@ -17,60 +15,70 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_info**() function retrieve the information of the detector referenced by *\*\_self*. The content of info is filled in *res* pointer provided by the user, and its size in bytes is *res_size*. The length of the content is returned in *res_len*. If the actual length of the info content is larger than *res_size*, only the first *res_size* bytes will be filled in. If *res_len* is **NULL**, the length content will not be returned.
+The **detector_info()** function obtains the static information of the detector referenced by *\_self*. The caller supplies a destination buffer (*res*) and its capacity in bytes (*res\_size*). On success the function copies the information into the buffer. If *res\_len* is not *NULL*, the total length of the information (in bytes) is stored at *res\_len*.  When the actual data size exceeds *res\_size*, only the first *res\_size* bytes are written; *res\_len* (when reported) still contains the full length of the data.
 
-The information generally contains the vendor, model, serial number, and etc of thhe the detector, which is constant. However, it is not necessarily retrieved from configuration files. Therefore, *AAOS\_EDEVMAL*, *AAOS\_EPWROFF*, *AAOS\_EUINIT* may return too.
+Typical contents include the vendor name, model, serial number and other immutable identifiers of the detector.  Although this data are essentially constant for a given device, they are often obtained directly from the hardware rather than from configuration files. Consequently the call may fail with any of the error codes listed in the **ERRORS** section. The format of the returned data can be controlled with **detector_set_option**(). 
 
-RETURN VALUE
-============
+## Parameters
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*\_self*
+:   Pointer to the detector instance whose status is to be retrieved.
 
-ERRORS
-======
+*res*
+:   Destination buffer that receives the information.
 
-These functions shall fail if:
+*res\_size*
+:   Size of *res* in bytes.
 
-AAOS\_EDEVMAL
-------------
+*res\_len*
+:   If non‑*NULL*, receives the total length of the information. May be *NULL* if the length is not needed.
 
-The underline detector is in *MALFUNCTION* state.
+# RETURN VALUE
 
-AAOS\_EPWROFF
-------------
+On success, **detector_info**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-The underline detector is not powered.
+# ERRORS
 
-AAOS\_EUNINIT
--------------
+The function may fail with any of the following error codes:
 
-The underline detector is uninitialized, e.g., clock time and/or location have not been set yet by **detector_init**().
+## AAOS\_EDEVMAL
 
-CONFORMING TO
-=============
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is set).
+
+## AAOS\_ENOTSUP
+
+The underlying detetcor does not support this operation.
+
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+## AAOS\_EUNINT
+
+The underlying detector is uninitialized.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_info**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# RATIONALE
 
-**detector_status**(3)
+Many detectors do not implement all possible operations (e.g., cooling control, readout‑rate adjustment). The **detector_info**() function provides a generic mechanism to query the static capabilities and identifiers of a specific hardware implementation. If a particular feature is not supported, the corresponding function returns **AAOS_ENOTSUP**. An **AAOS_EINVAL** error indicates that the supplied arguments are invalid or out of range; such information may also be reflected in *res* returned by **detector_info**().
 
-BUGS
-====
+# SEE ALSO
+
+**detector**(1), **detector_get_binning**(3), **detector_get_directory**(3), **detector_get_exposure_time**(3), **detector_get_frame_rate**(3), **detector_get_gain**(3), **detectory_get_prefix**(3), **detector_get_readout_rate**(3), **detector_get_region**(3), **detector_get_temperature**(3), **detctor_set_option**(3), **detector_status**(3), **detector**(7)
+
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
 telescope\_inspect - inspect the telescope
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <telescope_rpc.h>**  
 **#include <telescope_def.h>**
@@ -18,55 +16,55 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_inspect**() function inspects on the telescope referenced by *\*\_self*. If the telescope is malfunction, it will change the state of the telescope to *TELESCOPE_STATE_MALFUNCTION*. 
+The **telescope_inspect**() function inspects on the telescope referenced by *\*\_self*. If the telescope passes the inspection, the **TELESCOPE_STATE_MALFUNCTION** flag in the state is cleared, and all the threads blocked for waiting for the telescope's recovery are resumed.  Otherwise,  the  **TELESCOPE_STATE_MALFUNCTION** flag is set.  
+
+The **telescope_inspect**() function inspects on the telescope referenced by *\*\_self*. If the detctor passes the inspection, the **TELESCOPE_STATE_MALFUNCTION** flag in the telescope's state is cleared, and all the threads that were blocked waiting for the underlying telescope to recover are resumed. If the inspection fails, the  **TELESCOPE_STATE_MALFUNCTION** flag is set.
+
+## Parameters
+
+*\_self*
+:   Pointer to the telescope instance to be inspected.
+
+# RETURN VALUE
+
+On success, **telescope_inspect**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
+
+# ERRORS
+
+The functions may fail with any of the following error codes:
+
+# AAOS\_ENOTSUP
+
+The underlying telescope does not support this operation.
+
+# AAOS\_EMALDEV
+
+The underlying telescope failed to pass the inspection.
 
 
-RETURN VALUE
-============
-
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error. If the telescope works correctly, it will notify all the processes calling **telescope_register** to wait for the recovery of the telescope.
-
-ERRORS
-======
-
-This functions shall fail if:
-
-AAOS\_ENOTSUP
-------------
-
-The underline telescope does not support this operation.
-
-AAOS\_ERROR
------------
-
-The underline telescope is in malfunction state.
-
-
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_inspect**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# RATIONALE
 
-**telescope_inspect**(3)
+A failure of other operation functions (e.g. slew, move) does not necessarily indicate a hardware malfunction. A dedicated function that performs a hardware‑specific inspection and decides whether to set or clear the **TELESCOPE_STATE_MALFUNCTION** flag is therefore required. **telescope_inspect**() fulfills this role and also notifies all threads waiting for the clearance of the malfunction flag, allowing them to resume operation as soon as the telescope recovers. Together with **telescope_register**(), it lets an automatic operation pipeline continue without needing expert‑level hardware knowledge. 
 
-BUGS
-====
+# SEE ALSO
+
+**telescope**(1), **telescope_register**(3), **telescope**(7)
+
+# BUGS
+
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

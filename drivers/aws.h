@@ -48,13 +48,15 @@ extern const void *PTB210(void);
 extern const void *PTB210Class(void);
 extern const void *HCD6817C(void);
 extern const void *HCD6817CClass(void);
-
+extern const void *WTGAHRS3(void);
+extern const void *WTGAHRS3Class(void);
 
 int sensor_read_data(void *_self, double *data, size_t size);
 int sensor_read_raw_data(void *_self, void *data, size_t size);
 void sensor_set_controller(void *_self, const void *controller);
 void sensor_set_device(void *_self, const void *device);
 const char *sensor_get_name(const void *_self);
+const char *sensor_get_field(const void *_self);
 unsigned int sensor_get_channel(const void *_self);
 unsigned int sensor_get_type(const void *_self);
 void sensor_set_channel(void *_self, unsigned int channel);

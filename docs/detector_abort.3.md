@@ -2,13 +2,12 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_abort - abort previous exposure
+detector\_abort - abort current exposure
 
-SYNOPSIS
-========
+# SYNOPSIS
+
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,62 +17,64 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_abort**() function abort the previous expose command immediately. If the underline detector is not in **DETECTOR_STATE_EXPOSING** or **DETECTOR_STATE_READING** state, it does nothing and returns immediately. Otherwise, it will also set the detector state to **DETECTOR_STATE_IDLE**. 
+The **detector_abort**() function abort the current exposure operation of the underlying detector referenced by *\_self* immediately. 
 
-RETURN VALUE
-============
+* If the detector is not in **DETECTOR_STATE_EXPOSING** or **DETECTOR_STATE_READING** state, it does nothing and returns instantly. 
+* If the detector is in either of those states, the function forces the detector’s state to **DETECTOR_STATE_IDLE**, terminating the exposure sequence. 
+* If the underlying hardware does not support an explicit abort operation, the implementation may fall back to the behaviour of **detector_stop**().
 
-Upon successful completion, **detector_abort**() shall return zero; otherwise, it shall return a non-zero integer to indicate the error.
+When the detector is in **DETECTOR_STATE_MALFUNCTION**, the return behaviour depends on the **DETECTOR_OPTION_IGNORE_DEVMAL** option:
 
-ERRORS
-======
+* **with** the option, the function attempts to abort exposure despite the malfunction state;
+* **without** the option (the default) set, the function returns **AAOS_EDEVMAL** immediately.
 
-This functions shall fail if:
+## Parameters
 
-AAOS\_EDEVMAL
--------------
+*\_self*
+:   Pointer to the detector instance whose exposure is to be aborted.
 
-The underline detector is in *MALFUNCTION* state.
+# RETURN VALUE
 
-AAOS\_ENOTSUP
--------------
+On success, **detector_abort**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-The underline detetcor does not support this operation.
+# ERRORS
 
-AAOS\_EPWROFF
--------------
+The function may fail with any of the following error codes:
 
-The underline detector is not powered.
+## AAOS\_EDEVMAL
 
-AAOS\_EUNINT
-------------
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is not set).
 
-The underline detector is uninitialized.
+## AAOS\_ENOTSUP
 
-CONFORMING TO
-=============
+The underlying detetcor does not support this operation.
+
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+## AAOS\_EUNINT
+
+The underlying detector is uninitialized.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_abort**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
-**detector_expose**(3)
+# SEE ALSO
 
-BUGS
-====
+**detector**(1), **detector_expose**(3), **detector_stop**(3), **detector_wait_for_completion**(3), **detectord**(7)
+
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

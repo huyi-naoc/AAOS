@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_get\_index\_by\_name - get the index of the detector
+detector\_get\_index\_by\_name - obtain the internal index of a detector object
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,47 +16,45 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
-The **detector_get_index_by_name**() function gets the index of the telescope identified by its *name*. The index will be stored in *\_self* object and opaque to the user.
+# DESCRIPTION
 
-RETURN VALUE
-============
+The **detector_get_index_by_name**() function looks up the detector that has the specified *name* and stores its internal index inside the detector instance referenced by *\_self*. The index is used internally by the library and is opaque to the application programmer; the caller does not retrieve the index directly.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+## Parameters
+*\_self*
+:   Pointer to a detector object that will receive the internal index.
 
-ERRORS
-======
+*name*
+:   Pointer to a NUL‑terminated string containing the name of the detector to be looked up. The pointer must be valid (non‑NULL).
 
-This functions shall fail if:
+# RETURN VALUE
 
-AAOS\_ENOTFOUND
--------------
+On success, **detector_get_index_by_name**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
+
+# ERRORS
+
+The functions may fail with any of the following error codes:
+
+## AAOS\_ENOTFOUND
 
 The detector named *name* is not found.
 
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_get_index_by_name**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
 None.
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

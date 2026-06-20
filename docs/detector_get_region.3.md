@@ -2,77 +2,84 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_get\_region - get grabbing region
+detector\_get\_region - get the detector's region of interest
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
 
 int  
-**detector_set_region**(void *\*\_self*, uint32\_t *\*x\_offset*, uint32\_t *\*y\_offset*,
+**detector_get_region**(void *\*\_self*, uint32\_t *\*x\_offset*, uint32\_t *\*y\_offset*,
 $~~~~~~~~~~~~~~~~~$uint32\_t *\*width*, uint32\_t *\*height*);
  
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_set_region**() function set the grabbing region of the detector referenced by *\*\_self*. The region start at *x\_offset* and *y\_offset* from the corner of the detector with *width* and *height*.
+The **detector_get_region**() function retrieves the region of interest (ROI) that the underlying detector is currently using. The ROI is defined by its origin, given by *​x\_offset* and *​y\_offset* (measured from the top‑left corner of the detector), and by its ​*width* and *​height*.
 
+When the detector is in **DETECTOR_STATE_MALFUNCTION**, the return behaviour depends on the **DETECTOR_OPTION_IGNORE_DEVMAL** option:
 
-RETURN VALUE
-============
+* **with** the option, the function attempts to get ROI despite the malfunction state;
+* **without** the option (the default) set, the function returns **AAOS_EDEVMAL** immediately.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+## Parameters
 
-ERRORS
-======
+*\_self*
+:   Pointer to the detector instance whose grabbing region is being queried.
 
-This functions shall fail if:
+*x\_offset*
+:   Pointer to a uint32\_t variable that will receive the ROI's offset in the X direction. The pointer must be valid (non‑NULL).
 
-AAOS\_EDEVMAL
-------------
+*y\_offset*
+:   Pointer to a uint32\_t variable that will receive the ROI's offset in the Y direction. The pointer must be valid (non‑NULL).
 
-The underline detector is in *MALFUNCTION* state.
+*width*
+:   Pointer to a uint32\_t variable that will receive the ROI's width. The pointer must be valid (non‑NULL).
 
-AAOS\_ENOTSUP
-------------
+*height*
+:   Pointer to a uint32\_t variable that will receive the ROI's height. The pointer must be valid (non‑NULL).
 
-The underline detector does not support this operation.
+# RETURN VALUE
 
-AAOS\_EPWROFF
-------------
+On success, **detector_get_region**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-The underline detector is not powered.
+# ERRORS
 
-CONFORMING TO
-=============
+The function may fail with any of the following error codes:
+
+## AAOS\_EDEVMAL
+
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is not set).
+
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+## AAOS\_EUNINT
+
+The underlying detector is uninitialized.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_set_region**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**detector_set_region**(3)
+**detector**(1), **detector_set_region**(3), **detector**(7) 
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

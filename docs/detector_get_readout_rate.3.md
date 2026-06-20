@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_get\_readout\_rate - get readout  rate
+detector\_get\_readout\_rate - retrieve the detector’s readout rate
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,59 +16,63 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_get_readout_rate**() function get the readout speed of the detector referenced by *\*\_self*. The unit of *readout_rate* is in kilobit per second (kbps).
+The **detector_get_readout_rate**() function obtains the current readout rate of the detector referenced by *\*\_self*. The rate is expressed in kilobits per second (kbps) and is written to the location pointed to by *readout\_rate*. 
 
+When the detector is in **DETECTOR_STATE_MALFUNCTION**, the return behaviour depends on the **DETECTOR_OPTION_IGNORE_DEVMAL** option:
 
-RETURN VALUE
-============
+* **with** the option, the function attempts to get readout rate despite the malfunction state;
+* **without** the option (the default) set, the function returns **AAOS_EDEVMAL** immediately.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+## Parameters
 
-ERRORS
-======
+*\_self*
+:   Pointer to the detector instance whose readout rate is being queried.
 
-This functions shall fail if:
+*readout\_rate*
+:   Pointer to a double variable that will receive the readout rate (kbps). The pointer must be valid (non‑NULL).
 
-AAOS\_EDEVMAL
-------------
+# RETURN VALUE
 
-The underline detector is in *MALFUNCTION* state.
+On success, **detector_get_readout_rate**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_ENOTSUP
-------------
+# ERRORS
 
-The underline detector does not support this operation.
+The function may fail with any of the following error codes:
 
-AAOS\_EPWROFF
-------------
+## AAOS\_EDEVMAL
 
-The underline detector is not powered.
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is not set)..
 
-CONFORMING TO
-=============
+## AAOS\_ENOTSUP
+
+The underlying detector does not support this operation.
+
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+## AAOS\_EUNINT
+
+The underlying detector is uninitialized.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_get_readout_rate**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**detector_set_readout_rate**(3)
+**detector**(1), **detector_expose**(3), **detector_set_readout_rate**(3), **detector**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

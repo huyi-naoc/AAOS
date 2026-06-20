@@ -20,6 +20,7 @@
 #define DETECTOR_OPTION_NOWAIT                  0x4000
 #define DETECTOR_OPTION_ONESHOT                 0x2000
 
+#define DETECTOR_OPTION_COMPRESS_IMAGE				0x0004
 #define DETECTOR_OPTION_NOTIFY_LAST_FILLING         0x0002  /* expose function return when last frame is begun to read. */
 #define DETECTOR_OPTION_NOTIFY_EACH_COMPLETION      0x0001  /* Each frame is saved in separated file. */
 #define DETECTOR_OPTION_STRING_FORMART_PLAIN        0x0000
@@ -29,7 +30,7 @@
 #define DETECTOR_OPTION_STRING_FORMART_YAML         0x0400
 
 #define DETECTOR_CAPTURE_MODE_VIDEO             2
-#define DETECTOR_CAPTUTE_MODE_MULTIFRAME        3
+#define DETECTOR_CAPTURE_MODE_MULTIFRAME        3
 #define DETECTOR_CAPTURE_MODE_SNAPSHOT          1
 
 #define DETECTOR_TRIGGER_MODE_DEFAULT			    1

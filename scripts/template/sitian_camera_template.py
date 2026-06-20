@@ -31,7 +31,7 @@ def create_template_fits_file(pathname):
     phdu.header['RA_TARG'] = (1.0000000E+01, 'right ascension of the target (deg) (J2000)')
     phdu.header['DEC_TARG'] = (1.0000000E+01, 'declination of the target (deg) (J2000)')
     phdu.header['EQUINOX'] = (2000.0, 'equinox of celestial coord. system')
-    phdu.header['RADESYS'] = ('FK5', 'celestial coord. reference system')
+    phdu.header['RADESYS'] = ('ICRS', 'celestial coord. reference system')
 
     phdu.header['SOURCE'] = ('EP alert', 'target source')
 

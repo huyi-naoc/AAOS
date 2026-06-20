@@ -21,7 +21,7 @@ extern "C" {
 
 int __telescope_release(void *_self);
 
-int __telescope_status(void *_self, char *status_buffer, size_t status_buffer_size);
+int __telescope_status(void *_self, void *res, size_t res_size, size_t *res_len);
 int __telescope_power_on(void *_self);
 int __telescope_power_off(void *_self);
 int __telescope_init(void *_self);
@@ -51,10 +51,14 @@ int __telescope_switch_detector(void *_self, const char *name);
 int __telescope_focus(void *_self, unsigned int absolute, double step);
 int __telescope_open_cover(void *_self);
 int __telescope_close_cover(void *_self);
-int __telescope_info(void *_self, char *info_buffer, size_t info_buffer_size);
+int __telescope_info(void *_self, void *res, size_t res_size, size_t *res_len);
 int __telescope_enable_derotator(void *_self);
 int __telescope_disable_derotator(void *_self);
 int __telescope_get_derotator_angle(void *_self, double *angle);
+int __telescope_get_focus_length(void *_self, double *focus_length);
+
+void __telescope_get(void *_self, ...);
+void __telescope_set(void *_self, ...);
 
 
 const char *__telescope_get_name(const void *_self);

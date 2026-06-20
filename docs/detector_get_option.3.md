@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_get\_option - get option
+detector\_get\_option - retrieve a detector option value
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,49 +16,49 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_get_option**() function get the option of the detector referenced by *\*\_self*. 
+The **detector_get_option**() function obtains the current value of the option field associated with the detector referenced by *\_self*. The value is written to the location pointed to by *option*. The *option* field is typically a 16‑bit bitmask that controls various detector features; the exact meaning of each bit is defined by the detector implementation (see **detector**(7)). 
+
+One of the fllowing values can be in *option* for controlling output format of **detector_status**() and **detector_status**():
+* DETECTOR_OPTION_STRING_FORMART_PLAIN        
+* DETECTOR_OPTION_STRING_FORMART_JSON         
+* DETECTOR_OPTION_STRING_FORMART_LIBCONFIG    
+* DETECTOR_OPTION_STRING_FORMART_XML          
+* DETECTOR_OPTION_STRING_FORMART_YAML 
+
+And any combination of the following values can be or'ed in *option*:
+
+* DETECTOR_OPTION_IGNORE_DEVMAL           
+* DETECTOR_OPTION_NOWAIT                                  
+* DETECTOR_OPTION_NOTIFY_LAST_FILLING         
+* DETECTOR_OPTION_NOTIFY_EACH_COMPLETION
 
 
-RETURN VALUE
-============
+# RETURN VALUE
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+Always return **AAOS\_OK** (zero).
 
-ERRORS
-======
+# ERRORS
 
-This functions shall fail if:
+**detector_get_option**() shall never faill; therefore no error codes are defined for this call.
 
-AAOS\_ENOTSUP
-------------
-
-The underline detector does not support this operation.
-
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_get_option**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**detector_clear_option**(3), **detector_set_option**(3)
+**detector**(1), **detector_clear_option**(3), **detector_set_option**(3), **detector**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

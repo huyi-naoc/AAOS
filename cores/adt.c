@@ -16,13 +16,16 @@ static bool
 ThreadsafeQueue_empty(void *_self)
 {
     struct ThreadsafeQueue *self = cast(ThreadsafeQueue(), _self);
+    
     struct node *tail;
+    bool ret;
     
     Pthread_mutex_lock(&self->tail_mutex);
     tail = self->tail;
+    ret = tail == self->head?true:false;
     Pthread_mutex_unlock(&self->tail_mutex);
     
-    return tail == self->head;
+    return ret;
 }
 
 bool
@@ -58,7 +61,7 @@ ThreadsafeQueue_push(void *_self, void *data)
     Pthread_mutex_unlock(&self->tail_mutex);
     
     Pthread_cond_signal(&self->data_cond);
-    
+
     return true;
 }
 
@@ -127,6 +130,7 @@ ThreadsafeQueue_wait_and_pop(void *_self)
     data = old_head->data;
     free(old_head);
     Pthread_mutex_unlock(&self->head_mutex);
+    
     
     return data;
 }
@@ -337,9 +341,7 @@ threadsafe_circular_queue_push(void *_self, void *data)
     if (isOf(class, ThreadsafeCircularQueueClass()) && class->push.method) {
         return ((void (*)(void *, void *)) class->push.method)(_self, data);
     } else {
-       
         forward(_self, 0, (Method) threadsafe_circular_queue_push, "push", _self, data);
-    
     }
 }
 
@@ -415,7 +417,6 @@ threadsafe_circular_queue_timed_pop(void *_self, void *data, double timeout)
         return result;
     }
 }
-
 
 static void *
 ThreadsafeCircularQueue_ctor(void *_self, va_list *app)

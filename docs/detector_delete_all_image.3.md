@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_delete\_\all\_image - delete all the images in the directory 
+detector\_delete\_\all\_image - delete all the images in the directory in which detector images are stored
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,49 +16,43 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_delete_all_image**() function deletes all the images in the directory. If there is no files in the directory, it will return immediately without error.
+The **detector_delete_all_image**() function removes **all** image files from the directory associated with the underlying detector referenced by *\_self*. If the directory is already empty, the function returns immediately without error.
 
+## Parameters
 
-RETURN VALUE
-============
+*\_self*
+:   Pointer to the detector instance whose images is to be deleted.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+# RETURN VALUE
 
-ERRORS
-======
+On success, **detector_delete_all_image**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-This functions shall fail if:
+# ERRORS
 
-AAOS\_ENOTSUP
--------------
+The function may fail with any of the following error codes:
 
-The underline detector does not support this operation.
+## AAOS\_ENOTSUP
 
-CONFORMING TO
-=============
+The underlying detector does not support this operation.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_delete_all_image**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**detector_delete_image**(3), **detector_get_directory**(3), **detector_set_directory**(3)
+**detector**(1), **detector_delete_image**(3), **detector_get_directory**(3), **detector_set_directory**(3), **detector**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

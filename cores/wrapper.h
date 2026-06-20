@@ -21,6 +21,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <float.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -165,7 +166,7 @@ int Pthread_rwlock_wrlock(pthread_rwlock_t *);
 int Pthread_rwlock_unlock(pthread_rwlock_t *);
 
 int Getidbyname(const char *, uid_t *, gid_t *);
-void mkdirp(const char *);
+int mkdirp(const char *);
 int Nanosleep(double);
 ssize_t Writen(int, const void *, size_t);
 ssize_t Readn(int, void *, size_t);

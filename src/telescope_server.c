@@ -68,18 +68,29 @@ read_daemon(void)
 static void
 read_configuration(void)
 {
-    config_setting_t *setting, *telescope_setting, *instruments_setting, *instrument_setting, *detectors_setting, *detector_setting, *filters_setting, *filter_setting;
+    config_setting_t *setting, *telescope_setting, *instruments_setting, *instrument_setting, *detectors_setting, *detector_setting, *filters_setting;
     
     size_t i;
     
     setting = config_lookup(&cfg, "server");
     if (setting == NULL) {
         fprintf(stderr, "`server` section does not exist in configuration file.\n");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "use default telescope RPC port.\n");
+        server = new(TelescopeServer(), TEL_RPC_PORT);
     } else {
-        const char *port;
+        const char *port = NULL, *path = NULL;
         config_setting_lookup_string(setting, "port", &port);
-        server = new(TelescopeServer(), port);
+        config_setting_lookup_string(setting, "path", &path);
+        if (port == NULL) {
+            fprintf(stderr, "`port` does not exist in configuration file.\n");
+            fprintf(stderr, "use default telescope RPC port.\n");
+            server = new(TelescopeServer(), TEL_RPC_PORT);
+        } else {
+            server = new(TelescopeServer(), port);
+        }
+        if (path != NULL) {
+            tcp_server_set_path(server, path);
+        }
     }
     
     setting = config_lookup(&cfg, "telescopes");
@@ -97,7 +108,7 @@ read_configuration(void)
             telescope_setting = config_setting_get_elem(setting, (unsigned int) i);
             const char *name = NULL, *description = NULL, *type = NULL, *instrument = NULL, *detector = NULL, *filter = NULL;
             char **instruments = NULL, ***detectors = NULL, ****filters = NULL;
-            size_t n_instrument, *n_detector = NULL, **n_filter = NULL, j, k, l;
+            size_t n_instrument = 0, *n_detector = NULL, **n_filter = NULL, j, k, l;
             double lon, lat, ele, gmt_offset = -8.;
             config_setting_lookup_string(telescope_setting, "name", &name);
             config_setting_lookup_string(telescope_setting, "type", &type);
@@ -166,11 +177,20 @@ read_configuration(void)
 
             if (strcmp(type, "VIRTUAL") == 0) {
                 telescopes[i] = new(VirtualTelescope(), name, "description", description, "longitude", lon, "latitude", lat, "gmt_offset", gmt_offset, '\0');
+                if (instruments != NULL && n_instrument != 0) {
+                    __telescope_set(telescopes[i], "instruments", instruments, n_instrument, (void *) 0);
+                }
+                if (detectors != NULL && n_detector != NULL) {
+                    __telescope_set(telescopes[i], "detectors", detectors, n_detector, (void *) 0);
+                }
+                if (filters != NULL && n_filter != NULL) {
+                    __telescope_set(telescopes[i], "detectors", filters, n_filter, (void *) 0);
+                }
             } else if (strcmp(type, "APMOUNT") == 0){
                 config_setting_t *ap_mount_setting;
                 const char *serial_port = "5002";
                 const char *serial_address = "localhost";
-                const char *serial_name;
+                const char *serial_name = NULL;
                 int mount_type = TELESCOPE_EQUATORIAL;
                 if ((ap_mount_setting = config_setting_lookup(telescope_setting, "ap_mount")) != NULL) {
                     const char *mount_type_string;
@@ -190,7 +210,7 @@ read_configuration(void)
                 size_t j, n_instrument = 0;
                 int dfl_inst = 0;
                 size_t default_instrument = 0;
-                const char *windows_address, *windows_port;
+                const char *windows_address = NULL, *windows_port = NULL;
                 char **instruments = NULL;
                 const char *instrument;
                 double home_ra = 37.95, home_dec = 89.26;
@@ -219,11 +239,9 @@ read_configuration(void)
                 config_setting_t *aic_mount_setting;
                 const char *mount_address = NULL, *mount_port = NULL, *aux_address = NULL, *aux_port = NULL, *spectra_address = NULL, *spectra_port = NULL;
                 double home_ra = 37.95, home_dec = 89.26;
-                double polling_interval = 2.;
-                int max_polling_times = 200;
-                double focus_polling_interval = 1;
-                int max_focus_polling_times = 20;
-                double focus_threshold = 0.0001;
+                double slew_polling_interval = 2., focus_polling_interval = 1., derotator_polling_interval = 1., cover_polling_interval = 1.;
+                unsigned int max_slew_polling_times = 200, max_focus_polling_times = 20, max_cover_polling_times = 20, max_derotator_polling_times = 20.;
+                double focus_threshold = 1.2;
                 
                 if ((aic_mount_setting = config_setting_lookup(telescope_setting, "aic_mount")) != NULL) {
                     config_setting_lookup_string(aic_mount_setting, "mount_address", &mount_address);
@@ -234,16 +252,21 @@ read_configuration(void)
                     config_setting_lookup_string(aic_mount_setting, "spectra_port", &spectra_port);
                     config_setting_lookup_float(aic_mount_setting, "home_ra", &home_ra);
                     config_setting_lookup_float(aic_mount_setting, "home_dec", &home_dec);
-                    config_setting_lookup_float(aic_mount_setting, "polling_interval", &polling_interval);
-                    config_setting_lookup_int(aic_mount_setting, "max_polling_times", &max_polling_times);
+                    config_setting_lookup_float(aic_mount_setting, "slew_polling_interval", &slew_polling_interval);
+                    config_setting_lookup_int(aic_mount_setting, "max_slew_polling_times", &max_slew_polling_times);
                     config_setting_lookup_float(aic_mount_setting, "focus_polling_interval", &focus_polling_interval);
                     config_setting_lookup_int(aic_mount_setting, "max_focus_polling_times", &max_focus_polling_times);
+                    config_setting_lookup_float(aic_mount_setting, "derotator_polling_interval", &derotator_polling_interval);
+                    config_setting_lookup_int(aic_mount_setting, "max_derotator_polling_times", &max_derotator_polling_times);
+                    config_setting_lookup_float(aic_mount_setting, "cover_polling_interval", &cover_polling_interval);
+                    config_setting_lookup_int(aic_mount_setting, "max_cover_polling_times", &max_cover_polling_times);
                     config_setting_lookup_float(aic_mount_setting, "focus_threshold", &focus_threshold);
                 }
-                telescopes[i] = new(AICMount(), name, "description", description, "longitude", lon, "latitude", lat,  "elevation", ele, (void *) 0, mount_address, mount_port, aux_address, aux_port, spectra_address, spectra_port, "home_ra", home_ra, "home_dec", home_dec, "polling_interval", polling_interval, "max_polling_times", max_polling_times, "focus_polling_interval", focus_polling_interval, "max_focus_polling_times", max_focus_polling_times, "focus_threshold", focus_threshold, (void *) 0);
+                telescopes[i] = new(AICMount(), name, "description", description, "longitude", lon, "latitude", lat,  "elevation", ele, "instruments", instruments, n_instrument, "detector", detectors, n_detector, "filters", filters, n_filter, (void *) 0, mount_address, mount_port, aux_address, aux_port, spectra_address, spectra_port, "home_ra", home_ra, "home_dec", home_dec, "slew_polling_interval", slew_polling_interval, "max_slew_polling_times", max_slew_polling_times, "focus_polling_interval", focus_polling_interval, "max_focus_polling_times", max_focus_polling_times, "focus_threshold", focus_threshold, "derotator_polling_interval", derotator_polling_interval, "max_derotator_polling_times", max_derotator_polling_times, "cover_polling_interval", cover_polling_interval, "max_cover_polling_times", max_cover_polling_times, (void *) 0);
             } else {
                 
             }
+            
         }
     }
 }

@@ -21,65 +21,63 @@ Compile and link with *-laaoscore* *-laaosdriver*.
 # DESCRIPTION
 
 
-The **telescope_set_track_rate**() function set the track rate of the telescope referenced by *\*\_self*. The unit of *track_rate_x* and *track_rate_y* are both in arsec per second. This setting will be applied immediate if the telescope state is *TELESCOPE_STATE_TRACKING*, or after the returning of **telescope_move**() family function, **telescope_park_off**() function, **telescope_slew**() family functions, **telescope_stop**() function.
+The **telescope_set_track_rate**() function set the track rate of the telescope referenced by *\*\_self*. The rates are expressed in *arcseconds per second*. If the telescope is currently in the **TELESCOPE_STATE_TRACKING** state, the new rates take effect immediately.  Otherwise the rates are stored and will be applied automatically after the next call to one of the following functions: **telescope_move**() (any variant), **telescope_park_off**(), **telescope_slew**() (any variant), **telescope_stop**().
 
-The *track_rate_x* could be the track rate of either RA axis for a equatorial mount or east-west axis for a horizontal mount, whereas the *track_rate_y* could be the track rate of either DEC axis for a equatorial mount or north-south axis for a horizontal mount. 
+## Parameters
+*\_self*
+:   Pointer to the telescope instance.
+
+*track_rate_x*
+:   Tracking rate for the primary axis (right ascension for an equatorial mount or azimuth for a horizontal/alt‑az mount), in arcsecond per second.
+
+*track_rate_y*
+:   Tracking rate for the secondary axis (declination for an equatorial mount or altitude for a horizontal/alt‑az mount), in arcsecond per second.
 
 # RETURN VALUE
 
-On success, *telescope_status*() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
+On success, **telescope_set_track_rate**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
 # ERRORS
 
-This functions shall fail if:
+The functions may fail with any of the following error codes:
 
-AAOS\_EDEVMAL
-------------
+## AAOS\_EDEVMAL
 
-The underline telescope is in *MALFUNCTION* state.
+The underlying telescope is in a *malfunction* state.
 
-AAOS\_EINVAL
-------------
+## AAOS\_EINVAL
 
-The value of  *track\_rate\_x* and/or *track\_rate\_y* is invalid.
+One or both of the supplied tracking rates are outside the allowed range.
 
-AAOS\_ENOTSUP
-------------
+## AAOS\_ENOTSUP
 
-The underline telescope does not support this operation.
+The underlying telescope does not support this operation.
 
-AAOS\_EPWROFF
-------------
+## AAOS\_EPWROFF
 
-The underline telescope is not powered.
+The underlying telescope is not powered.
 
-AAOS\_EUNINT
------------
+## AAOS\_EUNINT
 
-The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+The underlying telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
 
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-Thiis function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_set_track_rate**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_get_track_rate**(3), **telescope_move**(3), **telescope_park_off**(3), **telescope_slew**(3),  **telescope_stop**(3)
+**telescope**(1), **telescope_get_track_rate**(3), **telescope_move**(3), **telescope_park_off**(3), **telescope_slew**(3),  **telescope_stop**(3), **telescoped**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

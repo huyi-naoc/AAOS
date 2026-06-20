@@ -29,7 +29,7 @@ The call does not modify the telescope’s state (e.g. *slewing* or *tracking*, 
 ## Parameters
 
 *\_self*
-:   Pointer to the telescope instance whose status is to be retrieved.
+:   Pointer to the telescope.
 
 *command*
 :   Pointer to a buffer that contains the raw command to be sent.
@@ -52,7 +52,7 @@ On success, **telescope_stop**() returns `0`.  On failure, a non‑zero error co
 
 # ERRORS
 
-The function may fail with the following error codes:
+The function may fail with any of the following error codes:
 
 ## AAOS\_EDEVMAL
 
@@ -82,10 +82,18 @@ None.
 
 **telescope_raw**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
+# RATIONALE
+
+Different telescope vendors provide a variety of interfaces for operating their telescopes, such as proprietary protocols over Ethernet or RS232 serial ports, or through their closed-source SDKs. The AAOS standard supports common telescope operations, including slew, move, park, and park off. For hardware-specific operations, the standard provides a mechanism to send low-level, vendor-specific instructions or to invoke the vendor’s SDK by calling the **telescope_raw**() function. Other AAOS standard library functions, such as **telescope_slew**(), may be implemented using **telescope_raw**() for certain telescopes.
+
 # NOTES
 
 **telescope_raw**() does not change the telescope’s operational state. Using it improperly can leave the telescope in an inconsistent state, so it should be restricted to experts performing low‑level testing or impelemting other library functions that knows how to interpret the raw protocol. 
  
+# SEE ALSO
+
+**telescope**(1), **telescope**(7)
+
 # BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.

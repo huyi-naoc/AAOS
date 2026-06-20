@@ -102,7 +102,7 @@ read_configuration(void)
             config_setting_lookup_string(dome_setting, "type", &type);
             config_setting_lookup_string(dome_setting, "description", &description);
             config_setting_lookup_float(dome_setting, "window_open_speed", &window_open_speed);
-            config_setting_lookup_float(dome_setting, "close_speed", &window_close_speed);
+            config_setting_lookup_float(dome_setting, "window_close_speed", &window_close_speed);
             if (type == NULL) {
                 domes[i] = NULL;
                 continue;

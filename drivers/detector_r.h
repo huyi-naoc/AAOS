@@ -379,24 +379,15 @@ struct ASICameraClass {
 
 #ifdef __USE_LEADING_CAMERA__
 
-struct LeadingCameraInfo {
-    char ip[16];
-    char mask[16];
-    char gateway[16];
-    char description[132];
-    
-    char model_name[32];
-    char device_version[32];
-    char manufacture_spec_info[48];
-    char serial_number[16];
-    char user_define_name[16];
-};
+#include "leading_c_api.h"
 
 struct LeadingCamera {
     struct __Detector _;
     int camera_index;
     int camera_id;
     struct LeadingCameraInfo camera_info;
+    struct LeadingInterfaceInfo iface_info;
+    
     void **device_list;
     void **interface_list;
     size_t n_camera;
@@ -428,6 +419,21 @@ struct QHYCameraClass {
 };
 
 #endif
+
+//#ifdef __USE_ARAVIS_CAMERA__
+struct AravisCamera {
+    struct __Detector _;
+
+    char *so_path;
+    void *camera;
+    void *stream;
+};
+
+struct AravisCameraClass {
+    struct __DetectorClass _;
+};
+
+//#endif
 
 struct YNAOIRCamera {
     struct __Detector _;

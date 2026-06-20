@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
 telescope\_set\_move\_speed - set axis move speed
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <telescope_rpc.h>**  
 **#include <telescope_def.h>**
@@ -18,68 +16,66 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_set_move_speed**() function set the move speed of the telescope referenced by *\*\_self*. The unit of *move_speed* is in arsec per second.  This setting will be applied next time calling **telescope_move**() function. 
+The **telescope_set_move_speed**() function set the moving speed of the telescope referenced by *\*\_self*. The speed is expressed in *arcseconds per second*. It takes  effect the nexttime a move operation is started (e.g. via **telescope_move**() or any of its family functions).
 
-RETURN VALUE
-============
+## Parameters
+*\_self*
+:   Pointer to the telescope instance.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*move_speed*
+:   Moving speed, in arcsecond per second.
 
-ERRORS
-======
+# RETURN VALUE
 
-This functions shall fail if:
+On success, **telescope_set_track_rate**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_EDEVMAL
-------------
+# RETURN VALUE
 
-The underline telescope is in *MALFUNCTION* state.
+On success, **telescope_set_track_rate**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_EINVAL
-------------
+# ERRORS
 
-The value of  *move\_speed* is invalid.
+The functions may fail with any of the following error codes:
 
-AAOS\_ENOTSUP
-------------
+## AAOS\_EDEVMAL
 
-The underline telescope does not support this operation.
+The underlying telescope is in a *malfunction* state.
 
-AAOS\_EPWROFF
-------------
+## AAOS\_EINVAL
 
-The underline telescope is not powered.
+One or both of the supplied moving speed is outside the allowed range.
 
-AAOS\_EUNINT
------------
+## AAOS\_ENOTSUP
 
-The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+The underlying telescope does not support this operation.
 
-CONFORMING TO
-=============
+## AAOS\_EPWROFF
+
+The underlying telescope is not powered.
+
+## AAOS\_EUNINT
+
+The underlying telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+
+# CONFORMING TO
+
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_set_move_speed**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_get_move_speed**(3), **telescope_move**(3)
+**telescope**(1), **telescope_get_move_speed**(3), **telescope_move**(3), **telescope**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

@@ -423,6 +423,7 @@ init(void)
     size_t i;
     for (i = 0; i < n_detector; i++) {
         if (detectors[i] != NULL) {
+            __detector_power_on(detectors[i]);
             __detector_init(detectors[i]);
         }
     }

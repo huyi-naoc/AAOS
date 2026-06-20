@@ -4,16 +4,13 @@
 
 # NAME
 
-
 def - system wide definition
 
 # SYNOPSIS
 
-
 **#include <def.h>**  
 
 # DESCRIPTION
-
 
 Generally,  system calls or library functions (hereafter function) on AAOS return an integer to indicate whether the function call is successful or failed. The *<def.h>* header file defines the symbolic names for each of the possible return value of any system calls and library functions (hereafter function) in AAOS.
 

@@ -29,6 +29,8 @@ struct Sensor {
     unsigned int channel;
     void *controller;   /* Controller */
     void *device;       /* Device */
+    size_t n_field;
+    char *fields;
 };
 
 struct SensorClass {
@@ -43,6 +45,7 @@ struct SensorClass {
     struct Method get_type;
     struct Method get_name;
     struct Method format_put;
+    struct Method get_field;
 };
 
 struct SensorVirtualTable {
@@ -52,6 +55,7 @@ struct SensorVirtualTable {
     struct Method set_controller;
     struct Method set_device;
     struct Method format_put;
+    struct Method get_field;
 };
 
 struct PT100 {
@@ -159,6 +163,15 @@ struct HCD6817CClass {
     struct SensorClass _;
 };
 
+struct WTGAHRS3 {
+    struct Sensor _;
+    char **commands;
+    size_t n;
+};
+
+struct WTGAHRS3Class {
+    struct SensorClass _;
+};
 
 struct __AWS {
     struct Object _;

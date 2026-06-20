@@ -45,11 +45,11 @@ All three functions slew the telescope referenced by *\_self* to the celestial t
 :   Declination of the target in degrees, –90 ≤ dec ≤ +90. In practice the usable range may be narrower because each instrument has hardware and/or software limits for safety.
 
 *timeout*
-:   Expired time in seconds. If timeout less than zero, the behavior of **telescope_timed_slew**() is the same as **telescope_slew**()
+:   Expired time in seconds. If timeout less than zero, the behavior of **telescope_timed_slew**() is the same as **telescope_slew**().
 
 # RETURN VALUE
 
-On success, *telescope_status*() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
+On success, *telescope_slew*() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
 # ERRORS
 
@@ -105,7 +105,7 @@ None.
 
 # SEE ALSO
 
-**telescope_get_slew_speed**(3), **telescope_init**(3), **telescope_move**(3), **telescope_park**(3), **telescope_power_off**(3), **telescope_power_on**(3), **telescope_set_slew_speed**(3), **telescope_status**(3), **telescope_stop**(3)
+**telescope**(1), **telescope_get_slew_speed**(3), **telescope_init**(3), **telescope_move**(3), **telescope_park**(3), **telescope_power_off**(3), **telescope_power_on**(3), **telescope_set_slew_speed**(3), **telescope_status**(3), **telescope_stop**(3), **telescope**(7)
 
 # BUGS
 

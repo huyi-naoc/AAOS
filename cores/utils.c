@@ -68,3 +68,66 @@ iso_str_to_tp(const char *buf, struct timespec *tp)
     tp->tv_sec = timegm(&time_buf);
     tp->tv_nsec = nsec;
 }
+
+void
+parse_addr_port(const char *string, char *addr, size_t addr_size, char *port, size_t port_size, const char *default_addr, const char *default_port)
+{
+    char *s, *s2, *token, *token2;
+
+    if (addr == NULL || port == NULL) {
+        return;
+    }
+
+    memset(addr, '\0', addr_size);
+    memset(port, '\0', port_size);
+
+    if (string == NULL || strcmp(string, ":") == 0) {
+        if (default_addr == NULL || default_port == NULL) {
+            return;
+        }
+        snprintf(addr, addr_size, "%s", default_addr);
+        snprintf(port, port_size, "%s", default_port);
+    } else {
+        s = (char *) malloc(strlen(string) + 1);
+        snprintf(s, strlen(string) + 1, "%s", string);
+        s2 = s;
+        token = strsep(&s2, ":");
+        token2 = strsep(&s2, ":");
+        fprintf(stderr, "token: %s; token2: %s\n", token, token2);
+        if (token == NULL) {
+            if (default_addr == NULL || default_port == NULL) {
+                return;
+            }
+            snprintf(addr, addr_size, "%s", default_addr);
+            snprintf(port, port_size, "%s", default_port);
+        } else {
+            if (token2 == NULL) {
+                if (default_port == NULL) {
+                    return;
+                }
+                snprintf(addr, addr_size, "%s", token);
+                snprintf(port, port_size, "%s", default_port);
+            } else {
+                if (strlen(token) == 0) {
+                    if (default_addr == NULL) {
+                        return;
+                    }
+                    snprintf(addr, addr_size, "%s", default_addr);
+                    snprintf(port, port_size, "%s", token2);
+                } else {
+                    if (strlen(token2) == 0) {
+                        if (default_port == NULL) {
+                            return;
+                        }
+                        snprintf(addr, addr_size, "%s", token);
+                        snprintf(port, port_size, "%s", default_port);
+                    } else {
+                        snprintf(addr, addr_size, "%s", token);
+                        snprintf(port, port_size, "%s", token2);
+                    }
+                }
+            }
+        }
+        free(s);
+    }
+}

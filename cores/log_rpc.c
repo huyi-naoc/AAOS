@@ -194,7 +194,6 @@ Log_execute_default(void *_self)
     return AAOS_EBADCMD;
 }
 
-
 static int
 Log_execute(void *_self)
 {

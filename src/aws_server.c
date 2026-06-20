@@ -237,12 +237,14 @@ read_configuration(void)
                                 }
                                 sensor = new(PT100(), name, command, "description", description, "model", model, '\0', "output_type", output_type, '\0');
                                 sensor_set_type(sensor, SENSOR_TYPE_TEMEPRATURE);
-			    } else {
+                            } else if (strcmp(model, "WTGAHRS3") == 0) {
+                                sensor = new(WTGAHRS3(), name, command, "description", description, "model", model, '\0');
+                            } else {
                                 
                             }
                             sensor_set_channel(sensor, (unsigned int) (n_sensor + l + 1));
-			    sensor_set_controller(sensor, controller);
-			    sensor_set_device(sensor, device);
+                            sensor_set_controller(sensor, controller);
+                            sensor_set_device(sensor, device);
                             __aws_set_sensor(aws, sensor, n_sensor + l);
                         }
                         n_sensor += n;

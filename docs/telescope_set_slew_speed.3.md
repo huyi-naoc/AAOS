@@ -2,8 +2,8 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
+
 
 telescope\_set\_slew\_speed - set slew speeds of both axes of telescope
 
@@ -18,70 +18,66 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_set_slew_speed**() function set the slew speed of the telescope referenced by *\*\_self*. The unit of *slew_speed_x* and *slew_speed_y* are both in arsec per second. This setting will be applied next time calling **telescope_slew**() family functions. 
+The **telescope_set_slew_speed**() function set the slewing speed of the telescope referenced by *\*\_self*. The speeds are expressed in *arcseconds per second*. They take effect the nexttime a slew operation is started (e.g. via **telescope_slew**() or any of its family functions).
 
-The *slew_speed_x* could be the slew speed of either RA axis for a equatorial mount or east-west axis for a horizontal mount, whereas the *slew_speed_y* could be the slew speed of either DEC axis for a equatorial mount or north-south axis for a horizontal mount. 
+## Parameters
+*\_self*
+:   Pointer to the telescope instance.
 
-RETURN VALUE
-============
+*slew_speed_x*
+:   Slewing speed for the primary axis (right ascension for an equatorial mount or azimuth for a horizontal/alt‑az mount), in arcsecond per second.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*slew_speed_y*
+:   Slewing speed for the secondary axis (declination for an equatorial mount or altitude for a horizontal/alt‑az mount), in arcsecond per second.
 
-ERRORS
-======
+# RETURN VALUE
 
-This functions shall fail if:
+On success, **telescope_set_track_rate**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_EDEVMAL
-------------
+# ERRORS
 
-The underline telescope is in *MALFUNCTION* state.
+The functions may fail with any of the following error codes:
 
-AAOS\_EINVAL
-------------
+## AAOS\_EDEVMAL
 
-The value of  *slew\_speed\_x* and/or *slew\_speed\_y* is invalid. 
+The underlying telescope is in a *malfunction* state.
 
-AAOS\_ENOTSUP
-------------
+## AAOS\_EINVAL
 
-The underline telescope does not support this operation.
+One or both of the supplied slewing speeds are outside the allowed range.
 
-AAOS\_EPWROFF
-------------
+## AAOS\_ENOTSUP
 
-The underline telescope is not powered.
+The underlying telescope does not support this operation.
 
-AAOS\_EUNINT
------------
+## AAOS\_EPWROFF
 
-The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+The underlying telescope is not powered.
 
-CONFORMING TO
-=============
+## AAOS\_EUNINT
+
+The underlying telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_set_slew_speed**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_get_slew_speed**(3), **telescope_slew**(3)
 
-BUGS
-====
+**telescope**(1), **telescope_get_slew_speed**(3), **telescope_slew**(3), **telescope**(7)
+
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

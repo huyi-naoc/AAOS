@@ -9,6 +9,7 @@
 #include "astro.h"
 #include "def.h"
 #include "telescope_rpc.h"
+#include "utils.h"
 #include "wrapper.h"
 
 #include <getopt.h>
@@ -87,11 +88,11 @@ Commands:\n\
     stop\n\
     status\n\
     info\n\
-    move        DRECTION DURATION\n\
-                DRECTION can be north, south, east, or west\n\
+    move        DIRECTION DURATION\n\
+                DIRECTION can be north, south, east, or west\n\
                 DURATION is in seconds\n\
-    try_move    DRECTION DURATION\n\
-    timed_move  DRECTION DURATION TIMEOUT\n\
+    try_move    DIRECTION DURATION\n\
+    timed_move  DIRECTION DURATION TIMEOUT\n\
     slew        RA DEC\n\
     try_slew    RA DEC\n\
     timed_slew  RA DEC TIMEOUT\n\
@@ -108,8 +109,8 @@ Commands:\n\
                 NAME can be derotator\n\
     switch      DEVICE NAME\n\
                 DEVICE can be instrument, detector, or filter\n\
-	inspect\n\
-	register    TIMEOUT\n\
+    inspect\n\
+    register    TIMEOUT\n\
 ";
 
 
@@ -184,26 +185,7 @@ main(int argc, char *argv[])
             case 't':
                 memset(address, '\0', ADDRSIZE);
                 memset(port, '\0', PORTSIZE);
-                if (optarg != NULL) {
-                    char *s = strrchr(optarg, ':');
-                    if (s - optarg < ADDRSIZE) {
-                        memcpy(address, optarg, s - optarg);
-                    } else {
-                        fprintf(stderr, "Address is too long.\n");
-                        fprintf(stderr, "Exit...\n");
-                        exit(EXIT_FAILURE);
-                    }
-                    if (strlen(s + 1) < PORTSIZE) {
-                        snprintf(port, PORTSIZE, "%s", s + 1);
-                    } else {
-                        fprintf(stderr, "Port is too long.\n");
-                        fprintf(stderr, "Exit...\n");
-                        exit(EXIT_FAILURE);
-                    }
-                } else {
-                    snprintf(address, ADDRSIZE, "localhost");
-                    snprintf(port, PORTSIZE, TEL_RPC_PORT);
-                }
+                parse_addr_port(optarg, address, ADDRSIZE, port, PORTSIZE, "localhost", TEL_RPC_PORT);
                 break;
             case 'u':
                 if (strcmp(optarg, "nature") == 0) {
@@ -1060,6 +1042,32 @@ main(int argc, char *argv[])
             }
             argc--;
             argv++;
+            continue;
+        }
+        if (strcmp(argv[0], "set") == 0) {
+            if (argc < 3) {
+                fprintf(stderr, "Too few parameters for \"set\" command.\n");
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+            }
+            if (strcmp(argv[1], "instrument") == 0) {
+                ret =telescope_switch_instrument(telescope, argv[2]);
+            } else if (strcmp(argv[1], "detector") == 0) {
+                ret =telescope_switch_detector(telescope, argv[2]);
+            } else if (strcmp(argv[1], "filter") == 0) {
+                ret =telescope_switch_filter(telescope, argv[2]);
+            } else {
+                fprintf(stderr, "Unsupported type device: %s.\n", argv[1]);
+                goto label_switch;
+            }
+            if (ret == AAOS_OK) {
+                fprintf(stderr, "Switch %s to %s complete.\n", argv[1], argv[2]);
+            } else {
+                error_handler(ret);
+            }
+        label_switch:
+            argc -= 3;
+            argv += 3;
             continue;
         }
         fprintf(stderr, "Unknown command `%s`.\n", argv[0]);

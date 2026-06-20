@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_disable\_cooling - disable cooling function
+detector\_disable\_cooling - disable the detector's cooling function
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,62 +16,61 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_disable_cooling**() function diable cooling function of the underline detector.  
+The **detector_disable_cooling**() function diable the cooling system of the underlying detector. 
 
-RETURN VALUE
-============
+If the detector is in **DETECTOR_STATE_MALFUNCTION**, the return behaviour depends on the **DETECTOR_OPTION_IGNORE_DEVMAL** option:
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+* **with** the option, the function attempts to disable the cooling system despite the malfunction state;
+* **without** the option (the default) set, the function returns **AAOS_EDEVMAL** immediately.
 
-ERRORS
-======
+## Parameters
 
-This functions shall fail if:
+*\_self*
+:   Pointer to the detector instance whose cooling is to be disabled.
 
-AAOS\_EDEVMAL
--------------
+# RETURN VALUE
 
-The underline detector is in *DETECTOR_STATE_MALFUNCTION* state.
+On success, **detector_disable_cooling**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_ENOTSUP
--------------
+# ERRORS
 
-The underline detetcor does not support this operation.
+The function may fail with any of the following error codes:
 
-AAOS\_EPWROFF
--------------
+## AAOS\_EDEVMAL
 
-The underline detector is not powered.
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is not set).
 
-AAOS\_EUNINT
-------------
+## AAOS\_ENOTSUP
 
-The underline detector is uninitialized.
+The underlying detetcor does not support this operation.
 
-CONFORMING TO
-=============
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+## AAOS\_EUNINT
+
+The underlying detector is uninitialized.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_disable_cooling**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
-**detector_enable_cooling**(3), **detector_get_temperature**(), **detector_set_temperature**()
+# SEE ALSO
 
-BUGS
-====
+**detector**(1), **detector_enable_cooling**(3), **detector_get_temperature**(3), **detector_set_temperature**(3), **detector**(7)
+
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

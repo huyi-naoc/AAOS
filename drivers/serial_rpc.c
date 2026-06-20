@@ -17,6 +17,7 @@
 void **serials;
 size_t n_serial;
 void *serial_list;
+void *serial_log;
 
 static bool
 serial_find_by_name_if(void *serial, va_list *app)

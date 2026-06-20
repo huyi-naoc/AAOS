@@ -126,9 +126,24 @@ read_configuration(void)
                 config_setting_lookup_string(serial_setting, "format", &fmt);
                 config_setting_lookup_string(serial_setting, "model", &model);
                 serials[i] = new(KLTPSerial(), name, path, "description", description, (void *) 0, "directory", directory, "prefix", prefix, "format", fmt, "model", model, (void *) 0);
+            } else if (strcmp(type, "WTGAHRS3") == 0) {
+                const char *directory = NULL, *prefix = NULL, *data_fields = NULL;
+                double sample_interval = 0.1;
+                long long max_records = 3000;
+                int save_data = 0;
+                config_setting_lookup_string(serial_setting, "directory", &directory);
+                config_setting_lookup_string(serial_setting, "prefix", &prefix);
+                config_setting_lookup_string(serial_setting, "data_fields", &data_fields);
+                config_setting_lookup_float(serial_setting, "sample_interval", &sample_interval);
+                config_setting_lookup_int64(serial_setting, "max_records", &max_records);
+                config_setting_lookup_int(serial_setting, "save_data", &save_data);
+                serials[i] = new(WTGAHRS3Serial(), name, path, "description", description, '\0', "directory", directory, "prefix", prefix, "data_fields", data_fields, "sample_interval", sample_interval, "max_records", max_records, "save_data", save_data, '\0');
             } else {
+                
             }
+            
             config_setting_lookup_string(serial_setting, "inspect", &inspect);
+            
             if (inspect != NULL) {
                 __serial_set_inspect(serials[i], inspect, strlen(inspect));
             }

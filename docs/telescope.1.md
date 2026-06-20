@@ -59,6 +59,7 @@ Currently four telescope types are supported: virtual telescopes conformed to AA
 :   Retrieve *parameter* from the telescope and write it to standard output.  Supported *parameter* values are:
 
     - `derotator_angle` - current angle of the derotator for the active detector.
+    - `focus_length` - current length of the focus for the active detector.
     - `move_speed` — move speed of a single axis.
     - `slew_speed` — slew speed of the two axes (RA/EW and DEC/Alt).
     - `track_rate` — track rate of the two axes.

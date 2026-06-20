@@ -177,10 +177,15 @@ __scheduler_generate_unique_target_id(uint32_t nside, double ra, double dec)
     long hp_nside, hp_iring;
     uint64_t identifier;
     double theta, phi;
-
+    
     hp_nside = nside;
-    theta = ra * PI / 180.;
-    phi = (90. - dec) * PI / 180.;
+    theta = (90. - dec) * PI / 180.;
+    phi = ra * PI / 180.;
+    
+    if (phi < 0. || phi > 360. || theta < 0. || theta > 180.) {
+        return 0;
+    }
+    
     ang2pix_ring(hp_nside, theta, phi, &hp_iring);
     identifier = hp_iring;
 
@@ -1455,7 +1460,6 @@ __Scheduler_pop_task_block(void *_self)
                 }
                 cJSON_Delete(root_json);
             }
-            continue;
         }
         free(block_buf);
     } else {
@@ -1605,8 +1609,7 @@ __Scheduler_update_status_json(struct __Scheduler *self, const char *string)
                 }
             }
         }
-    }
-    if (self->type != SCHEDULER_TYPE_UNIT && (telescopes_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) != NULL) {
+    } else if (self->type != SCHEDULER_TYPE_UNIT && (telescopes_json = cJSON_GetObjectItemCaseSensitive(root_json, "TELESCOPE-INFO")) != NULL) {
         struct TelescopeInfo *telescope;
         const cJSON *id, *status;
         if (cJSON_IsArray(telescopes_json)) {
@@ -1638,8 +1641,7 @@ __Scheduler_update_status_json(struct __Scheduler *self, const char *string)
                 }
             }
         }
-    }
-    if (self->type != SCHEDULER_TYPE_UNIT && (targets_json = cJSON_GetObjectItemCaseSensitive(root_json, "TARGET-INFO")) != NULL) {
+    } else if (self->type != SCHEDULER_TYPE_UNIT && (targets_json = cJSON_GetObjectItemCaseSensitive(root_json, "TARGET-INFO")) != NULL) {
         struct TargetInfo *target;
         const cJSON *id, *nside, *status;
         if (cJSON_IsArray(targets_json)) {
@@ -1672,30 +1674,29 @@ __Scheduler_update_status_json(struct __Scheduler *self, const char *string)
                 }
             }
         }
-    }
-    if (self->type != SCHEDULER_TYPE_UNIT && (tasks_json = cJSON_GetObjectItemCaseSensitive(root_json, "TASK-INFO")) != NULL) {
+    } else if (self->type != SCHEDULER_TYPE_UNIT && (tasks_json = cJSON_GetObjectItemCaseSensitive(root_json, "TASK-INFO")) != NULL) {
         const cJSON *id, *status;
         if (cJSON_IsArray(tasks_json)) {
             cJSON_ArrayForEach(task_json, tasks_json) {
-                id = cJSON_GetObjectItemCaseSensitive(target_json, "targ_id");
-                status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
+                id = cJSON_GetObjectItemCaseSensitive(task_json, "task_id");
+                status = cJSON_GetObjectItemCaseSensitive(task_json, "status");
                 if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
                     /*
                      * update database here. 
                      */
-                    __scheduler_create_sql(SCHEDULER_UPDATE_TARGET_STATUS, id->valueint, self->task_db_table, sql, BUFSIZE, status->valueint, timestamp);
+                    __scheduler_create_sql(SCHEDULER_UPDATE_TASK_STATUS, id->valueint, self->task_db_table, sql, BUFSIZE, status->valueint, timestamp);
                     mysql_real_query(&mysql, sql, strlen(sql));
                 }
             }
         } else {
             task_json = tasks_json;
-            id = cJSON_GetObjectItemCaseSensitive(target_json, "site_id");
-            status = cJSON_GetObjectItemCaseSensitive(target_json, "status");
+            id = cJSON_GetObjectItemCaseSensitive(task_json, "task_id");
+            status = cJSON_GetObjectItemCaseSensitive(task_json, "status");
             if (cJSON_IsNumber(id) && cJSON_IsNumber(status)) {
                 /*
                  * update database here. 
                  */
-                __scheduler_create_sql(SCHEDULER_UPDATE_TARGET_STATUS, id->valueint, self->task_db_table, sql, BUFSIZE, status->valueint, timestamp);
+                __scheduler_create_sql(SCHEDULER_UPDATE_TASK_STATUS, id->valueint, self->task_db_table, sql, BUFSIZE, status->valueint, timestamp);
                 mysql_real_query(&mysql, sql, strlen(sql));
             }
         }

@@ -148,15 +148,17 @@ Daemon_start(const void *_self)
     }
     
     Getidbyname(self->username, &uid, &gid);
-    current_uid = getuid();
-    current_gid = getgid();
+    //current_uid = getuid();
+    //current_gid = getgid();
     
-    if (uid != current_uid && setuid(uid) < 0) {
+    //if (uid != current_uid && setuid(uid) < 0) {
+    if (setuid(uid) < 0) {
         fprintf(stderr, "Cannot run %s as %s, permission denied.\n", self->daemon_name, self->username);
         exit(AAOS_EPERM);
     }
     
-    if (gid != current_gid && setgid(gid) < 0) {
+    //if (gid != current_gid && setgid(gid) < 0) {
+    if (setuid(uid) < 0) {
         fprintf(stderr, "Cannot run %s as %s, permission denied.\n", self->daemon_name, self->username);
         exit(AAOS_EPERM);
     }
@@ -221,6 +223,7 @@ Daemon_stop(const void *_self)
     pid_t pid;
     int fd, ret;
     
+    Chdir(self->root_directory);
     fd = Open(self->lock_file, O_RDONLY);
     if (errno == ENOENT && fd < 0) {
         fprintf(stderr, "Lock file \"%s\" does not exist.\n", self->lock_file);
@@ -290,6 +293,7 @@ Daemon_reload(const void *_self)
     pid_t pid;
     int fd, ret;
     
+    Chdir(self->root_directory);
     fd = Open(self->lock_file, O_RDONLY);
     if (errno == ENOENT && fd < 0) {
         fprintf(stderr, "Lock file \"%s\" does not exist.\n", self->lock_file);

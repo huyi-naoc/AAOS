@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
-detector\_get\_exposure\_time - get exposure time
+detector\_get\_exposure\_time - retrieve the detector’s exposure time
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,58 +16,59 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_get_exposure_time**() function get the exposure time of the detector referenced by *\*\_self*. The unit of *exposure\_time* is in second.
+The **detector_get_exposure_time**() function obtains the current exposure time of the underlying detector referenced by *\_self*. The value is returned in seconds and written to the location pointed to by *exposure\_time*.
 
-RETURN VALUE
-============
+When the detector is in **DETECTOR_STATE_MALFUNCTION**, the return behaviour depends on the **DETECTOR_OPTION_IGNORE_DEVMAL** option:
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+* **with** the option, the function attempts to get exposure time despite the malfunction state;
+* **without** the option (the default) set, the function returns **AAOS_EDEVMAL** immediately.
 
-ERRORS
-======
+## Parameters
 
-This functions shall fail if:
+*\_self*
+:   Pointer to the detector instance whose exposure time is being queried.
 
-AAOS\_EDEVMAL
-------------
+*exposure\_time*
+:   Pointer to a double variable that will receive the exposure time (in second). The pointer must be valid (non‑NULL).
 
-The underline detector is in *MALFUNCTION* state.
+# RETURN VALUE
 
-AAOS\_ENOTSUP
-------------
+On success, **detector_get_exposure_time**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-The underline detector does not support this operation.
+# ERRORS
 
-AAOS\_EPWROFF
-------------
+The function may fail with any of the following error codes:
 
-The underline detector is not powered.
+## AAOS\_EDEVMAL
 
-CONFORMING TO
-=============
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is not set).
+
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+## AAOS\_EUNINT
+
+The underlying detector is uninitialized.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_get_exposure_time**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**detector_set_exposure_time**(3)
+**detector**(1), **detector_expose**(3), **detector_set_exposure_time**(3), **detector_set_frame_rate**(3), **detector**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

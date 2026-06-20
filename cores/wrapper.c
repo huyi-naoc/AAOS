@@ -1033,42 +1033,43 @@ Getidbyname(const char *username, uid_t *uid, gid_t *gid)
     return 0;
 }
 
-void
-mkdirp(const char *dir)
+int
+mkdirp(const char *directory)
 {
-    char *dir_tmp = (char *) Malloc(FILENAMESIZE);
-    const char *idx = dir, *idx2;
-    size_t n;
-    struct stat buf;
+    char *string = (char *) malloc(PATHSIZE), *s = string;
+    int ret = 0;
+    char dir[PATHSIZE], *token;
+    struct stat stat_buf;
+    FILE *fp;
     
-    do {
-        if (idx[0] == '/') {
-            idx++;
-            continue;
-        }
-        idx2 = strchr(idx, '/');
-        if (idx2 != NULL) {
-            n = min(idx2 - dir + 1, FILENAMESIZE);
-            snprintf(dir_tmp, n, "%s", dir);
-            if (access(dir_tmp, F_OK) < 0)
-                mkdir(dir_tmp, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-            else {
-                stat(dir_tmp, &buf);
-                if (S_ISREG(buf.st_mode))
-                    break;
-            }
-            if (idx2[1] == '\0')
-                break;
-            idx = idx2 + 1;
+    fp = fmemopen(dir, PATHSIZE, "w");
+    snprintf(string, PATHSIZE, "%s", directory);
+
+    while ((token = strsep(&string, "/")) != NULL) {
+        if (strcmp(token, "") == 0) {
+            fprintf(fp, "/");
         } else {
-            if (access(dir, F_OK) < 0)
-                mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-            break;
+            fprintf(fp, "%s/", token);
         }
-        
-    } while (1);
+        fflush(fp);
+        if (access(dir, F_OK) == 0) {
+            lstat(dir, &stat_buf);
+            if (!S_ISDIR(stat_buf.st_mode)) {
+                errno = EEXIST;
+                ret = -1;
+                goto error;
+            }
+        } else {
+            if ((ret = mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)) < 0) {
+                goto error;
+            }
+        }
+    }
     
-    free(dir_tmp);
+error:
+    fclose(fp);
+    free(s);
+    return ret;
 }
 
 int
@@ -1239,6 +1240,7 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
             if (errno == EINPROGRESS) {
 #ifdef LINUX
                 int efd, i, n;
+                bool flag = false;
                 struct epoll_event ev, events[8];
                 if ((efd = epoll_create(1)) < 0) {
                     close(sockfd);
@@ -1264,15 +1266,19 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                         socklen_t optlen;
                         getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
                         if (optval == 0) {
-                            close(efd);
-                            return sockfd;
+                            flag = true;
+                            break;
                         }
                     }
                 }
                 close(efd);
+                if (flag) {
+                    break;
+                }
 #endif
 #ifdef MACOSX
                 int kq, i, n;
+                bool flag = false;
                 struct timespec tp;
                 tp.tv_sec = floor(timeout);
                 tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000;
@@ -1288,8 +1294,10 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                     errno = ETIMEDOUT;
                 for (i = 0; i < n; i++) {
                     if (events[i].ident == sockfd) {
-                        close(kq);
-                        return sockfd;
+                        flag = true;
+                        break;
+                        //close(kq);
+                        
                         /*
                         unsigned int optval;
                         socklen_t optlen;                       
@@ -1301,6 +1309,9 @@ tcp_connect_nb(const char *hostname, const char *servname, SA *sockaddr, socklen
                     }
                 }
                 close(kq);
+                if (flag) {
+                    break;
+                }
 #endif
             }
         }

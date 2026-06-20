@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
 telescope\_get\_slew\_speed - get slew speeds of both axes of telescope
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <telescope_rpc.h>**  
 **#include <telescope_def.h>**
@@ -18,65 +16,64 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **telescope_get_slew_speed**() function set the slew speed of the telescope referenced by *\*\_self*. The unit of *slew_speed_x* and *slew_speed_y* are both in arsec per second.
+The **telescope_get_slew_speed**() function get the slew speed of the telescope referenced by *\*\_self*. The speeds are both  expressed in *arcseconds per second*.
 
 The *slew_speed_x* could be the slew speed of either RA axis for a equatorial mount or east-west axis for a horizontal mount, whereas the *slew_speed_y* could be the slew speed of either DEC axis for a equatorial mount or north-south axis for a horizontal mount. 
 
-RETURN VALUE
-============
+## Parameters
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+*\_self*
+:   Pointer to the telescope instance.
 
-ERRORS
-======
+*slew_speed_x*
+:   Pointer to a double variable that will receive the slew speed (arcsecond per second) of the X axis. The pointer must be valid (non‑NULL).
 
-This functions shall fail if:
+*slew_speed_y*
+:   Pointer to a double variable that will receive the slew speed (arcsecond per second) of the Y axis. The pointer must be valid (non‑NULL).
 
-AAOS\_EDEVMAL
-------------
+# RETURN VALUE
 
-The underline telescope is in *MALFUNCTION* state.
+On success, **telescope_get_slew_speed**() returns **0**.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_ENOTSUP
-------------
+# ERRORS
 
-The underline telescope does not support this operation.
+The functions may fail with any of the following error codes:
 
-AAOS\_EPWROFF
-------------
+## AAOS\_EDEVMAL
 
-The underline telescope is not powered.
+The underlying telescope is in a *malfunction* state.
 
-AAOS\_EUNINT
------------
+## AAOS\_ENOTSUP
+
+The operation is not supported.
+
+## AAOS\_EPWROFF
+
+The underlying telescope is not powered.
+
+## AAOS\_EUNINT
 
 The underline telescope is uninitialized, e.g., clock time and/or location have not been set yet by **telescope_init**().
 
-CONFORMING TO
-=============
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFE
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**telescope_get_slew_speed**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
 
-SEE ALSO
-========
+# SEE ALSO
 
-**telescope_set_slew_speed**(3), **telescope_slew**(3)
+**telescope**(1), **telescope_set_slew_speed**(3), **telescope_slew**(3), **telescope**(7)
 
-BUGS
-====
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
 

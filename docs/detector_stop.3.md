@@ -2,13 +2,11 @@
 %
 % May 2022
 
-NAME
-====
+# NAME
 
 detector\_stop - stop previous exposure
 
-SYNOPSIS
-========
+# SYNOPSIS
 
 **#include <detector_rpc.h>**  
 **#include <detector_def.h>**
@@ -18,62 +16,64 @@ int
 
 Compile and link with *-laaoscore* *-laaosdriver*.
 
-DESCRIPTION
-===========
+# DESCRIPTION
 
-The **detector_stop**() function wait for the current exposing complete and stop the previous expose command. If the underline detector is not in **DETECTOR_STATE_EXPOSING** or **DETECTOR_STATE_READING** state, it does nothing and returns immediately. Otherwise, it will also set the detector state to **DETECTOR_STATE_IDLE**. 
+The **detector_stop**() function waits for the current exposing frame written to the image file and then terminates remained frames. 
 
-RETURN VALUE
-============
+* If the detector is **not** in **DETECTOR_STATE_EXPOSING** or **DETECTOR_STATE_READING**, the function returns immediately without taking any action.
+* Otherwise, the exposure is stopped, the remained frames (if any) are discarded, and the detector state is set to **DETECTOR_STATE_IDLE**.
 
-Upon successful completion, a value of zero shall be returned; otherwise, an error number shall be returned to indicate the error.
+When the detector is in **DETECTOR_STATE_MALFUNCTION**, the return behaviour depends on the **DETECTOR_OPTION_IGNORE_DEVMAL** option:
 
-ERRORS
-======
+* **with** the option, the function attempts to stop the exposure despite the malfunction state;
+* **without** the option (the default) set, the function returns **AAOS_EDEVMAL** immediately.
 
-This functions shall fail if:
 
-AAOS\_EDEVMAL
--------------
+## Parameter
 
-The underline detector is in *MALFUNCTION* state.
+*\_self*
+:   Pointer to the detector instance whose current exposure is to be stopped._
 
-AAOS\_ENOTSUP
--------------
+# RETURN VALUE
 
-The underline detetcor does not support this operation.
+On success, **detector_stop**() returns `0`.  On failure, a non‑zero error code is returned.  The error codes are listed in the **ERRORS** section.
 
-AAOS\_EPWROFF
--------------
+# ERRORS
 
-The underline detector is not powered.
+The function may fail with any of the following error codes:
 
-AAOS\_EUNINT
-------------
+## AAOS\_EDEVMAL
 
-The underline detector is uninitialized.
+The underlying detector is in **DETECTOR_STATE_MALFUNCTION** (returned immediately if **DETECTOR_OPTION_IGNORE_DEVMAL** is not set).
+ 
+## AAOS\_ENOTSUP
 
-CONFORMING TO
-=============
+The operation is not supported by the underlying detector.
+
+## AAOS\_EPWROFF
+
+The underlying detector is not powered.
+
+## AAOS\_EUNINT
+
+The underlying detector is uninitialized.
+
+# CONFORMING TO
 
 AAOS-draft-2022
 
-EXAMPLES
-========
+# EXAMPLES
 
 None.
 
-THREAD-SAFE
-===========
+# THREAD-SAFETY
 
-This function is thread-safe, as long as *\*\_self* is not shared among threads. Otherwise, it is the caller's resposibility to protect *\*\_self*. The behavior of sharing *\*\_self* without approriate guard will be **undefined**.
+**detector_stop**() is thread‑safe provided that each thread uses its own *detector* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `detectord` daemon permits multiple threads (and even processes on different hosts) to operate the same physical detector using distinct `detector` objects concurrently.
 
-SEE ALSO
-========
-**detector_expose**(3)
+# SEE ALSO
 
-BUGS
-====
+**detector**(1), **detector_abort**(3), **detector_expose**(3), **detector**(7)
+
+# BUGS
 
 Bugs can be reported and filed at https://github.com/huyi-naoc/AAOS/issues.
-

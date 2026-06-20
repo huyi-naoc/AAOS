@@ -43,7 +43,7 @@ section.
 
 # ERRORS
 
-The function may fail with the following error codes:
+The function may fail with any of the following error codes:
 
 ## AAOS\_EDEVMAL
 
@@ -65,10 +65,13 @@ AAOS-draft-2022
 
 None.
 
-  
 # THREAD-SAFE
 
 **telescope_status**() is thread‑safe provided that each thread uses its own *telescope* object (*\_self*).  If the same *\_self* pointer is shared among threads, the caller must provide appropriate synchronization; otherwise the behaviour is **undefined**.  The `telescoped` daemon permits multiple threads (and even processes on different hosts) to operate the same physical telescope using distinct `telescope` objects concurrently.
+
+# SEE ALSO
+
+**telescope**(1), **telescope_info**(3), **telescope**(7)
 
 # BUGS
 

@@ -42,7 +42,7 @@ AC_CHECK_LIB([m], [sqrt])
 LIBS="$LIBS -pthread"
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h mntent.h netdb.h pthread.h stdint.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h sys/un.h syslog.h termios.h unistd.h])
-GOBJECT_INTROSPECTION_CHECK([1.40.0])
+GOBJECT_INTROSPECTION_CHECK([1.80.0])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
 AC_TYPE_UID_T
@@ -160,7 +160,8 @@ fi
 AC_ARG_ENABLE([leading], [AS_HELP_STRING([--enable-leading],[Compile Leading InGaAs camera driver [default = no]])], [leading=${enableval}], [leading=no])
 if test x"${leading}" = xyes; then
     CFLAGS="$CFLAGS -I..$(top_builddir)/thirdparty/leading/include"
-    AC_DEFINE([__USE_LEADING_CAMERA__], , [use QHY camera])
+    LIBS="$LIBS -lEtherCamera"
+    AC_DEFINE([__USE_LEADING_CAMERA__], , [use Leading camera])
 fi
 
 AC_ARG_ENABLE([aravis], [AS_HELP_STRING([--enable-aravis], [Use aravis library for GiGE compatible cameras [default=no]])], [aravis=${enableval}], [aravis=no])

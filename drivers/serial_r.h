@@ -157,6 +157,22 @@ struct YNAOIRCameraSerialClass {
     struct __SerialClass _;
 };
 
+struct WTGAHRS3Serial {
+    struct __Serial _;
+    char *directory;
+    char *prefix;
+    char *data_fields;
+    double sample_interval;
+    unsigned int max_records;
+    pthread_t tid;
+    bool save_data;
+    
+};
+
+struct WTGAHRS3SerialClass {
+    struct __SerialClass _;
+};
+
 struct KLTPSerial {
     struct __Serial _;
     size_t output_len;
