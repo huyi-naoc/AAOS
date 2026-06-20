@@ -53,9 +53,10 @@ under Ubuntu 22.04,
 
 ## Detector
 
-* GiGE compatible cameras (linked with ARAVIS library)
+* GiGE compatible cameras (linked with ARAVIS library, tested on ImperX, Inc.'s GEV\_B3320M)
 * QHY Cameras (not tested)
 * ZWO ASI series
+* Leadingoe infrared InGaAs detector  
 * Virtual detector conform to AAOS standard
 
 # License
