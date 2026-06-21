@@ -6413,6 +6413,9 @@ GenICam_ctor(void *_self, va_list *app)
     self->name = (char *) Malloc(strlen(name) + 1);
     snprintf(self->name, strlen(name) + 1, "%s", name);
     
+    Pthread_mutex_init(&self->mtx, NULL);
+    Pthread_cond_init(&self->cond, NULL);
+    
     self->_.d_proc.name_convention = GenICam_name_convention;
     self->_.d_proc.pre_acquisition = GenICam_pre_acquisition;
     self->_.d_proc.queue = new(ThreadsafeQueue(), GenICamDataFrame_cleanup);
@@ -6437,6 +6440,9 @@ GenICam_dtor(void *_self)
         g_object_unref(self->stream);
     }
     
+    Pthread_cond_destroy(&self->cond);
+    Pthread_mutex_destroy(&self->mtx);
+
     return super_dtor(GenICam(), _self);
 }
 
@@ -6572,6 +6578,7 @@ GenICam_init(void *_self)
     unsigned int state;
     uint16_t options;
     gint w, h;
+    gboolean b;
     ArvCamera *camera = NULL;
     GError *error = NULL;
 
@@ -6606,80 +6613,165 @@ GenICam_init(void *_self)
         goto error;
     }
     
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_get_sensor_size(camera, &w, &h, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         self->_.d_cap.width = (uint32_t) w;
         self->_.d_cap.height = (uint32_t) h;
     } else {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- arv_camera_get_sensor_size error: %s\n", __FILE__, __func__, __LINE__ - 3, error->message);
+#endif
         g_clear_error(&error);
     }
     
     self->camera = (void *) camera;
-    if (arv_camera_is_binning_available(camera, NULL)) {
-        gint min_ = 0, max_ = 0, x_binning = 0, y_binning  = 0;
-        self->_.d_cap.binning_available = true;
-        arv_camera_get_x_binning_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.x_binning_max = max_;
-        self->_.d_cap.x_binning_min = min_;
-        //increment = arv_camera_get_x_binning_increment(camera, NULL);
-        arv_camera_get_y_binning_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.y_binning_max = max_;
-        self->_.d_cap.y_binning_min = min_;
-        //increment = arv_camera_get_y_binning_increment(camera, NULL);
-        arv_camera_get_binning(camera, &x_binning, &y_binning, NULL);
-        self->_.d_param.x_binning = x_binning;
-        self->_.d_param.y_binning = y_binning;
-    }
-
-    if (arv_camera_is_region_offset_available(camera, NULL)){
-        self->_.d_cap.offset_available = true;
-        gint x, y;
-        gint width, height;
-        gint min_, max_;
-        arv_camera_get_x_offset_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.x_offset_max = max_;
-        self->_.d_cap.x_offset_min = min_;
-        //increment = arv_camera_get_x_offset_increment(camera, NULL);
-        arv_camera_get_y_offset_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.y_offset_max = max_;
-        self->_.d_cap.y_offset_min = min_;
-        //increment = arv_camera_get_y_offset_increment(camera, NULL);
-        arv_camera_get_width_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.image_width_max = max_;
-        self->_.d_cap.image_width_min = min_;
-        //increment = arv_camera_get_width_increment(camera, NULL);
-        arv_camera_get_height_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.image_height_max = max_;
-        self->_.d_cap.image_height_min = min_;
-        //increment = arv_camera_get_height_increment(camera, NULL);
-        arv_camera_get_region(camera, &x, &y, &width, &height, NULL);
-        self->_.d_param.image_width = width;
-        self->_.d_param.image_height = height;
-        self->_.d_param.x_offset = x;
-        self->_.d_param.y_offset = y;
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_binning_available(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        if (b) {
+            self->_.d_cap.binning_available = true;
+            gint min_ = 0, max_ = 0, x_binning = 0, y_binning  = 0;
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_x_binning_bounds(camera, &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error == NULL) {
+                self->_.d_cap.x_binning_max = max_;
+                self->_.d_cap.x_binning_min = min_;
+            } else {
+                g_clear_error(&error);
+                gint64 *l_values;
+                guint i, n_values;
+                Pthread_mutex_lock(&self->mtx);
+                l_values = arv_camera_dup_available_enumerations(camera, "BinningHorizontal", &n_values, NULL);
+                Pthread_mutex_unlock(&self->mtx);
+                self->_.d_cap.x_binning_array = (uint32_t *) Malloc(sizeof(uint32_t) * n_values);
+                self->_.d_cap.n_x_binning = n_values;
+                for (i = 0; i < n_values; i++) {
+                    self->_.d_cap.x_binning_array[i] = l_values[i];
+                }
+                g_free(l_values);
+            }
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_y_binning_bounds(camera, &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error == NULL) {
+                self->_.d_cap.y_binning_max = max_;
+                self->_.d_cap.y_binning_min = min_;
+            } else {
+                g_clear_error(&error);
+                gint64 *l_values;
+                guint i, n_values;
+                Pthread_mutex_lock(&self->mtx);
+                l_values = arv_camera_dup_available_enumerations(camera, "BinningVertical", &n_values, NULL);
+                Pthread_mutex_unlock(&self->mtx);
+                self->_.d_cap.y_binning_array = (uint32_t *) Malloc(sizeof(uint32_t) * n_values);
+                for (i = 0; i < n_values; i++) {
+                    self->_.d_cap.y_binning_array[i] = l_values[i];
+                }
+                self->_.d_cap.n_y_binning = n_values;
+                g_free(l_values);
+            }
+        } else {
+            self->_.d_cap.binning_available = false;
+        }
+    } else {
+        g_clear_error(&error);
+        self->_.d_cap.binning_available = false;
     }
     
-    if (arv_camera_is_frame_rate_available(camera, NULL)) {
-        self->_.d_cap.frame_rate_available = true;
-        double min_ = 0., max_ = 0., frame_rate = 0.;
-        arv_camera_get_frame_rate_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.frame_rate_max = max_;
-        self->_.d_cap.frame_rate_min = min_;
-        frame_rate = arv_camera_get_frame_rate(camera, NULL);
-        self->_.d_param.frame_rate = frame_rate;
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_region_offset_available(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    if (error == NULL) {
+        if (b) {
+            self->_.d_cap.offset_available = true;
+            gint x, y;
+            gint width, height;
+            gint min_, max_;
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_x_offset_bounds(camera, &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_cap.x_offset_max = max_;
+            self->_.d_cap.x_offset_min = min_;
+            //increment = arv_camera_get_x_offset_increment(camera, NULL);
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_y_offset_bounds(camera, &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_cap.y_offset_max = max_;
+            self->_.d_cap.y_offset_min = min_;
+            //increment = arv_camera_get_y_offset_increment(camera, NULL);
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_width_bounds(camera, &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_cap.image_width_max = max_;
+            self->_.d_cap.image_width_min = min_;
+            //increment = arv_camera_get_width_increment(camera, NULL);
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_height_bounds(camera, &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_cap.image_height_max = max_;
+            self->_.d_cap.image_height_min = min_;
+            //increment = arv_camera_get_height_increment(camera, NULL);
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_region(camera, &x, &y, &width, &height, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_param.image_width = width;
+            self->_.d_param.image_height = height;
+            self->_.d_param.x_offset = x;
+            self->_.d_param.y_offset = y;
+        } else {
+            self->_.d_cap.offset_available = false;
+        }
     } else {
-        if (arv_camera_is_feature_available(camera, "ProgFrameTimeAbs", NULL)) {
-            gint64 min_, max_;
+        g_clear_error(&error);
+        self->_.d_cap.offset_available = false;
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_frame_rate_available(camera, NULL);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        if (b) {
             self->_.d_cap.frame_rate_available = true;
+            double min_ = 0., max_ = 0., frame_rate = 0.;
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_frame_rate_bounds(camera, &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_cap.frame_rate_max = max_;
+            self->_.d_cap.frame_rate_min = min_;
+            Pthread_mutex_lock(&self->mtx);
+            frame_rate = arv_camera_get_frame_rate(camera, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_param.frame_rate = frame_rate;
+        } else {
+            self->_.d_cap.frame_rate_available = false;
+        }
+    } else {
+        g_clear_error(&error);
+        Pthread_mutex_lock(&self->mtx);
+        b = arv_camera_is_feature_available(camera, "ProgFrameTimeAbs", NULL);
+        Pthread_mutex_unlock(&self->mtx);
+        if (b) {
+            self->_.d_cap.frame_rate_available = true;
+            gint64 min_, max_;
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_get_integer_bounds(camera, "ProgFrameTimeAbs", &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
             self->_.d_cap.frame_rate_min = 1000000. / max_;
             self->_.d_cap.frame_rate_min = 1000000. / min_;
+            Pthread_mutex_lock(&self->mtx);
             self->_.d_param.frame_rate = 1000000. / arv_camera_get_integer(camera, "ProgFrameTimeAbs", NULL);
+            Pthread_mutex_unlock(&self->mtx);
         } else {
             self->_.d_cap.frame_rate_available = false;
         }
     }
     
+    Pthread_mutex_lock(&self->mtx);
     if (arv_camera_is_exposure_auto_available(camera, NULL)) {
         self->_.d_cap.auto_exposure_time_available = true;
         self->_.d_param.auto_exposure_time_enable = false;
@@ -6687,28 +6779,50 @@ GenICam_init(void *_self)
     } else {
         self->_.d_cap.auto_exposure_time_available = false;
     }
+    Pthread_mutex_unlock(&self->mtx);
     
-    if (arv_camera_is_exposure_time_available(camera, NULL)) {
-        self->_.d_cap.exposure_time_available = true;
-        double min_ = 0., max_ = 0., exposure_time = 0.;
-        arv_camera_get_exposure_time_bounds(camera, &min_, &max_, NULL);
-        self->_.d_cap.exposure_time_max = max_;
-        self->_.d_cap.exposure_time_min = min_;
-        exposure_time = arv_camera_get_exposure_time(camera, NULL);
-        self->_.d_param.exposure_time = exposure_time / 1000000.;
-    } else {
-        if (arv_camera_is_feature_available(camera, "ExposureTimeRaw", NULL)) {
-            gint64 min_, max_;
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_exposure_time_available(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        if (b) {
             self->_.d_cap.exposure_time_available = true;
-            arv_camera_get_integer_bounds(camera, "ExposureTimeRaw", &min_, &max_, NULL);
-            self->_.d_cap.exposure_time_min = min_ / 1000000.;
-            self->_.d_cap.exposure_time_max = max_ / 1000000.;
-            self->_.d_param.exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", NULL) / 1000000.;
+            double min_ = 0., max_ = 0., exposure_time = 0.;
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_exposure_time_bounds(camera, &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_cap.exposure_time_max = max_;
+            self->_.d_cap.exposure_time_min = min_;
+            Pthread_mutex_lock(&self->mtx);
+            exposure_time = arv_camera_get_exposure_time(camera, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_param.exposure_time = exposure_time / 1000000.;
         } else {
             self->_.d_cap.exposure_time_available = false;
         }
+    } else {
+        g_clear_error(&error);
+        Pthread_mutex_lock(&self->mtx);
+        b = arv_camera_is_feature_available(camera, "ExposureTimeRaw", NULL);
+        Pthread_mutex_unlock(&self->mtx);
+        if (b) {
+            self->_.d_cap.exposure_time_available = true;
+            gint64 min_, max_;
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_integer_bounds(camera, "ExposureTimeRaw", &min_, &max_, NULL);
+            Pthread_mutex_unlock(&self->mtx);
+            self->_.d_cap.exposure_time_min = min_ / 1000000.;
+            self->_.d_cap.exposure_time_max = max_ / 1000000.;
+            Pthread_mutex_lock(&self->mtx);
+            self->_.d_param.exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", NULL) / 1000000.;
+            Pthread_mutex_unlock(&self->mtx);
+        } else {
+            self->_.d_cap.exposure_time_available = false;
+        }
+        
     }
-
+    
+    Pthread_mutex_lock(&self->mtx);
     if (arv_camera_is_gain_auto_available(camera, NULL)) {
         self->_.d_cap.auto_gain_available = true;
         self->_.d_param.auto_gain_enable = false;
@@ -6716,7 +6830,9 @@ GenICam_init(void *_self)
     } else {
         self->_.d_cap.auto_exposure_time_available = false;
     }
+    Pthread_mutex_unlock(&self->mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     if (arv_camera_is_gain_available(camera, NULL)) {
         self->_.d_cap.gain_available = true;
         double min_ = 0., max_ = 0., gain = 0.;
@@ -6726,12 +6842,15 @@ GenICam_init(void *_self)
         gain = arv_camera_get_gain(camera, NULL);
         self->_.d_param.gain = gain;
     }
+    Pthread_mutex_unlock(&self->mtx);
     
     self->_.d_cap.pixel_format_available = true;
     {
         guint i, n_pixel_formats, cnt = 0;
         gint64 *pixel_format_array;
+        Pthread_mutex_lock(&self->mtx);
         pixel_format_array = arv_camera_dup_available_pixel_formats(camera, &n_pixel_formats, NULL);
+        Pthread_mutex_unlock(&self->mtx);
         for (i = 0; i < n_pixel_formats; i++) {
             switch (pixel_format_array[i]) {
                 case ARV_PIXEL_FORMAT_MONO_8:
@@ -6786,7 +6905,9 @@ GenICam_init(void *_self)
             }
         }
     }
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_12, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
 #ifdef DEBUG
         fprintf(stderr, "%s %s %d --- arv_camera_set_pixel_format error: %s\n", __FILE__, __func__, __LINE__ - 3, error->message);
@@ -6803,11 +6924,14 @@ GenICam_init(void *_self)
     self->_.d_cap.capture_mode_array[1] = DETECTOR_CAPTURE_MODE_MULTIFRAME;
     self->_.d_cap.capture_mode_array[2] = DETECTOR_CAPTURE_MODE_VIDEO;
     
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
 #ifdef DEBUG
         fprintf(stderr, "%s %s %d --- arv_camera_set_acquisition_mode error: %s\n", __FILE__, __func__, __LINE__ - 3, error->message);
 #endif
+        self->_.d_param.capture_mode = DETECTOR_CAPTURE_MODE_VIDEO;
         g_clear_error(&error);
     } else {
         self->_.d_param.capture_mode = DETECTOR_CAPTURE_MODE_VIDEO;
@@ -6827,7 +6951,7 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
 {
     struct GenICam *self = cast(GenICam(), _self);
     ArvCamera *camera = (ArvCamera *) self->camera;
-    int ret = AAOS_OK;
+    int ret = AAOS_OK, ret2;
     
     GError *error = NULL;
     char cmd[16], type[32], feature[64];
@@ -6839,7 +6963,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
     if (strcmp(s, "xml") == 0) {
         ArvDevice *device;
         size_t size;
+        Pthread_mutex_lock(&self->mtx);
         device = arv_camera_get_device(camera);
+        Pthread_mutex_unlock(&self->mtx);
         snprintf((char *) read_buffer, read_buffer_size, "%s", arv_device_get_genicam_xml(device, &size));
         if (read_size != NULL) {
             *read_size = strlen((char *) read_buffer) + 1;
@@ -6847,13 +6973,15 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
         return ret;
     }
     
-    if ((ret = sscanf(s, "%s %s", cmd, feature)) != 2) {
+    if ((ret2 = sscanf(s, "%s %s", cmd, feature)) != 2) {
 #ifdef DEBUG
         fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, s);
 #endif
         return AAOS_EBADCMD;
     }
+    Pthread_mutex_lock(&self->mtx);
     available = arv_camera_is_feature_available(camera, feature, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         if (!available) {
 #ifdef DEBUG
@@ -6871,14 +6999,16 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
 
     s = strstr(write_buffer, feature) + strlen(feature) + 1;
     if (strcmp(cmd, "get") == 0) {
-        if ((ret = sscanf(s, "%s", type)) != 1) {
+        if ((ret2 = sscanf(s, "%s", type)) != 1) {
 #ifdef DEBUG
             fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
 #endif
             return AAOS_ERROR;
         }
         if (strcmp(type, "int") == 0 || strcmp(type, "integer") == 0) {
+            Pthread_mutex_lock(&self->mtx);
             gint64 value = arv_camera_get_integer(camera, feature, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 snprintf(read_buffer, read_buffer_size, "%s: %ld", feature, value);
                 if (read_size != NULL) {
@@ -6894,7 +7024,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 goto error;
             }
         } else if (strcmp(type, "bool") == 0 || strcmp(type, "boolean") == 0) {
+            Pthread_mutex_lock(&self->mtx);
             gboolean value = arv_camera_get_boolean(camera, feature, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 if (value) {
                     
@@ -6908,12 +7040,14 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             } else {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
-                    fprintf(stderr, "%s %s %d --- arv_camera_get_boolean error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
+                fprintf(stderr, "%s %s %d --- arv_camera_get_boolean error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
 #endif
                 goto error;
             }
         } else if (strcmp(type, "float") == 0 || strcmp(type, "double") == 0) {
+            Pthread_mutex_lock(&self->mtx);
             double value = arv_camera_get_float(camera, feature, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 snprintf(read_buffer, read_buffer_size, "%s: %f\n", feature, value);
                 if (read_size != NULL) {
@@ -6922,36 +7056,29 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             } else {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
-                    fprintf(stderr, "%s %s %d --- arv_camera_get_float error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
+                fprintf(stderr, "%s %s %d --- arv_camera_get_float error: %s\n", __FILE__, __func__, __LINE__ - 10, error->message);
 #endif
                 goto error;
             }
         } else if (strcmp(type, "enum") == 0 || strcmp(type, "enumeration") == 0) {
             guint n_values;
+            Pthread_mutex_lock(&self->mtx);
             gint64 *values = arv_camera_dup_available_enumerations(camera, feature, &n_values, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 guint i;
-                char *s = read_buffer;
-                ssize_t nleft = read_buffer_size;
-                snprintf(s, nleft, "%s: [%ld",  feature, values[0]);
-                nleft -= strlen(s);
-                s += strlen(s);
-                if (nleft > 0) {
-                    for (i = 1; i < n_values; i++) {
-                        snprintf(s, nleft, ", %ld", values[i]);
-                        nleft -= strlen(s);
-                        s += strlen(s);
-                        if (nleft < 0) {
-                            break;
-                        }
-                    }
+                FILE *fp = fmemopen(read_buffer, read_buffer_size, "w+");
+                if (n_values > 0) {
+                    fprintf(fp, "%ld", values[0]);
                 }
-                if (nleft > 0) {
-                    snprintf(s, nleft, "]\n");
+                for (i = 1; i < n_values; i++) {
+                    fprintf(fp, " %ld", values[i]);
                 }
+                fclose(fp);
                 if (read_size != NULL) {
-                    *read_size = strlen(read_buffer) + 1;
+                    *read_size = strlen((char *) read_buffer) + 1;
                 }
+                g_free(values);
             } else {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
@@ -6959,64 +7086,62 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
 #endif
                 goto error;
             }
-    } else if (strcmp(type, "enum_as_str") == 0 || strcmp(type, "enumeration_as_string") == 0) {
+        } else if (strcmp(type, "enum_as_str") == 0 || strcmp(type, "enumeration_as_string") == 0) {
             guint n_values;
+            Pthread_mutex_lock(&self->mtx);
             const char **values = arv_camera_dup_available_enumerations_as_strings(camera, feature, &n_values, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 guint i;
-                gint left = read_buffer_size;
-                char *idx = (char *) read_buffer;
+                FILE *fp = fmemopen(read_buffer, read_buffer_size, "w+");
+                if (n_values > 0) {
+                    fprintf(fp, "%s", values[0]);
+                }
+                for (i = 1; i < n_values; i++) {
+                    fprintf(fp, " %s", values[i]);
+                }
+                fclose(fp);
                 if (read_size != NULL) {
-                    *read_size = 0;
+                    *read_size = strlen((char *) read_buffer) + 1;
                 }
-                for (i = 0; i < n_values; i++) {
-                    if (left <= 0) {
-                        break;
-                    }
-                    snprintf(idx, left, "%s", values[i]);
-                    idx += strlen(idx) + 1;
-                    left -= strlen(idx) + 1;
-                    if (read_size != NULL) {
-                        *read_size += strlen(idx) + 1;
-                    }
-                }
+                g_free(values);
             } else {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
-                    fprintf(stderr, "%s %s %d --- arv_camera_dup_available_enumerations_as_strings error: %s\n", __FILE__, __func__, __LINE__ - 22, error->message);
+                fprintf(stderr, "%s %s %d --- arv_camera_dup_available_enumerations_as_strings error: %s\n", __FILE__, __func__, __LINE__ - 22, error->message);
 #endif
                 goto error;
             }
         } else if (strcmp(type, "enum_as_name") == 0 || strcmp(type, "enumeration_as_name") == 0) {
             guint n_values;
+            Pthread_mutex_lock(&self->mtx);
             const char **values = arv_camera_dup_available_enumerations_as_display_names(camera, feature, &n_values, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 guint i;
-                gint left = read_buffer_size;
-                char *idx = (char *) read_buffer;
+                FILE *fp = fmemopen(read_buffer, read_buffer_size, "w+");
+                if (n_values > 0) {
+                    fprintf(fp, "%s", values[0]);
+                }
+                for (i = 1; i < n_values; i++) {
+                    fprintf(fp, " %s", values[i]);
+                }
+                fclose(fp);
                 if (read_size != NULL) {
-                    *read_size = 0;
+                    *read_size = strlen((char *) read_buffer) + 1;
                 }
-                for (i = 0; i < n_values; i++) {
-                    if (left <= 0) {
-                        break;
-                    }
-                    snprintf(idx, left, "%s", values[i]);
-                    idx += strlen(idx) + 1;
-                    left -= strlen(idx) + 1;
-                    if (read_size != NULL) {
-                        *read_size += strlen(idx) + 1;
-                    }
-                }
+                g_free(values);
             } else {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
-                    fprintf(stderr, "%s %s %d --- arv_camera_dup_available_enumerations_as_display_names error: %s\n", __FILE__, __func__, __LINE__ - 21, error->message);
+                fprintf(stderr, "%s %s %d --- arv_camera_dup_available_enumerations_as_display_names error: %s\n", __FILE__, __func__, __LINE__ - 21, error->message);
 #endif
                 goto error;
             }
         } else if (strcmp(type, "int_incr") == 0 || strcmp(type, "integer_increment") == 0) {
+            Pthread_mutex_lock(&self->mtx);
             gint64 value = arv_camera_get_integer_increment(camera, feature, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 snprintf(read_buffer, read_buffer_size, "%s increment: %ld\n", feature, value);
                 if (read_size != NULL) {
@@ -7030,7 +7155,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 goto error;
             }
         } else if (strcmp(type, "float_incr") == 0 || strcmp(type, "double_incr") == 0 || strcmp(type, "float_increment") == 0 || strcmp(type, "double_increment") == 0) {
+            Pthread_mutex_lock(&self->mtx);
             double value = arv_camera_get_float_increment(camera, feature, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 snprintf(read_buffer, read_buffer_size, "%s increment: %f\n", feature, value);
                 if (read_size != NULL) {
@@ -7045,7 +7172,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             }
         } else if (strcmp(type, "float_bound") == 0 || strcmp(type, "double_bound") == 0) {
             double bounds[2];
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_get_float_bounds(camera, feature, &bounds[0], &bounds[1], &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 snprintf(read_buffer, read_buffer_size, "%s bounds: [%f, %f]\n", feature, bounds[0], bounds[1]);
                 if (read_size != NULL) {
@@ -7060,7 +7189,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             }
         } else if (strcmp(type, "int_bound") == 0 || strcmp(type, "integer_bound") == 0) {
             gint64 bounds[2];
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_get_integer_bounds(camera, feature, &bounds[0], &bounds[1], &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 snprintf(read_buffer, read_buffer_size, "%s bounds: [%ld, %ld]\n", feature, bounds[0], bounds[1]);
                 if (read_size != NULL) {
@@ -7074,7 +7205,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
                 goto error;
             }
         } else if (strcmp(type, "str") == 0 || strcmp(type, "string") == 0) {
+            Pthread_mutex_lock(&self->mtx);
             const char *value = arv_camera_get_string(camera, feature, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 snprintf(read_buffer, read_buffer_size, "%s", value);
                 if (read_size != NULL) {
@@ -7094,7 +7227,7 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             return AAOS_EBADCMD;
         }
     } else if (strcmp(cmd, "set") == 0) {
-        if ((ret = sscanf(s, "%s", type)) != 1) {
+        if ((ret2 = sscanf(s, "%s", type)) != 1) {
 #ifdef DEBUG
             fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
 #endif
@@ -7103,13 +7236,15 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
         s = strstr(s, type) + strlen(type) + 1;
         if (strcmp(type, "bool") == 0 || strcmp(type, "boolean") == 0) {
             gboolean value;
-            if ((ret = sscanf(s, "%d", &value)) != 1) {
+            if ((ret2 = sscanf(s, "%d", &value)) != 1) {
 #ifdef DEBUG
                 fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
 #endif
                 return AAOS_EBADCMD;
             }
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_boolean(camera, feature, value, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
@@ -7119,13 +7254,15 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             }
         } else if (strcmp(type, "int") == 0 || strcmp(type, "integer") == 0) {
             gint64 value;
-            if ((ret = sscanf(s, "%ld", &value)) != 1) {
+            if ((ret2 = sscanf(s, "%ld", &value)) != 1) {
 #ifdef DEBUG
                 fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
 #endif
                 return AAOS_EBADCMD;
             }
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_integer(camera, feature, value, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
@@ -7135,13 +7272,15 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             }
         } else if (strcmp(type, "double") == 0 || strcmp(type, "float") == 0) {
             double value;
-            if ((ret = sscanf(s, "%lf", &value)) != 1) {
+            if ((ret2 = sscanf(s, "%lf", &value)) != 1) {
 #ifdef DEBUG
                 fprintf(stderr, "%s %s %d --- input \"%s\" is illegal\n", __FILE__, __func__, __LINE__ - 2, (const char *) write_buffer);
 #endif
                 return AAOS_EBADCMD;
             }
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_float(camera, feature, value, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
@@ -7152,7 +7291,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
         } else if (strcmp(type, "str") == 0 || strcmp(type, "string") == 0) {
             while (*s == ' ' || *s == '\t')
                 s++;
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_string(camera, feature, s, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
 #ifdef DEBUG
@@ -7171,7 +7312,9 @@ GenICam_raw(void *_self, const void *write_buffer, size_t write_buffer_size, siz
             *read_size = strlen(read_buffer) + 1;
         }
     } else if (strcmp(cmd, "execute") == 0) {
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_execute_command(camera, feature, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             ret = AAOS_ERROR;
 #ifdef DEBUG
@@ -7194,6 +7337,7 @@ error:
     if (error != NULL) {
         g_clear_error(&error);
     }
+
     return ret;
 }
 
@@ -7219,20 +7363,26 @@ GenICam_set_exposure_time_nl(void *_self, double exposure_time)
     double exposure_time_us = 1000000. * exposure_time;
     double min, max;
     ArvAuto auto_mode;
+    Pthread_mutex_lock(&self->mtx);
     gboolean auto_available = arv_camera_is_exposure_auto_available(camera, NULL);
+    Pthread_mutex_unlock(&self->mtx);
     GError *error = NULL;
     int ret = AAOS_OK;
     double current_exposure_time;
         
     if (exposure_time_us < 0) {
         if (auto_available) {
+            Pthread_mutex_lock(&self->mtx);
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
                 goto error;
             }
             if (auto_mode == ARV_AUTO_OFF) {
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_exposure_time_auto(camera, ARV_AUTO_ONCE, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     ret = AAOS_ERROR;
                     goto error;
@@ -7244,13 +7394,17 @@ GenICam_set_exposure_time_nl(void *_self, double exposure_time)
         }
     } else {
         if (auto_available) {
+            Pthread_mutex_lock(&self->mtx);
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 g_clear_error(&error);
                 return AAOS_ERROR;
             }
             if (auto_mode != ARV_AUTO_OFF) {
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_exposure_time_auto(camera, ARV_AUTO_ONCE, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     g_clear_error(&error);
                     return AAOS_ERROR;
@@ -7258,11 +7412,15 @@ GenICam_set_exposure_time_nl(void *_self, double exposure_time)
             }
         }
         
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_get_exposure_time_bounds(camera, &min, &max, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
             gint64 min_, max_;
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_get_integer_bounds(camera, "ExposureTimeRaw", &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
             min = min_;
             max = max_;
             if (error != NULL) {
@@ -7272,11 +7430,15 @@ GenICam_set_exposure_time_nl(void *_self, double exposure_time)
         }
 
         if (exposure_time_us > max || exposure_time_us < min) {
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_get_frame_rate_bounds(camera, &min, &max, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 gint64 min_, max_;
                 g_clear_error(&error);
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_get_integer_bounds(camera, "ProgFrameTimeAbs", &min_, &max_, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     g_clear_error(&error);
                     return AAOS_ERROR;
@@ -7287,35 +7449,49 @@ GenICam_set_exposure_time_nl(void *_self, double exposure_time)
             if (exposure_time_us > 1000000. / min || exposure_time_us < 1000000. / max) {
                 return AAOS_EINVAL;
             }
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_frame_rate(camera, 1000000. / (exposure_time_us + 10), &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 guint64 us_per_frame = exposure_time_us + 10;
                 g_clear_error(&error);
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_boolean(camera, "ProgFrameTimeEnable", true, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     g_clear_error(&error);
                     return AAOS_ERROR;
                 }
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_integer(camera, "ProgFrameTimeAbs", us_per_frame, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     g_clear_error(&error);
                     return AAOS_ERROR;
                 }
             }
         }
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_set_exposure_time(camera, exposure_time_us, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 g_clear_error(&error);
                 return AAOS_ERROR;
             }
         }
+        Pthread_mutex_lock(&self->mtx);
         current_exposure_time = arv_camera_get_exposure_time(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
+            Pthread_mutex_lock(&self->mtx);
             current_exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 g_clear_error(&error);
                 return AAOS_ERROR;
@@ -7324,10 +7500,14 @@ GenICam_set_exposure_time_nl(void *_self, double exposure_time)
         if (fabs(current_exposure_time -  exposure_time_us) > 1.) {
             Nanosleep(current_exposure_time / 100000.);
         }
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_set_exposure_time(camera, exposure_time_us, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 g_clear_error(&error);
                 return AAOS_ERROR;
@@ -7353,7 +7533,9 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
     unsigned int state;
     uint16_t options;
     ArvAuto auto_mode;
+    Pthread_mutex_lock(&self->mtx);
     gboolean auto_available = arv_camera_is_exposure_auto_available(camera, NULL);
+    Pthread_mutex_unlock(&self->mtx);
     GError *error = NULL;
     int ret;
     double current_exposure_time;
@@ -7382,13 +7564,17 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
     
     if (exposure_time_us < 0) {
         if (auto_available) {
+            Pthread_mutex_lock(&self->mtx);
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
                 goto error;
             }
             if (auto_mode == ARV_AUTO_OFF) {
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_exposure_time_auto(camera, ARV_AUTO_ONCE, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     ret = AAOS_ERROR;
                     goto error;
@@ -7400,25 +7586,32 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
         }
     } else {
         if (auto_available) {
+            Pthread_mutex_lock(&self->mtx);
             auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 g_clear_error(&error);
                 return AAOS_ERROR;
             }
             if (auto_mode != ARV_AUTO_OFF) {
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_exposure_time_auto(camera, ARV_AUTO_ONCE, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     g_clear_error(&error);
                     return AAOS_ERROR;
                 }
             }
         }
-        
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_get_exposure_time_bounds(camera, &min, &max, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
             gint64 min_, max_;
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_get_integer_bounds(camera, "ExposureTimeRaw", &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
             min = min_;
             max = max_;
             if (error != NULL) {
@@ -7428,11 +7621,15 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
         }
 
         if (exposure_time_us > max || exposure_time_us < min) {
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_get_frame_rate_bounds(camera, &min, &max, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 gint64 min_, max_;
                 g_clear_error(&error);
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_get_integer_bounds(camera, "ProgFrameTimeAbs", &min_, &max_, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     ret = AAOS_ERROR;
                     goto error;
@@ -7444,35 +7641,49 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
                 ret = AAOS_EINVAL;
                 goto error;
             }
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_frame_rate(camera, 1000000. / (exposure_time_us + 10), &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 guint64 us_per_frame = exposure_time_us + 10;
                 g_clear_error(&error);
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_boolean(camera, "ProgFrameTimeEnable", true, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     ret = AAOS_ERROR;
                     goto error;
                 }
+                Pthread_mutex_lock(&self->mtx);
                 arv_camera_set_integer(camera, "ProgFrameTimeAbs", us_per_frame, &error);
+                Pthread_mutex_unlock(&self->mtx);
                 if (error != NULL) {
                     ret = AAOS_ERROR;
                     goto error;
                 }
             }
         }
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_set_exposure_time(camera, exposure_time_us, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
                 goto error;
             }
         }
+        Pthread_mutex_lock(&self->mtx);
         current_exposure_time = arv_camera_get_exposure_time(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
+            Pthread_mutex_lock(&self->mtx);
             current_exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
                 goto error;
@@ -7481,10 +7692,14 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
         if (fabs(current_exposure_time -  exposure_time_us) > 1.) {
             Nanosleep(current_exposure_time / 100000.);
         }
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_set_exposure_time(camera, exposure_time_us, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_integer(camera, "ExposureTimeRaw", exposure_time_us, &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error != NULL) {
                 ret = AAOS_ERROR;
                 goto error;
@@ -7503,192 +7718,6 @@ error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
-
-/*
-static void
-GenICam_name_convention(void *user_data, char *filename, size_t size, ...)
-{
-    struct GenICam *udata = (struct GenICam *) user_data;
-    
-    struct tm res;
-    size_t left;
-    struct timespec *tp;
-    va_list ap;
-    
-    va_start(ap, size);
-    tp = va_arg(ap, struct timespec *);
-    va_end(ap);
-    
-    time_t tloc = tp->tv_sec;
-    left = size;
-    
-    if (udata->_.d_proc.image_directory != NULL) {
-        snprintf(filename, size, "%s", udata->_.d_proc.image_directory);
-        left = size - strlen(filename);
-        filename += strlen(filename);
-    }
-    
-    if (udata->_.d_proc.image_prefix != NULL) {
-        snprintf(filename, size, "%s", udata->_.d_proc.image_prefix);
-        left = size - strlen(filename);
-        filename += strlen(filename);
-    }
-    
-    gmtime_r(&tloc, &res);
-    
-    if (left > 1) {
-        strftime(filename, left, "%y%m%d_%H%M%S.fits", &res);
-    }
-}
-*/
-static void
-GenICam_process_image(void *user_data, ArvBuffer *buffer, char *filename, size_t size)
-{
-    struct GenICam *udata = (struct GenICam *) user_data;
-    
-    fitsfile *fptr = (fitsfile *) udata->_.d_proc.img_fptr;
-    int status = 0;
-    struct timespec tp;
-    
-    gint x, y, width, height;
-    const void *data = arv_buffer_get_data(buffer, &size);
-    size_t pixel_size = ARV_PIXEL_FORMAT_BIT_PER_PIXEL(arv_buffer_get_image_pixel_format(buffer));
-    long naxes[2];
-    int bitpix, datatype;
-    char date_time[32];
-    
-    arv_buffer_get_image_region(buffer, &x, &y, &width, &height);
-    switch (pixel_size) {
-        case 8:
-            bitpix = BYTE_IMG;
-            datatype = TBYTE;
-            break;
-        case 16:
-            bitpix = USHORT_IMG;
-            datatype = TUSHORT;
-            break;
-        case 32:
-            bitpix = ULONG_IMG;
-            datatype = TULONG;
-            break;
-        case 64:
-            bitpix = ULONGLONG_IMG;
-            datatype = TULONGLONG;
-            break;
-        default:
-            break;
-    }
-    naxes[0] = width;
-    naxes[1] = height;
-    
-    int flag = 0;
-    if (fptr == NULL) {
-        flag = 1;
-        Clock_gettime(CLOCK_REALTIME, &tp);
-        GenICam_name_convention(user_data, filename, size, &tp);
-        if (udata->_.d_proc.tpl_fptr == NULL) {
-            if (udata->_.d_proc.tpl_filename != NULL) {
-                char tmp[FLEN_FILENAME];
-                if (udata->_.d_proc.image_directory != NULL) {
-                    snprintf(tmp, FLEN_FILENAME, "%s/%s", udata->_.d_proc.image_directory, udata->_.d_proc.tpl_filename);
-                } else {
-                    snprintf(tmp, FLEN_FILENAME, "%s", udata->_.d_proc.tpl_filename);
-                }
-                fits_create_template(&fptr, filename, tmp, &status);
-            } else {
-                fits_create_file(&fptr, filename, &status);
-                fits_copy_file(udata->_.d_proc.tpl_fptr, fptr, 1, 1, 1, &status);
-            }
-        }
-    }
-    /*
-     * write to the file
-     */
-    Clock_gettime(CLOCK_REALTIME, &tp);
-    tp2str(&tp, date_time, 32);
-    fits_create_img(fptr, bitpix, 2, naxes, &status);
-    fits_write_img(fptr, datatype, 1, width * height, (void *) data, &status);
-    fits_update_key_longstr(fptr, "DATE-OBS", date_time, NULL, &status);
-    
-    /*
-     * close file properly.
-     */
-    if (flag) {
-        if (udata->_.d_exp.notify_each_frame_done) {
-            fits_close_file(fptr, &status);
-            udata->_.d_proc.img_fptr = NULL;
-        } else {
-            udata->_.d_proc.img_fptr = fptr;
-            if (udata->_.d_exp.count == udata->_.d_exp.request_frames) {
-                fits_close_file(fptr, &status);
-                udata->_.d_proc.img_fptr = NULL;
-            }
-        }
-    } else {
-        if (!udata->_.d_exp.notify_each_frame_done && udata->_.d_exp.count == udata->_.d_exp.request_frames) {
-                fits_close_file(fptr, &status);
-                udata->_.d_proc.img_fptr = NULL;
-        }
-    }
-}
-
-static void
-GenICam_stream_callback2(void *user_data, ArvStreamCallbackType type, ArvBuffer *buffer)
-{
-    struct GenICam *udata = (struct GenICam *) user_data;
-
-    switch (type) {
-        case ARV_STREAM_CALLBACK_TYPE_INIT:
-            udata->_.d_exp.count = 0;
-            break;
-        case ARV_STREAM_CALLBACK_TYPE_START_BUFFER:
-            udata->_.d_exp.count++;
-            /*
-             * Make exposure function return when last frame filling start.
-             */
-        
-            Pthread_mutex_lock(&udata->_.d_state.mtx);
-            udata->_.d_state.state = DETECTOR_STATE_READING;
-            Pthread_mutex_unlock(&udata->_.d_state.mtx);
-            if (udata->_.d_exp.notify_last_frame_filling) {
-                Pthread_mutex_lock(&udata->_.d_exp.mtx);
-                if (udata->_.d_exp.count == udata->_.d_exp.request_frames && udata->_.d_exp.notify_last_frame_filling) {
-                    udata->_.d_exp.last_frame_filling_flag = 1;
-                    Pthread_cond_signal(&udata->_.d_exp.cond);
-                }
-                Pthread_mutex_unlock(&udata->_.d_exp.mtx);
-            }
-            break;
-        case ARV_STREAM_CALLBACK_TYPE_BUFFER_DONE:
-            Pthread_mutex_lock(&udata->_.d_state.mtx);
-            udata->_.d_state.state = DETECTOR_STATE_EXPOSING;
-            Pthread_mutex_unlock(&udata->_.d_state.mtx);
-            if (udata->_.d_exp.notify_each_frame_done) {
-                if (buffer != NULL) {
-                    char *filename = (char *) Malloc(FLEN_FILENAME);
-                    GenICam_process_image(user_data, buffer, filename, FLEN_FILENAME);
-                    threadsafe_queue_push(udata->_.d_proc.queue, filename);
-                }
-            } else {
-                if (buffer != NULL) {
-                    if (udata->_.d_exp.count != 1) {
-                        GenICam_process_image(user_data, buffer, NULL, 0);
-                        if (udata->_.d_exp.count == udata->_.d_exp.request_frames) {
-                            threadsafe_queue_push(udata->_.d_proc.queue, udata->_.d_proc.img_filename);
-                            udata->_.d_proc.img_filename = NULL;
-                        }
-                    } else {
-                        udata->_.d_proc.img_filename = (char *) Malloc(FLEN_FILENAME);
-                        GenICam_process_image(user_data, buffer, udata->_.d_proc.img_filename, FLEN_FILENAME);
-                    }
-                }
-            }
-            break;
-        case ARV_STREAM_CALLBACK_TYPE_EXIT:
-            break;
-    }
-}
-
 
 static void
 GenICam_stream_callback(void *user_data, ArvStreamCallbackType type, ArvBuffer *buffer)
@@ -7961,24 +7990,32 @@ GenICam_expose_video(struct GenICam *self, double exposure_time, uint32_t n_fram
     if ((ret = GenICam_set_exposure_time_nl(self, exposure_time)) != AAOS_OK) {
         goto error;
     }
+    Pthread_mutex_lock(&self->mtx);
     stream = arv_camera_create_stream (camera, GenICam_stream_callback, self, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
         g_clear_error(&error);
         ret = AAOS_ERROR;
         goto error;
     }
     self->stream = (void *) stream;
+    Pthread_mutex_lock(&self->mtx);
     payload = arv_camera_get_payload (camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     for (i = 0; i < n_frames + 10; i++) {
         arv_stream_push_buffer(stream, arv_buffer_new(payload, NULL));
     }
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
         g_clear_error(&error);
         ret = AAOS_ERROR;
         goto error;
     }
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_start_acquisition(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
         g_clear_error(&error);
         ret = AAOS_ERROR;
@@ -8004,7 +8041,9 @@ GenICam_expose_video(struct GenICam *self, double exposure_time, uint32_t n_fram
     if (options&DETECTOR_OPTION_NOTIFY_LAST_FILLING) {
 
     } else {
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_stop_acquisition(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
         }
@@ -8127,7 +8166,9 @@ GenICam_expose_snapshot(struct GenICam *self, double exposure_time, uint32_t n_f
                 __Detector_default_pre_acquisition(self, filename, fptr);
             }
         }
+        Pthread_mutex_lock(&self->mtx);
         buffer = arv_camera_acquisition(camera, timeout, &error);
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_lock(&self->_.d_exp.mtx);
         self->_.d_exp.count++;
         Pthread_mutex_unlock(&self->_.d_exp.mtx);
@@ -8211,175 +8252,6 @@ error:
     }
     return ret;
 }
-/*
-static int
-GenICam_expose_video2(void *_self, double exposure_time, uint32_t n_frames, va_list *app)
-{
-    struct GenICam *self = cast(GenICam(), _self);
-    
-    ArvCamera *camera = (ArvCamera *) self->camera;
-    GError *error = NULL;
-    ArvStream *stream = NULL;
-    gint payload;
-    int old_state, ret;
-    char *filename;
-    
-    self->_.d_exp.count = 0;
-    self->_.d_exp.request_frames = n_frames;
-    
-    Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_state);
-
-    g_return_val_if_fail (ARV_IS_CAMERA (camera), EXIT_FAILURE);
-    
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    while (self->_.d_state.state == DETECTOR_STATE_EXPOSING || self->_.d_state.state == DETECTOR_STATE_READING) {
-        Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-    }
-    self->_.d_state.state = DETECTOR_STATE_EXPOSING;
-    self->_.d_exp.request_frames =  n_frames;
-    self->n_buffers = n_frames;
-    self->callback_param = (void *) app;
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
-
-    if ((ret = GenICam_set_exposure_time_nl(self, exposure_time)) != AAOS_OK) {
-        Pthread_cond_broadcast(&self->_.d_state.cond);
-        goto error;
-    }
-
-    stream = arv_camera_create_stream (camera, GenICam_stream_callback, self, &error);
-    if (error != NULL) {
-        g_clear_error(&error);
-        Pthread_mutex_lock(&self->_.d_state.mtx);
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        Pthread_cond_broadcast(&self->_.d_state.cond);
-        ret = AAOS_ERROR;
-        goto error;
-    }
-    self->stream = (void *) stream;
-    
-    payload = arv_camera_get_payload (camera, &error);
-    if (error != NULL) {
-        g_clear_error(&error);
-        Pthread_mutex_lock(&self->_.d_state.mtx);
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        Pthread_cond_broadcast(&self->_.d_state.cond);
-        ret = AAOS_ERROR;
-        goto error;
-    }
-    if (n_frames == 1) {
-        arv_stream_push_buffer(stream, arv_buffer_new(payload, NULL));
-        arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_SINGLE_FRAME, &error);
-        if (error != NULL) {
-            if (error->code == ARV_GC_ERROR_ENUM_ENTRY_NOT_FOUND) {
-                arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
-                if (error != NULL) {
-                    g_clear_error(&error);
-                    Pthread_mutex_lock(&self->_.d_state.mtx);
-                    self->_.d_state.state = DETECTOR_STATE_IDLE;
-                    Pthread_mutex_unlock(&self->_.d_state.mtx);
-                    Pthread_cond_broadcast(&self->_.d_state.cond);
-                    ret = AAOS_ERROR;
-                    goto error;
-                }
-            } else {
-                g_clear_error(&error);
-                Pthread_mutex_lock(&self->_.d_state.mtx);
-                self->_.d_state.state = DETECTOR_STATE_IDLE;
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                Pthread_cond_broadcast(&self->_.d_state.cond);
-                ret = AAOS_ERROR;
-                goto error;
-            }
-        }
-    } else {
-        int i;
-        for (i = 0; i < self->n_buffers; i++) {
-                arv_stream_push_buffer(stream, arv_buffer_new(payload, NULL));
-        }
-        arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
-        if (error != NULL) {
-            g_clear_error(&error);
-            Pthread_mutex_lock(&self->_.d_state.mtx);
-            self->_.d_state.state = DETECTOR_STATE_IDLE;
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            Pthread_cond_broadcast(&self->_.d_state.cond);
-            ret = AAOS_ERROR;
-            goto error;
-        }
-    }
-    
-    Pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-    arv_camera_start_acquisition(camera, &error);
-    if (error != NULL) {
-        g_clear_error(&error);
-        Pthread_mutex_lock(&self->_.d_state.mtx);
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        Pthread_cond_broadcast(&self->_.d_state.cond);
-        ret = AAOS_ERROR;
-        goto error;
-    }
-    Pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-    
-    if (self->_.d_exp.notify_each_frame_done) {
-        size_t i, n = n_frames - 1;
-        for (i = 0; i < n; i++) {
-            filename = threadsafe_queue_wait_and_pop(self->_.d_proc.queue);
-            if (self->_.d_proc.post_acquisition) {
-                self->_.d_proc.post_acquisition(self, filename, self->callback_param);
-            } else {
-                printf("%s\n", filename);
-            }
-            free(filename);
-        }
-    }
-    
-    if (self->_.d_exp.notify_last_frame_filling) {
-        Pthread_mutex_lock(&self->_.d_exp.mtx);
-        while (self->_.d_exp.last_frame_filling_flag == 0) {
-            Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
-        }
-        self->_.d_exp.last_frame_filling_flag = 0;
-        Pthread_mutex_unlock(&self->_.d_exp.mtx);
-        return ret;
-    }
-    
-    filename = threadsafe_queue_wait_and_pop(self->_.d_proc.queue);
-    if (self->_.d_proc.post_acquisition) {
-        self->_.d_proc.post_acquisition(self, filename, self->callback_param);
-    } else {
-        printf("%s\n", filename);
-    }
-    
-    free(filename);
-    
-    arv_camera_stop_acquisition(camera, &error);
-    while ((filename = threadsafe_queue_try_pop(self->_.d_proc.queue)) != NULL) {
-        Unlink(filename);
-        free(filename);
-    }
-    
-error:
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    self->_.d_state.state = DETECTOR_STATE_IDLE;
-    if (error != NULL) {
-        g_clear_error(&error);
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        ret = AAOS_ERROR;
-    }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
-    Pthread_cond_broadcast(&self->_.d_state.cond);
-
-    if (stream != NULL && ARV_IS_STREAM(stream)) {
-        g_object_unref(stream);
-    }
-    self->stream = NULL;
-    Pthread_setcancelstate(old_state, NULL);
-    return ret;
-}
- */
 
 static int
 GenICam_expose(void *_self, double exposure_time, uint32_t n_frames, va_list *app)
@@ -8430,7 +8302,9 @@ GenICam_wait_for_last_completion(void *_self)
     }
        
     Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_stop_acquisition(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     Pthread_join(self->_.d_state.tid, &retval);
     g_object_unref(stream);
     self->stream = NULL;
@@ -8441,53 +8315,6 @@ GenICam_wait_for_last_completion(void *_self)
 	
     return ret;
 }
-
-/*
-static int
-GenICam_wait_for_last_completion(void *_self)
-{
-    struct GenICam *self = cast(GenICam(), _self);
-    
-    ArvCamera *camera = (ArvCamera *) self->camera;
-    ArvStream *stream = (ArvStream *) self->stream;
-    int ret = AAOS_OK;
-    GError *error = NULL;
-    char *filename;
-    
-    if (self->_.d_exp.notify_last_frame_filling) {
-        filename = threadsafe_queue_wait_and_pop(self->_.d_proc.queue);
-        if (self->_.d_proc.post_acquisition) {
-            self->_.d_proc.post_acquisition(self, filename, self->callback_param);
-        } else {
-            printf("%s\n", filename);
-        }
-        free(filename);
-    }
-
-    arv_camera_stop_acquisition(camera, &error);
-    while ((filename = threadsafe_queue_try_pop(self->_.d_proc.queue)) != NULL) {
-        Unlink(filename);
-        free(filename);
-    }
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    self->_.d_state.state = DETECTOR_STATE_IDLE;
-    if (error != NULL) {
-        g_clear_error(&error);
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        ret = AAOS_ERROR;
-        goto error;
-    }
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
-    Pthread_cond_broadcast(&self->_.d_state.cond);
-    
-error:
-    if (stream != NULL && ARV_IS_STREAM(stream)) {
-        g_object_unref(stream);
-    }
-    
-    return ret;
-}
-*/
 
 static int
 GenICam_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t width, uint32_t height)
@@ -8525,7 +8352,9 @@ GenICam_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t w
         ret = AAOS_EPWROFF;
         goto error;
     }
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_set_region(camera, x_offset, y_offset, width, height, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
         self->_.d_param.image_width = width;
@@ -8570,7 +8399,9 @@ GenICam_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32_t
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_get_region(camera, &x, &y, &w, &h, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         *x_offset = (uint32_t) x;
         *y_offset = (uint32_t) y;
@@ -8628,8 +8459,9 @@ GenICam_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
         ret = AAOS_EPWROFF;
         goto error;
     }
-    
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_set_binning(camera, (gint) x_binning, (gint) y_binning, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
         self->_.d_param.x_binning = x_binning;
@@ -8672,7 +8504,9 @@ GenICam_get_binning(void *_self, uint32_t *x_binning, uint32_t *y_binning)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_get_binning(camera, &x, &y, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         *x_binning = (uint32_t) x;
         *y_binning = (uint32_t) y;
@@ -8725,13 +8559,19 @@ GenICam_set_capture_mode(void *_self, uint32_t capture_mode)
     
     switch (capture_mode) {
         case DETECTOR_CAPTURE_MODE_SNAPSHOT:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_SINGLE_FRAME, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_CAPTURE_MODE_MULTIFRAME:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_MULTI_FRAME, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_CAPTURE_MODE_VIDEO:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_acquisition_mode(camera, ARV_ACQUISITION_MODE_CONTINUOUS, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         default:
             ret = AAOS_EINVAL;
@@ -8781,7 +8621,9 @@ GenICam_get_capture_mode(void *_self, uint32_t *capture_mode)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     mode = arv_camera_get_acquisition_mode(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         switch (mode) {
             case ARV_ACQUISITION_MODE_SINGLE_FRAME:
@@ -8848,17 +8690,23 @@ GenICam_set_frame_rate(void *_self, double frame_rate)
         goto error;
     }
     
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_set_frame_rate(camera, frame_rate, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
         g_clear_error(&error);
         gint64 us_per_second = 1000000. / frame_rate, min_, max_;
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_set_boolean(camera, "ProgFrameTimeEnable", true, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
             ret = AAOS_ERROR;
             goto error;
         }
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_set_integer(camera, "ProgFrameTimeAbs", us_per_frame, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error != NULL) {
             g_clear_error(&error);
             ret = AAOS_ERROR;
@@ -8899,11 +8747,15 @@ GenICam_get_frame_rate(void *_self, double *frame_rate)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     *frame_rate = arv_camera_get_frame_rate(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
         g_clear_error(&error);
         gint64 us_per_second;
+        Pthread_mutex_lock(&self->mtx);
         us_per_second = arv_camera_get_integer(camera, "ProgFrameTimeAbs", &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             *frame_rate = 1000000. / us_per_second;
         } else {
@@ -8956,7 +8808,9 @@ GenICam_set_gain(void *_self, double gain)
         goto error;
     }
     
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_set_gain(camera, gain, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
         self->_.d_param.gain = gain;
@@ -8997,7 +8851,9 @@ GenICam_get_gain(void *_self, double *gain)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     *gain = arv_camera_get_gain(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error != NULL) {
         Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
         *gain = self->_.d_param.gain;
@@ -9037,11 +8893,15 @@ GenICam_get_exposure_time(void *_self, double *exposure_time)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     *exposure_time = arv_camera_get_exposure_time(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     *exposure_time /= 1000000.;
     if (error != NULL) {
         g_clear_error(&error);
+        Pthread_mutex_lock(&self->mtx);
         *exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+        Pthread_mutex_unlock(&self->mtx);
         *exposure_time /= 1000000.;
         if (error != NULL) {
             g_clear_error(&error);
@@ -9093,31 +8953,49 @@ GenICam_set_pixel_format(void *_self, uint32_t pixel_format)
     
     switch (pixel_format) {
         case DETECTOR_PIXEL_FORMAT_MONO_8:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_8, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_10:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_10, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_10_PACKED, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_12:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_12, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_12_PACKED, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_14:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_14, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_MONO_16:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_MONO_16, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_RGB_24:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_RGB_8_PACKED, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         case DETECTOR_PIXEL_FORMAT_YUV422:
+            Pthread_mutex_lock(&self->mtx);
             arv_camera_set_pixel_format(camera, ARV_PIXEL_FORMAT_YUV_422_PACKED, &error);
+            Pthread_mutex_unlock(&self->mtx);
             break;
         default:
             ret = AAOS_EINVAL;
@@ -9166,7 +9044,9 @@ GenICam_get_pixel_format(void *_self, uint32_t *pixel_format)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
+    Pthread_mutex_lock(&self->mtx);
     *pixel_format = arv_camera_get_pixel_format(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         switch (*pixel_format) {
             case ARV_PIXEL_FORMAT_MONO_8:
@@ -9224,14 +9104,17 @@ GenICam_inspect(void *_self)
     GError *error = NULL;
     int ret = AAOS_OK;
     
+    Pthread_mutex_lock(&self->mtx);
     arv_camera_get_string(camera, "Vendor", &error);
+    Pthread_mutex_unlock(&self->mtx);
+    
     Pthread_mutex_lock(&self->_.d_state.mtx);
     if (error != NULL) {
-        self->_.d_state.state = DETECTOR_STATE_MALFUNCTION;
+        self->_.d_state.state |= DETECTOR_STATE_MALFUNCTION;
         ret = AAOS_EDEVMAL;
         g_clear_error(&error);
     } else {
-        self->_.d_state.state = DETECTOR_STATE_IDLE;
+        self->_.d_state.state &= ~DETECTOR_STATE_MALFUNCTION;
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     Pthread_cond_broadcast(&self->_.d_state.cond);
@@ -9299,7 +9182,9 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.offset_available) {
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_get_region(camera, &x, &y, &width, &height, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             cJSON_AddNumberToObject(root_json, "image_width", (double) width);
             cJSON_AddNumberToObject(root_json, "image_height", (double) height);
@@ -9322,7 +9207,9 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.binning_available) {
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_get_binning(camera, &dx, &dy, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             cJSON_AddNumberToObject(root_json, "x_binning", (double) dx);
             cJSON_AddNumberToObject(root_json, "y_binning", (double) dy);
@@ -9336,7 +9223,9 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.capture_mode_available) {
+        Pthread_mutex_lock(&self->mtx);
         acquisition_mode = arv_camera_get_acquisition_mode(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             switch (acquisition_mode) {
                 case ARV_ACQUISITION_MODE_SINGLE_FRAME:
@@ -9372,13 +9261,17 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.frame_rate_available) {
+        Pthread_mutex_lock(&self->mtx);
         frame_rate = arv_camera_get_frame_rate(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             cJSON_AddNumberToObject(root_json, "frame_rate", frame_rate);
         } else {
             g_clear_error(&error);
             gint64 us_per_second;
+            Pthread_mutex_lock(&self->mtx);
             us_per_second = arv_camera_get_integer(camera, "ProgFrameTimeAbs", &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 cJSON_AddNumberToObject(root_json, "frame_rate", 1000000. / us_per_second);
             } else {
@@ -9391,12 +9284,16 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.exposure_time_available) {
+        Pthread_mutex_lock(&self->mtx);
         exposure_time = arv_camera_get_exposure_time(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time / 1000000.);
         } else {
             g_clear_error(&error);
+            Pthread_mutex_lock(&self->mtx);
             exposure_time = arv_camera_get_integer(camera, "ExposureTimeRaw", &error);
+            Pthread_mutex_unlock(&self->mtx);
             if (error == NULL) {
                 cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time / 1000000.);
             } else {
@@ -9409,7 +9306,9 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.auto_exposure_time_available) {
+        Pthread_mutex_lock(&self->mtx);
         auto_mode = arv_camera_get_exposure_time_auto(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             if (auto_mode == ARV_AUTO_OFF) {
                 cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", false);
@@ -9424,7 +9323,9 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.gain_available) {
+        Pthread_mutex_lock(&self->mtx);
         gain = arv_camera_get_gain(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             cJSON_AddNumberToObject(root_json, "gain", gain);
         } else {
@@ -9435,7 +9336,9 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
         }
     }
     if (self->_.d_cap.auto_gain_available) {
+        Pthread_mutex_lock(&self->mtx);
         auto_mode = arv_camera_get_gain_auto(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             if (auto_mode == ARV_AUTO_OFF) {
                 cJSON_AddBoolToObject(root_json, "auto_gain_enable", false);
@@ -9451,7 +9354,9 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
     }
     
     if (self->_.d_cap.pixel_format_available) {
+        Pthread_mutex_lock(&self->mtx);
         pixel_format = arv_camera_get_pixel_format(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
         if (error == NULL) {
             switch (pixel_format) {
                 case ARV_PIXEL_FORMAT_MONO_8:
@@ -9593,24 +9498,76 @@ GenICam_status_json(struct GenICam *self, void *res, size_t res_size, size_t *re
         return AAOS_ENOMEM;
     }
     
+    Pthread_mutex_lock(&self->mtx);
     string = arv_camera_get_vendor_name(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         cJSON_AddStringToObject(genicam_json, "vendor", string);
     } else {
         g_clear_error(&error);
     }
+    Pthread_mutex_lock(&self->mtx);
     string = arv_camera_get_model_name(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         cJSON_AddStringToObject(genicam_json, "model", string);
     } else {
         g_clear_error(&error);
     }
+    Pthread_mutex_lock(&self->mtx);
     string = arv_camera_get_device_id(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
     if (error == NULL) {
         cJSON_AddStringToObject(genicam_json, "device_id", string);
     } else {
         g_clear_error(&error);
     }
+    
+    Pthread_mutex_lock(&self->mtx);
+    string = arv_camera_get_string(camera, "DeviceUserID", &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddStringToObject(genicam_json, "name", string);
+    } else {
+        g_clear_error(&error);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    feature_64 = arv_camera_get_integer(camera, "GevCurrentIPAddress", &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        unsigned int ip = (unsigned int) feature_64;
+        char address[16];
+        snprintf(address, 16, "%d.%d.%d.%d", (ip>>24)&0xFF, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF);
+        cJSON_AddStringToObject(genicam_json, "IP", address);
+    } else {
+        g_clear_error(&error);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    feature_64 = arv_camera_get_integer(camera, "GevCurrentSubnetMask", &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        unsigned int mask = (unsigned int) feature_64;
+        char subnet[16];
+        snprintf(subnet, 16, "%d.%d.%d.%d", (mask>>24)&0xFF, (mask>>16)&0xFF, (mask>>8)&0xFF, mask&0xFF);
+        cJSON_AddStringToObject(genicam_json, "mask", subnet);
+    } else {
+        g_clear_error(&error);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    feature_64 = arv_camera_get_integer(camera, "GevCurrentDefaultGateway", &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        unsigned int gw = (unsigned int) feature_64;
+        char gateway[16];
+        snprintf(gateway, 16, "%d.%d.%d.%d", (gw>>24)&0xFF, (gw>>16)&0xFF, (gw>>8)&0xFF, gw&0xFF);
+        cJSON_AddStringToObject(genicam_json, "gateway", gateway);
+    } else {
+        g_clear_error(&error);
+    }
+    
     cJSON_AddItemToObject(root_json, "genicam", genicam_json);
     
     cJSON_PrintPreallocated(root_json, res, (int) res_size, 1);
@@ -9746,15 +9703,22 @@ GenICam_info_json(struct GenICam *self, void *res, size_t res_size, size_t *res_
     ArvCamera *camera = (ArvCamera *) self->camera;
     gint x, y, width, height;
     gint dx, dy;
+    gboolean b;
     ArvAcquisitionMode acquisition_mode;
     double frame_rate, exposure_time, gain;
     ArvPixelFormat pixel_format;
     ArvAuto auto_mode;
     const char *string;
+    const char **strings;
+    double d_min, d_max;
+    gint i_min, i_max;
+    gint64 l_min, l_max;
+    guint i, n_values;
+    gint64 *l_values;
     GError *error = NULL;
     unsigned int state;
     uint16_t options;
-    cJSON *root_json;
+    cJSON *root_json, *capability_json, *array_json;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
@@ -9771,6 +9735,413 @@ GenICam_info_json(struct GenICam *self, void *res, size_t res_size, size_t *res_
         cJSON_AddStringToObject(root_json, "description", self->_.description);
     }
     
+    if ((capability_json = cJSON_CreateObject()) == NULL) {
+        cJSON_Delete(root_json);
+        return AAOS_ENOMEM;
+    }
+    
+    cJSON_AddItemToObject(root_json, "capability", capability_json);
+    
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_sensor_size(camera, &width, &height, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "width", width);
+        cJSON_AddNumberToObject(capability_json, "height", height);
+    } else {
+        g_clear_error(&error);
+        cJSON_AddNumberToObject(capability_json, "width", self->_.d_cap.width);
+        cJSON_AddNumberToObject(capability_json, "height", self->_.d_cap.height);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_binning_available(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        if (b) {
+            cJSON_AddBoolToObject(capability_json, "binning_available", true);
+            gint min_, max_;
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_x_binning_bounds(camera, &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error == NULL) {
+                cJSON_AddNumberToObject(capability_json, "x_binning_min", min_);
+                cJSON_AddNumberToObject(capability_json, "x_binning_max", max_);
+            } else {
+                g_clear_error(&error);
+                Pthread_mutex_lock(&self->mtx);
+                l_values = arv_camera_dup_available_enumerations(camera, "BinningHorizontal", &n_values, &error);
+                Pthread_mutex_unlock(&self->mtx);
+                if (error == NULL) {
+                    array_json = cJSON_CreateArray();
+                    for (i = 0; i < n_values; i++) {
+                        cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) l_values[i]));
+                    }
+                    cJSON_AddItemToObject(capability_json, "x_binning_array", array_json);
+                    g_free(l_values);
+                } else {
+                    if (self->_.d_cap.x_binning_array == NULL) {
+                        cJSON_AddNumberToObject(capability_json, "x_binning_min", self->_.d_cap.x_binning_min);
+                        cJSON_AddNumberToObject(capability_json, "x_binning_max", self->_.d_cap.x_binning_max);
+                    } else {
+                        array_json = cJSON_CreateArray();
+                        for (i = 0; i < self->_.d_cap.n_x_binning; i++) {
+                            cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) self->_.d_cap.x_binning_array[i]));
+                        }
+                        cJSON_AddItemToObject(capability_json, "x_binning_array", array_json);
+                    }
+                }
+            }
+            Pthread_mutex_lock(&self->mtx);
+            arv_camera_get_y_binning_bounds(camera, &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error == NULL) {
+                cJSON_AddNumberToObject(capability_json, "y_binning_min", min_);
+                cJSON_AddNumberToObject(capability_json, "y_binning_max", max_);
+            } else {
+                g_clear_error(&error);
+                Pthread_mutex_lock(&self->mtx);
+                l_values = arv_camera_dup_available_enumerations(camera, "BinningVertical", &n_values, &error);
+                Pthread_mutex_unlock(&self->mtx);
+                if (error == NULL) {
+                    array_json = cJSON_CreateArray();
+                    for (i = 0; i < n_values; i++) {
+                        cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) l_values[i]));
+                    }
+                    cJSON_AddItemToObject(capability_json, "y_binning_array", array_json);
+                    g_free(l_values);
+                } else {
+                    if (self->_.d_cap.y_binning_array == NULL) {
+                        cJSON_AddNumberToObject(capability_json, "y_binning_min", self->_.d_cap.y_binning_min);
+                        cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_max);
+                    } else {
+                        array_json = cJSON_CreateArray();
+                        for (i = 0; i < self->_.d_cap.n_y_binning; i++) {
+                            cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) self->_.d_cap.y_binning_array[i]));
+                        }
+                        cJSON_AddItemToObject(capability_json, "y_binning_array", array_json);
+                    }
+                }
+            }
+        } else {
+            cJSON_AddBoolToObject(capability_json, "binning_available", false);
+        }
+    } else {
+        g_clear_error(&error);
+        if (self->_.d_cap.binning_available) {
+            cJSON_AddBoolToObject(capability_json, "binning_available", true);
+            if (self->_.d_cap.x_binning_array == NULL) {
+                cJSON_AddNumberToObject(capability_json, "x_binning_min", self->_.d_cap.x_binning_min);
+                cJSON_AddNumberToObject(capability_json, "x_binning_max", self->_.d_cap.x_binning_max);
+            } else {
+                array_json = cJSON_CreateArray();
+                for (i = 0; i < self->_.d_cap.n_x_binning; i++) {
+                    cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) self->_.d_cap.x_binning_array[i]));
+                }
+                cJSON_AddItemToObject(capability_json, "x_binning_array", array_json);
+            }
+            if (self->_.d_cap.y_binning_array == NULL) {
+                cJSON_AddNumberToObject(capability_json, "y_binning_min", self->_.d_cap.y_binning_min);
+                cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_max);
+            } else {
+                array_json = cJSON_CreateArray();
+                for (i = 0; i < self->_.d_cap.n_y_binning; i++) {
+                    cJSON_AddItemToArray(array_json, cJSON_CreateNumber((double) self->_.d_cap.y_binning_array[i]));
+                }
+                cJSON_AddItemToObject(capability_json, "y_binning_array", array_json);
+            }
+        } else {
+            cJSON_AddBoolToObject(capability_json, "binning_available", false);
+        }
+    }
+    
+    cJSON_AddBoolToObject(capability_json, "capture_mode_available", true);
+    Pthread_mutex_lock(&self->mtx);
+    strings = arv_camera_dup_available_enumerations_as_display_names(camera, "AcquisitionMode", &n_values, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        if ((array_json = cJSON_CreateArray()) == NULL) {
+            cJSON_Delete(capability_json);
+            return AAOS_ENOMEM;
+        }
+        for (i = 0; i < n_values; i++) {
+            if (strcmp(strings[i], "Continuous") == 0) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateString("video"));
+            } else if (strcmp(strings[i], "SingleFrame") == 0) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateString("snapshot"));
+            } else if (strcmp(strings[i], "MultiFrame") == 0) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateString("multiframe"));
+            }
+        }
+        cJSON_AddItemToObject(capability_json, "capture_mode", array_json);
+        g_free(strings);
+    } else {
+        g_clear_error(&error);
+        if ((array_json = cJSON_CreateArray()) == NULL) {
+            cJSON_Delete(capability_json);
+            return AAOS_ENOMEM;
+        }
+        for (i = 0; i < self->_.d_cap.n_capture_mode; i++) {
+            switch (self->_.d_cap.capture_mode_array[i]) {
+                case DETECTOR_CAPTURE_MODE_SNAPSHOT:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("snapshot"));
+                    break;
+                case DETECTOR_CAPTURE_MODE_MULTIFRAME:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("multiframe"));
+                    break;
+                case DETECTOR_CAPTURE_MODE_VIDEO:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("video"));
+                    break;
+                default:
+                    break;
+            }
+        }
+        cJSON_AddItemToObject(capability_json, "capture_mode", array_json);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_exposure_auto_available(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", b);
+    } else {
+        g_clear_error(&error);
+        cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", self->_.d_cap.auto_exposure_time_available);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_exposure_time_available(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", b);
+    } else {
+        g_clear_error(&error);
+        Pthread_mutex_lock(&self->mtx);
+        b = arv_camera_is_feature_available(camera, "ExposureTimeRaw", &error);
+        Pthread_mutex_unlock(&self->mtx);
+        if (error == NULL) {
+            cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", b);
+        } else {
+            g_clear_error(&error);
+            cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", self->_.d_cap.exposure_time_available);
+        }
+    }
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_exposure_time_bounds(camera, &d_min, &d_max, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "exposure_time_min", d_min / 1000000.);
+        cJSON_AddNumberToObject(capability_json, "exposure_time_max", d_max / 1000000.);
+    } else {
+        g_clear_error(&error);
+        Pthread_mutex_lock(&self->mtx);
+        arv_camera_get_float_bounds(camera, "ExposureTimeRaw", &d_min, &d_max, &error);
+        Pthread_mutex_unlock(&self->mtx);
+        if (error == NULL) {
+            cJSON_AddNumberToObject(capability_json, "exposure_time_min", d_min / 1000000.);
+            cJSON_AddNumberToObject(capability_json, "exposure_time_max", d_max / 1000000.);
+        } else {
+            g_clear_error(&error);
+            cJSON_AddNumberToObject(capability_json, "exposure_time_min", self->_.d_cap.exposure_time_min);
+            cJSON_AddNumberToObject(capability_json, "exposure_time_max", self->_.d_cap.exposure_time_max);
+        }
+    }
+    
+    cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", false);
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_frame_rate_bounds(camera, &d_min, &d_max, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "frame_rate_min", d_min);
+        cJSON_AddNumberToObject(capability_json, "frame_rate_max", d_max);
+    } else {
+        g_clear_error(&error);
+        Pthread_mutex_lock(&self->mtx);
+        arv_camera_get_integer_bounds(camera, "ProgFrameTimeEnable", &l_min, &l_max, &error);
+        Pthread_mutex_unlock(&self->mtx);
+        if (error == NULL) {
+            cJSON_AddNumberToObject(capability_json, "frame_rate_min", 1000000. / l_max);
+            cJSON_AddNumberToObject(capability_json, "frame_rate_max", 1000000. / l_min);
+        } else {
+            g_clear_error(&error);
+            cJSON_AddNumberToObject(capability_json, "frame_rate_min", self->_.d_cap.frame_rate_min);
+            cJSON_AddNumberToObject(capability_json, "frame_rate_max", self->_.d_cap.frame_rate_max);
+        }
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    b = arv_camera_is_gain_auto_available(camera, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddBoolToObject(capability_json, "auto_gain_available", b);
+    } else {
+        g_clear_error(&error);
+        cJSON_AddBoolToObject(capability_json, "auto_gain_available", self->_.d_cap.auto_gain_available);
+    }
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_gain_bounds(camera, &d_min, &d_max, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "gain_min", d_min);
+        cJSON_AddNumberToObject(capability_json, "gain_max", d_max);
+    } else {
+        cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
+        cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    l_values = arv_camera_dup_available_pixel_formats(camera, &n_values, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if ((array_json = cJSON_CreateArray()) == NULL) {
+        cJSON_Delete(root_json);
+        return AAOS_ENOMEM;
+    }
+    if (error == NULL) {
+        for (i = 0; i < n_values; i++) {
+            switch (l_values[i]) {
+                case ARV_PIXEL_FORMAT_MONO_8:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono8"));
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_10:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono10"));
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_10_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono10_packed"));
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_12:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono12"));
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_12_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono12_packed"));
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_14:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono14"));
+                    break;
+                case ARV_PIXEL_FORMAT_MONO_16:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono16"));
+                    break;
+                case ARV_PIXEL_FORMAT_RGB_8_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("rgb24"));
+                    break;
+                case ARV_PIXEL_FORMAT_YUV_422_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("yuv422"));
+                    break;
+                default:
+                    break;
+            }
+        }
+        g_free(l_values);
+    } else {
+        for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
+            switch (self->_.d_cap.pixel_format_array[i]) {
+                case DETECTOR_PIXEL_FORMAT_MONO_8:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono8"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_10:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono10"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono10_packed"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_12:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono12"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono12_packed"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_14:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono14"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono14_packed"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_16:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono16"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_18:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono18"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono18_packed"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_24:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono24"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono24_packed"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_32:
+                    cJSON_AddStringToObject(capability_json, "pixel_format", "mono32");
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_64:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("mono64"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_RGB_24:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("rgb24"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_YUV422:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("yuv422"));
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    
+    cJSON_AddBoolToObject(capability_json, "offset_available", true);
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_x_offset_bounds(camera, &i_min, &i_max, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "x_offset_min", i_min);
+        cJSON_AddNumberToObject(capability_json, "x_offset_max", i_max);
+    } else {
+        cJSON_AddNumberToObject(capability_json, "x_offset_min", self->_.d_cap.x_offset_min);
+        cJSON_AddNumberToObject(capability_json, "x_offset_max", self->_.d_cap.x_offset_max);
+    }
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_y_offset_bounds(camera, &i_min, &i_max, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "y_offset_min", i_min);
+        cJSON_AddNumberToObject(capability_json, "y_offset_max", i_max);
+    } else {
+        cJSON_AddNumberToObject(capability_json, "y_offset_min", self->_.d_cap.y_offset_min);
+        cJSON_AddNumberToObject(capability_json, "y_offset_max", self->_.d_cap.y_offset_max);
+    }
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_width_bounds(camera, &i_min, &i_max, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "image_width_min", i_min);
+        cJSON_AddNumberToObject(capability_json, "image_width_max", i_max);
+    } else {
+        cJSON_AddNumberToObject(capability_json, "image_width_min", self->_.d_cap.image_width_min);
+        cJSON_AddNumberToObject(capability_json, "image_width_max", self->_.d_cap.image_width_max);
+    }
+    Pthread_mutex_lock(&self->mtx);
+    arv_camera_get_height_bounds(camera, &i_min, &i_max, &error);
+    Pthread_mutex_unlock(&self->mtx);
+    if (error == NULL) {
+        cJSON_AddNumberToObject(capability_json, "image_height_min", i_min);
+        cJSON_AddNumberToObject(capability_json, "image_height_max", i_max);
+    } else {
+        cJSON_AddNumberToObject(capability_json, "image_height_min", self->_.d_cap.image_height_min);
+        cJSON_AddNumberToObject(capability_json, "image_height_max", self->_.d_cap.image_height_max);
+    }
+    
+    cJSON_AddBoolToObject(capability_json, "cooling_available", false);
+    cJSON_AddBoolToObject(capability_json, "auto_cooling_available", false);
+    cJSON_AddBoolToObject(capability_json, "overscan_available", false);
+    cJSON_AddBoolToObject(capability_json, "readout_rate_available", false);
+    cJSON_AddBoolToObject(capability_json, "trigger_mode_available", false);
+    
+    
+    cJSON_PrintPreallocated(root_json, res, (int) res_size, 1);
+    cJSON_Delete(root_json);
+    if (res_len != NULL) {
+        *res_len = strlen((char *) res);
+    }
     
     return AAOS_OK;
 }
@@ -9782,7 +10153,7 @@ GenICam_info(void *_self, void *res, size_t res_size, size_t *res_len)
     
     int ret;
     
-    ret = GenICam_info_plain(self, res, res_size, res_len);
+    ret = GenICam_info_json(self, res, res_size, res_len);
     
     return ret;
 }
@@ -9836,14 +10207,18 @@ GenICam_abort(void *_self)
         goto error;
     }
     if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        Pthread_mutex_lock(&self->mtx);
         arv_camera_abort_acquisition(camera, &error);
+        Pthread_mutex_unlock(&self->mtx);
     }
-    
-error:
     if (error != NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- arv_camera_abort_acquisition error: %s\n", __FILE__, __func__, __LINE__ - 5, error->message);
+#endif
         ret = AAOS_ERROR;
         g_clear_error(&error);
     }
+error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
 }
@@ -17635,7 +18010,6 @@ LeadingCamera_power_off(void *_self)
 
     return AAOS_OK;
 }
-
 
 static int
 LeadingCamera_init(void *_self)

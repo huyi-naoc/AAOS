@@ -307,8 +307,10 @@ struct GenICam {
     void *camera;           /* Aravis's camera object */
     void *stream;           /* Aravis's stream object */
     char *name;             /* connection name */
-    void *callback_param;   
-    size_t n_buffers;       /* number of buffers when create a stream; */
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
+    //void *callback_param;
+    //size_t n_buffers;       /* number of buffers when create a stream; */
 };
 
 struct GenICamClass {
