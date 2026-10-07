@@ -58,13 +58,13 @@ get_index_by_name(const char *name, int *index)
             return AAOS_OK;
         }
     }
-    
+    /*
     if (*index == 0) {
         if (threadsafe_list_find_first_if(detector_list, detector_find_by_name_if, name) != NULL) {
             return AAOS_OK;
         }
     }
-
+    */
     return AAOS_ENOTFOUND;
 }
 

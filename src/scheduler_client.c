@@ -17,8 +17,34 @@ static struct option longopts[] = {
     {"help",        no_argument,        NULL,       'h' },
     {"scheduler",   required_argument,  NULL,       's' },
     {"version",     no_argument,        NULL,       'v' },
+    /*
+    {"category",    required_argument,  NULL,       '256'},
+    {"targname",    required_argument,  NULL,       '257'},
+    {"ra",          required_argument,  NULL,       '258'},
+    {"dec",         required_argument,  NULL,       '259'},
+    {"level",       required_argument,  NULL,       '260'},
+    {"exptime",     required_argument,  NULL,       '261'},
+    {"nframe",      required_argument,  NULL,       '262'},
+    {"pi",          required_argument,  NULL,       '263'},
+    {"source",      required_argument,  NULL,       '264'},
+    {"expired",     required_argument,  NULL,       '265'},
+    {"priority",    required_argument,  NULL,       '266'},
+    {"airmass",     required_argument,  NULL,       '267'},
+    {"moonphase",   required_argument,  NULL,       '268'},
+    {"moondist",    required_argument,  NULL,       '269'},
+    {"telescope",   required_argument,  NULL,       '270'},
+    {"instrument",  required_argument,  NULL,       '271'},
+    {"detector",    required_argument,  NULL,       '272'},
+    {"filter",      required_argument,  NULL,       '273'},
+    {"calib",       required_argument,  NULL,       '274'},
+    {"mode",        required_argument,  NULL,       '275'},
+    */
     { NULL,         0,                  NULL,       0 }
 };
+
+
+//static const char *target_template = "{\"category\": \"ToO\", \"targname\": null, \"ra_targ\": 361.0, \"dec_targ\": 91.0, \"mode\": \"image\", \"level\": 0, \"priority\": 10, \"exptime\": 30., \"nframe\": 5, \"pi\": null, \"source\": null, \"expired\": null, \"telescop\": null, \"instrume\": null, \"detname\": null, \"filter\": null, \"airmass\": 0.3, \"moonphas\": 1., \"moondist\": 50., \"calib\": false, }";
+
 
 static const char *help_string = "\
 Usage:  scheduler [-s|--scheduler] <address:[port]> COMMAND [COMMAND PARAMETERS]\n\

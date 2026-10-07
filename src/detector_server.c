@@ -375,39 +375,55 @@ read_configuration(void)
             }
 #endif
 #ifdef __USE_ASI_CAMERA__
-	    else if (strcmp(type, "ASI") == 0) {
-		config_setting_t *asi_camera_setting = NULL;
-		const char *so_path;
-            
-		double temperature = 50.;
-            
-		if ((asi_camera_setting = config_setting_lookup(detetcor_setting, "asi_camera")) != NULL) {
-		    config_setting_lookup_string(asi_camera_setting, "so_path", &so_path);
-		    config_setting_lookup_float(asi_camera_setting, "settemp", &temperature);
-		    detectors[i] = new(ASICamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path);
-
-		    if (detectors[i] != NULL) {
-			__detector_set_template(detectors[i], template);
-			__detector_set(detectors[i], "temperature", temperature);
-		    }
-		}
-	    }
-#endif
-#ifdef __USE_LEADING_CAMERA__
-        else if (strcmp(type, "LEADING") == 0) {
-            config_setting_t *leading_camera_setting = NULL;
-            const char *so_path;
-            //double temperature = 50.;
-            if ((leading_camera_setting = config_setting_lookup(detetcor_setting, "leading_camera")) != NULL) {
-                config_setting_lookup_string(leading_camera_setting, "so_path", &so_path);
-                //config_setting_lookup_float(asi_camera_setting, "settemp", -20.);
-                detectors[i] = new(LeadingCamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path);
-                if (detectors[i] != NULL) {
-                    __detector_set_template(detectors[i], template);
-                    //__detector_set(detector[i], "temperature", temperature);
+            else if (strcmp(type, "ASI") == 0) {
+                config_setting_t *asi_camera_setting = NULL;
+                const char *so_path;
+                double temperature = 50.;
+                
+                if ((asi_camera_setting = config_setting_lookup(detetcor_setting, "asi_camera")) != NULL) {
+                    config_setting_lookup_string(asi_camera_setting, "so_path", &so_path);
+                    config_setting_lookup_float(asi_camera_setting, "settemp", &temperature);
+                    detectors[i] = new(ASICamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path);
+                    if (detectors[i] != NULL) {
+                        __detector_set_template(detectors[i], template);
+                        __detector_set(detectors[i], "temperature", temperature);
+                    }
                 }
             }
-        }
+#endif
+#ifdef __USE_LEADING_CAMERA__
+            else if (strcmp(type, "LEADING") == 0) {
+                config_setting_t *leading_camera_setting = NULL;
+                const char *so_path;
+                //double temperature = 50.;
+                if ((leading_camera_setting = config_setting_lookup(detetcor_setting, "leading_camera")) != NULL) {
+                    config_setting_lookup_string(leading_camera_setting, "so_path", &so_path);
+                    //config_setting_lookup_float(asi_camera_setting, "settemp", -20.);
+                    detectors[i] = new(LeadingCamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path);
+                    if (detectors[i] != NULL) {
+                        __detector_set_template(detectors[i], template);
+                        //__detector_set(detectors[i], "temperature", temperature);
+                    }
+                }
+            }
+#endif
+#ifdef __USE_QHY_CAMERA__
+            else if (strcmp(type, "QHY") == 0) {
+                config_setting_t *qhy_camera_setting = NULL;
+                int camera_index = -1;
+                const char *so_path;
+                double temperature = 9999.;
+                if ((qhy_camera_setting = config_setting_lookup(detetcor_setting, "qhy_camera")) != NULL) {
+                    config_setting_lookup_string(qhy_camera_setting, "so_path", &so_path);
+                    config_setting_lookup_float(qhy_camera_setting, "settemp", &temperature);
+                    config_setting_lookup_int(qhy_camera_setting, "camera_index", &camera_index);
+                    detectors[i] = new(QHYCamera(), name, "description", description, "directory", directory, "prefix", prefix, '\0', so_path, "camera_index", camera_index, '\0');
+                    if (detectors[i] != NULL) {
+                        __detector_set_template(detectors[i], template);
+                        __detector_set(detectors[i], "temperature", temperature);
+                    }
+                }
+            }
 #endif
             else {
                fprintf(stderr, "Unsupported detector type: %s\n", type);
@@ -416,17 +432,33 @@ read_configuration(void)
     }
 }
 
+
+static void *
+init_thr(void *arg)
+{
+    if (arg != NULL) {
+        __detector_power_on(arg);
+        __detector_init(arg);
+    }
+    
+    return NULL;
+}
+
 static void
 init(void)
 {
     read_configuration();
     size_t i;
+    pthread_t *tids;
+    
+    tids = (pthread_t *) Malloc(sizeof(pthread_t) * n_detector);
     for (i = 0; i < n_detector; i++) {
-        if (detectors[i] != NULL) {
-            __detector_power_on(detectors[i]);
-            __detector_init(detectors[i]);
-        }
+        Pthread_create(&tids[i], NULL, init_thr, detectors[i]);
     }
+    for (i = 0; i < n_detector; i++) {
+        Pthread_join(tids[i], NULL);
+    }
+    free(tids);
     rpc_server_start(server);
 }
 

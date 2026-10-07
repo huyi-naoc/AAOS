@@ -20,6 +20,11 @@
 #include <fitsio2.h>
 #include <cjson/cJSON.h>
 
+struct FunctionPair {
+    const char *name;
+    unsigned int index;
+};
+
 struct DetectorDataFrame {
     void *buffer;
     struct timespec tp;
@@ -7537,7 +7542,7 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
     gboolean auto_available = arv_camera_is_exposure_auto_available(camera, NULL);
     Pthread_mutex_unlock(&self->mtx);
     GError *error = NULL;
-    int ret;
+    int ret = AAOS_OK;
     double current_exposure_time;
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
@@ -7615,6 +7620,7 @@ GenICam_set_exposure_time(void *_self, double exposure_time)
             min = min_;
             max = max_;
             if (error != NULL) {
+                g_clear_error(&error);
                 ret = AAOS_ERROR;
                 goto error;
             }
@@ -10031,6 +10037,7 @@ GenICam_info_json(struct GenICam *self, void *res, size_t res_size, size_t *res_
             }
         }
         g_free(l_values);
+        cJSON_AddItemToObject(capability_json, "pixel_format", array_json);
     } else {
         for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
             switch (self->_.d_cap.pixel_format_array[i]) {
@@ -10086,6 +10093,7 @@ GenICam_info_json(struct GenICam *self, void *res, size_t res_size, size_t *res_
                     break;
             }
         }
+        cJSON_AddItemToObject(capability_json, "pixel_format", array_json);
     }
     
     cJSON_AddBoolToObject(capability_json, "offset_available", true);
@@ -10283,6 +10291,544 @@ genicam_virtual_table(void)
  * USTC cameras.
  */
 
+/*
+%%
+Initialize, 1
+ShutDown, 2
+CameraReset, 3
+SetExposureTime, 4
+SetExposureTimeByLSB, 5
+GetExposureTime, 6
+GetExposureTimeByLSB, 7
+GetCoolerVoltage, 8
+GetCoolerCurrent, 9
+SetTriggerMode, 10
+GetTriggerMode, 11
+SetExposureInterval, 12
+SetExposureIntervalByLSB, 13
+GetExposureInterval, 14
+GetExposureIntervalByLSB, 15
+GetNumReadoutSpeed, 16
+GetReadoutSpeed, 17
+SetEraseCount, 18
+StartExposure, 19
+SetContinuousCapture, 20
+GetContinuousCapture, 21
+StopExposure, 22
+SetShutter, 23
+GetLDCMode, 24
+SetPreAmpGain, 25
+CancelWait, 26,
+WaitForAcquisition, 27
+WaitForAcquisitionTimeOut, 28
+GetImage, 29
+GetNthImage, 30
+SaveAsFITS, 31
+SaveAsFITSAccum, 32
+SaveAsFITSEx, 33
+GetLastSavedFile, 34
+SetSaveDirectory, 35
+SaveNthAsFITS, 36
+SetAutoSaveFITS, 37
+ConfigAutoSave, 38
+DetectorPowerON, 39
+DetectorPowerOff, 44
+GetCameraReady, 41
+SetLDCMode, 42
+UnsetLDCMode, 43
+LDCModeSet, 44
+GetModelInfo, 45
+GetVacuum, 46
+SetVacuumUnit, 47
+PumpOn, 48
+PumpOff, 49
+PumpProtect, 50
+SetPumpMaxPower, 51
+GetPumpMaxPower, 52
+SetPumpTargetVol, 53
+GetPumpTargetVol, 54
+GetPumpVol, 55
+GetPumpCur, 56
+GetPumpVacuum, 57
+SetPumpUnit, 58
+GetPumpUint, 59
+CoolerOn, 60
+CoolerOff, 61
+Coolertemp, 62
+Save_configuration, 63
+error_clear, 64
+hottemp, 65
+entemp, 66
+Controller_temperature, 67
+Motor_temperature, 68
+get_power, 69
+Runningtime, 70
+set_cooltemp, 71
+read_cooler_status, 72
+GetCoolerStatus, 73
+CircleContinuousCaptureOn, 74
+CircleContinuousCaptureOff, 75
+CoolerSet, 76
+SetCoolerTemp, 77
+set_channel_votlage, 78
+set_pid, 79
+set_power, 80
+set_tcb_target_temp, 81
+GetCoolerTargetTemp, 82
+PauseCool, 83
+RecoverCool, 84
+GetTemperature, 85
+GetTcbTemp, 86
+GetCurrent, 87
+GetCurrentByChannel, 88
+GetVoltageByChannel, 89
+GetCoolerRange, 90
+GetDetector, 91
+GetBitDepth, 92
+GetChipNum, 93
+GetAcquisitionStatus, 94
+ControllerFan, 95
+PowerFan, 96
+FanStatusSet, 97
+GetFanSpeed, 98
+ImageAccumulationStatusSet, 99
+ImageAccumulationNumberSet, 100
+GetImageAccumulationStatus, 101
+HeatStatusSet, 102
+ControllerHeat, 103
+SendIMROHead, 104
+SendIMROTail, 105
+GetHeatPWM, 106
+SetHeatPWM, 107
+VideoMode, 108
+GetVideoMode, 109
+VideoROISet, 110
+VideoROIEnsure, 111
+ROIEnable, 112
+ROIDisable, 113
+GetExposureROI, 114
+BINEnable, 115
+BINDisable, 116
+SetCurrImageSize, 117
+SpecialImageCircle, 118
+PhotoMode, 119
+TransferCycle, 120
+SetDriftMode, 121
+SetDriftSpeed, 122
+SetDCDS, 123
+SetDCDS_2, 124
+GetWaitingTime, 125
+GetModel, 126
+GetSerialNum, 127
+GetLogicVer, 128
+AnalogPowerOn, 129
+AnalogPowerOff, 130
+SetForcedTraining, 131
+GetForcedTraining, 132
+Sync, 133
+SetIntegrateCycle, 134
+GetEffectiveArea, 135
+ListCameras, 136
+ListCamerasFiber, 137
+GetClockVoltage, 138
+GetAnalogVoltage, 139
+PICMode, 140
+GetPICMode, 141
+setPID, 142
+SetBlackLevel, 143
+GetBlackLevel, 144
+SetExposureStartTime, 145
+RecordExposureStartTime, 146
+SetRtnsMode, 147
+RetransNthImg, 148
+SetGain, 149
+GetGain, 150
+GetGPSTime, 151
+GetGPSEpochTime, 152
+SetSerialNumber, 153
+GetSerialNumber, 154
+GetTemperatureDiff, 155
+CamErrorName, 156
+CamErrorStrerror, 157
+%%
+*/
+
+#define USTCCAMERA_TOTAL_KEYWORDS 157
+#define USTCCAMERA_MIN_WORD_LENGTH 4
+#define USTCCAMERA_MAX_WORD_LENGTH 26
+#define USTCCAMERA_MIN_HASH_VALUE 6
+#define USTCCAMERA_MAX_HASH_VALUE 439
+
+
+#ifdef __GNUC__
+__inline
+#else
+#ifdef __cplusplus
+inline
+#endif
+#endif
+static unsigned int
+USTCCamera_hash(register const char *str, register unsigned int len)
+{
+    static const unsigned short asso_values[] =
+    {
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+         10, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440,  10,  15,   0,  35,   5,
+         75,   5,  90,  20, 440, 440, 110,   0,  70,   5,
+          0, 440,  35,   0,   0, 140,  10,  85, 440, 440,
+        440, 440, 440, 440, 440,  35, 440,   5,  40,  45,
+         10,   0,  15,   0,  75,   0,  65,  45,   0,   0,
+          0,   0,   0, 110,   0,   5,   0,   0,  10,  20,
+         65, 155, 105, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440, 440, 440, 440,
+        440, 440, 440, 440, 440, 440, 440
+    };
+    
+    register unsigned int hval = len;
+    switch (hval) {
+        default:
+            hval += asso_values[(unsigned char)str[25]];
+        case 25:
+            hval += asso_values[(unsigned char)str[24]];
+        case 24:
+            hval += asso_values[(unsigned char)str[23]];
+        case 23:
+            hval += asso_values[(unsigned char)str[22]];
+        case 22:
+            hval += asso_values[(unsigned char)str[21]];
+        case 21:
+            hval += asso_values[(unsigned char)str[20]];
+        case 20:
+            hval += asso_values[(unsigned char)str[19]];
+        case 19:
+            hval += asso_values[(unsigned char)str[18]];
+        case 18:
+            hval += asso_values[(unsigned char)str[17]];
+        case 17:
+            hval += asso_values[(unsigned char)str[16]];
+        case 16:
+            hval += asso_values[(unsigned char)str[15]];
+        case 15:
+            hval += asso_values[(unsigned char)str[14]];
+        case 14:
+            hval += asso_values[(unsigned char)str[13]];
+        case 13:
+            hval += asso_values[(unsigned char)str[12]];
+        case 12:
+            hval += asso_values[(unsigned char)str[11]];
+        case 11:
+            hval += asso_values[(unsigned char)str[10]];
+        case 10:
+            hval += asso_values[(unsigned char)str[9]+1];
+        case 9:
+            hval += asso_values[(unsigned char)str[8]];
+        case 8:
+            hval += asso_values[(unsigned char)str[7]];
+        case 7:
+            hval += asso_values[(unsigned char)str[6]];
+        case 6:
+            hval += asso_values[(unsigned char)str[5]];
+        case 5:
+            hval += asso_values[(unsigned char)str[4]];
+        case 4:
+            hval += asso_values[(unsigned char)str[3]];
+        case 3:
+            hval += asso_values[(unsigned char)str[2]];
+        case 2:
+            hval += asso_values[(unsigned char)str[1]];
+        case 1:
+            hval += asso_values[(unsigned char)str[0]];
+            break;
+    }
+  
+    return hval;
+}
+
+const struct FunctionPair *
+USTCCamera_lookup_keyword(register const char *str, register unsigned int len)
+{
+    static const struct FunctionPair wordlist[] =
+    {
+        {""}, {""}, {""}, {""}, {""}, {""},
+        {"entemp", 66},
+        {""}, {""},
+        {"CoolerSet", 76},
+        {""},
+        {"PumpOn", 48},
+        {""},
+        {"CoolerOn", 60},
+        {""},
+        {"GetCurrent", 87},
+        {""},
+        {"SetGain", 149},
+        {""},
+        {"PauseCool", 83},
+        {"GetPumpCur", 56},
+        {"PumpProtect", 50},
+        {"GetGain", 150},
+        {"GetModel", 126},
+        {"GetCoolerRange", 90},
+        {"GetPumpVol", 55},
+        {"CamErrorStrerror", 157},
+        {"GetSerialNum", 127},
+        {"SetEraseCount", 18},
+        {"SetTriggerMode", 10},
+        {"GetCoolerStatus", 73},
+        {""}, {""}, {""},
+        {"GetTriggerMode", 11},
+        {"GetGPSTime", 151},
+        {"SetPumpTargetVol", 53},
+        {"PICMode", 140},
+        {"GetImage", 29},
+        {"VideoMode", 108},
+        {"SetContinuousCapture", 20},
+        {"GetPumpTargetVol", 54},
+        {"PumpOff", 49},
+        {"GetPumpVacuum", 57},
+        {"CoolerOff", 61},
+        {"GetContinuousCapture", 21},
+        {"Runningtime", 70},
+        {"GetVideoMode", 109},
+        {""}, {""}, {""},
+        {"SetRtnsMode", 147},
+        {""}, {""},
+        {"ConfigAutoSave", 38},
+        {""},
+        {"GetCoolerCurrent", 9},
+        {"set_pid", 79},
+        {""},
+        {"GetTemperature", 85},
+        {"GetPICMode", 141},
+        {""},
+        {"GetModelInfo", 45},
+        {""},
+        {"get_power", 69},
+        {"SetSerialNumber", 153},
+        {"setPID", 142},
+        {"Controller_temperature", 67},
+        {"AnalogPowerOn", 129},
+        {"set_power", 80},
+        {"GetSerialNumber", 154},
+        {""},
+        {"SetDriftMode", 121},
+        {""},
+        {"GetVacuum", 46},
+        {""},
+        {"CameraReset", 3},
+        {"SetDCDS", 123},
+        {""}, {""},
+        {"GetReadoutSpeed", 17},
+        {""},
+        {"hottemp", 65},
+        {"SetVacuumUnit", 47},
+        {""},
+        {"CircleContinuousCaptureOn", 74},
+        {""}, {""},
+        {"StartExposure", 19},
+        {""},
+        {"SetShutter", 23},
+        {""}, {""}, {""},
+        {"PhotoMode", 119},
+        {"SetExposureTime", 4},
+        {"GetDetector", 91},
+        {"StopExposure", 22},
+        {"ControllerFan", 95},
+        {"AnalogPowerOff", 130},
+        {"GetExposureTime", 6},
+        {"RecoverCool", 84},
+        {"FanStatusSet", 97},
+        {""},
+        {"VideoROIEnsure", 111},
+        {"SetExposureStartTime", 145},
+        {"VideoROISet", 110},
+        {""},
+        {"PowerFan", 96},
+        {""}, {""},
+        {"GetCoolerVoltage", 8},
+        {"set_cooltemp", 71},
+        {"HeatStatusSet", 102},
+        {"ControllerHeat", 103},
+        {"GetGPSEpochTime", 152},
+        {"CircleContinuousCaptureOff", 75},
+        {""},
+        {"SetPreAmpGain", 25},
+        {"ROIEnable", 112},
+        {"Coolertemp", 62},
+        {"GetFanSpeed", 98},
+        {"SendIMROTail", 105},
+        {""},
+        {"SetDCDS_2", 124},
+        {"GetClockVoltage", 138},
+        {"GetAnalogVoltage", 139},
+        {""},
+        {"GetTemperatureDiff", 155},
+        {""}, {""},
+        {"error_clear", 64},
+        {"CamErrorName", 156},
+        {""},
+        {"SetExposureInterval", 12},
+        {"SaveAsFITS", 31},
+        {"GetImageAccumulationStatus", 101},
+        {""},
+        {"ShutDown", 2},
+        {"GetExposureInterval", 14},
+        {""},
+        {"GetBitDepth", 92},
+        {""},
+        {"GetNumReadoutSpeed", 16},
+        {""},
+        {"SetAutoSaveFITS", 37},
+        {""}, {""},
+        {"RetransNthImg", 148},
+        {""},
+        {"CancelWait", 26, },
+        {"DetectorPowerOff", 44},
+        {""},
+        {"SetCoolerTemp", 77},
+        {""},
+        {"Initialize", 1},
+        {"GetPumpUint", 59},
+        {""}, {""},
+        {"GetExposureROI", 114},
+        {"GetChipNum", 93},
+        {""}, {""}, {""},
+        {"BINEnable", 115},
+        {"LDCModeSet", 44},
+        {"ImageAccumulationStatusSet", 99},
+        {"Motor_temperature", 68},
+        {""},
+        {"GetCoolerTargetTemp", 82},
+        {"ROIDisable", 113},
+        {""}, {""},
+        {"SpecialImageCircle", 118},
+        {""}, {""},
+        {"ListCameras", 136},
+        {""},
+        {"read_cooler_status", 72},
+        {""},
+        {"SetLDCMode", 42},
+        {"SetCurrImageSize", 117},
+        {""},
+        {"SetDriftSpeed", 122},
+        {"GetWaitingTime", 125},
+        {"GetLDCMode", 24},
+        {""}, {""},
+        {"TransferCycle", 120},
+        {""},
+        {"DetectorPowerON", 39},
+        {"GetEffectiveArea", 135},
+        {""},
+        {"RecordExposureStartTime", 146},
+        {""},
+        {"SetPumpMaxPower", 51},
+        {"GetLogicVer", 128},
+        {""},
+        {"Save_configuration", 63},
+        {"GetCameraReady", 41},
+        {"GetPumpMaxPower", 52},
+        {""},
+        {"SendIMROHead", 104},
+        {""},
+        {"Sync", 133},
+        {""}, {""},
+        {"SaveAsFITSEx", 33},
+        {""}, {""},
+        {"GetTcbTemp", 86},
+        {""}, {""},
+        {"SaveNthAsFITS", 36},
+        {""},
+        {"BINDisable", 116},
+        {"SetPumpUnit", 58},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""},
+        {"SaveAsFITSAccum", 32},
+        {""}, {""},
+        {"WaitForAcquisition", 27},
+        {""}, {""}, {""}, {""}, {""},
+        {"set_channel_votlage", 78},
+        {""},
+        {"GetLastSavedFile", 34},
+        {""}, {""},
+        {"set_tcb_target_temp", 81},
+        {"WaitForAcquisitionTimeOut", 28},
+        {""}, {""},
+        {"SetBlackLevel", 143},
+        {""},
+        {"SetHeatPWM", 107},
+        {"GetNthImage", 30},
+        {""},
+        {"GetBlackLevel", 144},
+        {""},
+        {"GetHeatPWM", 106},
+        {"ImageAccumulationNumberSet", 100},
+        {""}, {""}, {""},
+        {"GetAcquisitionStatus", 94},
+        {"SetSaveDirectory", 35},
+        {""}, {""},
+        {"GetCurrentByChannel", 88},
+        {""}, {""},
+        {"SetIntegrateCycle", 134},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""},
+        {"SetForcedTraining", 131},
+        {""}, {""}, {""},
+        {"ListCamerasFiber", 137},
+        {"GetForcedTraining", 132},
+        {""}, {""}, {""}, {""}, {""}, {""},
+        {"GetVoltageByChannel", 89},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {"UnsetLDCMode", 43},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""},
+        {"SetExposureTimeByLSB", 5},
+        {""}, {""}, {""}, {""},
+        {"GetExposureTimeByLSB", 7},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""},
+        {"SetExposureIntervalByLSB", 13},
+        {""}, {""}, {""}, {""},
+        {"GetExposureIntervalByLSB", 15}
+    };
+
+    if (len <= USTCCAMERA_MAX_WORD_LENGTH && len >= USTCCAMERA_MIN_WORD_LENGTH) {
+        unsigned int key = USTCCamera_hash (str, len);
+        if (key <= USTCCAMERA_MAX_HASH_VALUE) {
+            register const char *s = wordlist[key].name;
+            if (*str == *s && !strcmp (str + 1, s + 1))
+                return &wordlist[key];
+        }
+    }
+    
+    return 0;
+}
+
 #define USTC_CCD_SUCCESS                    20001
 #define USTC_CCD_SCAN_ERROR                 20002
 #define USTC_CCD_DEVICE_NOT_FOUND           20003
@@ -10321,12 +10867,304 @@ typedef struct {
 
 static const void *ustc_camera_virtual_table(void);
 
+void static
+USTCCamera_name_convention(void *_self, char *buf, size_t size, ...)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    FILE *fp;
+    char time_buf[TIMESTAMPSIZE];
+    static __thread struct timespec tp;
+    struct tm tm_buf;
+    size_t i, n;
+    va_list ap;
+    
+    va_start(ap, size);
+    i = va_arg(ap, size_t);
+    n = va_arg(ap, size_t);
+    va_end(ap);
+    
+    memset(buf, '\0', size);
+    fp = fmemopen(buf, size, "w+");
+    if (self->_.d_proc.image_directory != NULL) {
+        fprintf(fp, "%s/", self->_.d_proc.image_directory);
+    }
+    if (self->_.d_proc.image_prefix != NULL) {
+        fprintf(fp, "%s_", self->_.d_proc.image_prefix);
+    }
+    if (self->_.name != NULL) {
+        fprintf(fp, "%s_", self->_.name);
+    }
+    if (n == 1 || i == 0) {
+        Clock_gettime(CLOCK_REALTIME, &tp);
+    }
+    gmtime_r(&tp.tv_sec, &tm_buf);
+    if (n == 1) {
+        strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S.fits", &tm_buf);
+        fprintf(fp, "%s", time_buf);
+    } else {
+        strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S", &tm_buf);
+        fprintf(fp, "%s_%04lu.fits", time_buf, i + 1);
+    }
+    
+    fclose(fp);
+}
+
+static int
+USTCCamera_pre_acquisition(void *_self, const char *pathname, ...)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    int ret = AAOS_OK, status = 0;
+    struct timespec tp;
+    struct tm tm_buf;
+    char buf[TIMESTAMPSIZE];
+    fitsfile *fptr;
+    
+    double temperature, power, voltage, current, pressure, vol, vac;
+    float c, v, exptime, temp;
+    int i;
+    
+    unsigned int (*GetExposureTime)(float *) = dlsym(self->dlh, "GetExposureTime");
+    unsigned int (*Coolertemp)(double *) = dlsym(self->dlh, "Coolertemp");
+    unsigned int (*hottemp)(double *) = dlsym(self->dlh, "hottemp");
+    unsigned int (*entemp)(double *) = dlsym(self->dlh, "entemp");
+    unsigned int (*Controller_temperature)(double *) = dlsym(self->dlh, "Controller_temperature");
+    unsigned int (*Motor_temperature)(double *) = dlsym(self->dlh, "Motor_temperature");
+    unsigned int (*get_power)(double *) = dlsym(self->dlh, "get_power");
+    unsigned int (*GetCoolerVoltage)(double *) = dlsym(self->dlh, "GetCoolerVoltage");
+    unsigned int (*GetCoolerCurrent)(double *) = dlsym(self->dlh, "GetCoolerCurrent");
+    unsigned int (*GetVacuum)(int, double *) = dlsym(self->dlh, "GetVacuum");
+    unsigned int (*GetPumpMaxPower)(double *) = dlsym(self->dlh, "GetPumpMaxPower");
+    unsigned int (*GetPumpTargetVol)(double *) = dlsym(self->dlh, "GetPumpTargetVol");
+    unsigned int (*GetPumpVol)(double *) = dlsym(self->dlh, "GetPumpVol");
+    unsigned int (*GetPumpCur)(double *) = dlsym(self->dlh, "GetPumpCur");
+    unsigned int (*GetPumpVacuum)(double *) = dlsym(self->dlh, "GetPumpVacuum");
+    unsigned int (*GetVoltageByChannel)(int, float *) = dlsym(self->dlh, "GetVoltageByChannel");
+    unsigned int (*GetCurrentByChannel)(int, float *) = dlsym(self->dlh, "GetCurrentByChannel");
+    unsigned int (*GetTcbTemp)(const char *, float *) = dlsym(self->dlh, "GetTcbTemp");
+    
+    va_list ap;
+    va_start(ap, pathname);
+    fptr = va_arg(ap, fitsfile *);
+    va_end(ap);
+    
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    gmtime_r(&tp.tv_sec, &tm_buf);
+    strftime(buf, TIMESTAMPSIZE, "%Y-%m-%d", &tm_buf);
+    fits_update_key_str(fptr, "DATE-OBS", buf, NULL, &status);
+    strftime(buf, TIMESTAMPSIZE, "%H:%m:%d", &tm_buf);
+    snprintf(buf + strlen(buf), TIMESTAMPSIZE - strlen(buf), ".%03d", (int) floor(tp.tv_nsec / 1000000));
+    fits_update_key_str(fptr, "TIME-OBS", buf, NULL, &status);
+    
+    Pthread_mutex_lock(&self->mtx);
+    
+    if ((ret = GetExposureTime(&exptime)) != USTC_CCD_SUCCESS) {
+        exptime = -0.01;
+    }
+    fits_update_key_fixflt(fptr, "EXPTIME", exptime, 4, NULL, &status);
+    
+    
+    if ((ret = Coolertemp(&temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = Coolertemp(&temperature)) != USTC_CCD_SUCCESS) {
+            temperature = 9999.0;
+        }
+    }
+    fits_update_key_fixdbl(fptr, "COLDTEMP", temperature, 2, NULL, &status);
+    
+    if ((ret = hottemp(&temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = hottemp(&temperature)) != USTC_CCD_SUCCESS) {
+            temperature = 9999.0;
+        }
+    }
+    fits_update_key_fixdbl(fptr, "HOTTEMP", temperature, 2, NULL, &status);
+    
+    if ((ret = entemp(&temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = entemp(&temperature)) != USTC_CCD_SUCCESS) {
+            temperature = 9999.0;
+        }
+    }
+    fits_update_key_fixdbl(fptr, "AMBTEMP", temperature, 2, NULL, &status);
+    
+    if ((ret = Controller_temperature(&temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = Controller_temperature(&temperature)) != USTC_CCD_SUCCESS) {
+            temperature = 9999.0;
+        }
+    }
+    fits_update_key_fixdbl(fptr, "CTRLTEMP", temperature, 2, NULL, &status);
+    
+    if ((ret = Motor_temperature(&temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = Motor_temperature(&temperature)) != USTC_CCD_SUCCESS) {
+            temperature = 9999.0;
+        }
+    }
+    fits_update_key_fixdbl(fptr, "MOTTEMP", temperature, 2, NULL, &status);
+    
+    if ((ret = get_power(&power)) != USTC_CCD_SUCCESS) {
+        power = -0.01;
+    }
+    fits_update_key_fixdbl(fptr, "COOLPWR", power, 2, NULL, &status);
+    
+    if ((ret = GetCoolerVoltage(&voltage)) != USTC_CCD_SUCCESS) {
+        voltage = -0.01;
+    }
+    fits_update_key_fixdbl(fptr, "COOLVOL", voltage, 2, NULL, &status);
+    
+    if ((ret = GetCoolerCurrent(&current)) != USTC_CCD_SUCCESS) {
+        current = -0.01;
+    }
+    fits_update_key_fixdbl(fptr, "COOLCUR", voltage, 2, NULL, &status);
+    
+    if ((ret = GetVacuum(1, &pressure)) != USTC_CCD_SUCCESS) {
+        pressure = -0.01;
+    }
+    fits_update_key_dbl(fptr, "PR1", pressure, 4, NULL, &status);
+    
+    if ((ret = GetVacuum(2, &pressure)) != USTC_CCD_SUCCESS) {
+        pressure = -0.01;
+    }
+    fits_update_key_dbl(fptr, "PR2", pressure, 4, NULL, &status);
+    
+    if ((ret = GetVacuum(3, &pressure)) != USTC_CCD_SUCCESS) {
+        pressure = -0.01;
+    }
+    fits_update_key_dbl(fptr, "PR3", pressure, 4, NULL, &status);
+    
+    if ((ret = GetVacuum(4, &pressure)) != USTC_CCD_SUCCESS) {
+        pressure = -0.01;
+    }
+    fits_update_key_dbl(fptr, "PR4", pressure, 4, NULL, &status);
+    
+    if ((ret = GetPumpMaxPower(&power)) != USTC_CCD_SUCCESS) {
+        power = -0.01;
+    }
+    fits_update_key_dbl(fptr, "PMAXPWR", power, 2, NULL, &status);
+    
+    if ((ret = GetPumpTargetVol(&vol)) != USTC_CCD_SUCCESS) {
+        vol = -0.01;
+    }
+    fits_update_key_fixdbl(fptr, "PSETVOL", vol, 2, NULL, &status);
+    
+    if ((ret = GetPumpVol(&vol)) != USTC_CCD_SUCCESS) {
+        vol = -0.01;
+    }
+    fits_update_key_fixdbl(fptr, "PSETVOL", vol, 2, NULL, &status);
+    
+    if ((ret = GetPumpCur(&current)) != USTC_CCD_SUCCESS) {
+        current = -0.01;
+    }
+    fits_update_key_fixdbl(fptr, "PUMPCUR", current, 2, NULL, &status);
+    
+    if ((ret = GetPumpVacuum(&vac)) != USTC_CCD_SUCCESS) {
+        vac = -0.01;
+    }
+    fits_update_key_dbl(fptr, "PUMPVAC", vac, 4, NULL, &status);
+    
+    for (i = 0; i < 8; i++) {
+        char keyname[16];
+        snprintf(keyname, 16, "CHAN%dVOL", i);
+        if ((ret = GetVoltageByChannel(i, &v)) != USTC_CCD_SUCCESS) {
+            v = -0.01;
+        }
+        fits_update_key_fixflt(fptr, keyname, v, 2, NULL, &status);
+        snprintf(keyname, 16, "CHAN%dCUR", i);
+        if ((ret = GetCurrentByChannel(i, &c)) != USTC_CCD_SUCCESS) {
+            v = -0.01;
+        }
+        fits_update_key_fixflt(fptr, keyname, c, 2, NULL, &status);
+    }
+    
+    for (i = 0; i < 12; i++) {
+        char keyname[16];
+        snprintf(keyname, 16, "PT%dTEMP", i + 1);
+        if ((ret = GetTcbTemp(keyname, &temp)) != USTC_CCD_SUCCESS) {
+            if ((ret = GetTcbTemp(keyname, &temp)) != USTC_CCD_SUCCESS) {
+                temperature = 9999.0;
+            }
+        }
+        fits_update_key_fixflt(fptr, keyname, temp, 2, NULL, &status);
+    }
+    
+    Pthread_mutex_unlock(&self->mtx);
+    
+    return ret;
+}
+
+static int
+USTCCamera_post_acquisition(void *_self, const char *pathname, ...)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    struct timespec tp;
+    struct tm tm_buf;
+    char buf[TIMESTAMPSIZE];
+    
+    va_list ap;
+    va_start(ap, pathname);
+    fitsfile *fptr = va_arg(ap, fitsfile *);
+    const char *string = va_arg(ap, const char *);
+    unsigned int format = va_arg(ap, unsigned int);
+    void *rpc = va_arg(ap, void *);
+    va_end(ap);
+
+    int status = 0, hdutype, ret = AAOS_OK;
+    char *basec, *bname;
+    
+    basec = strdup(pathname);
+    bname = basename(basec);
+    
+    if (fptr != NULL) {
+        fits_movabs_hdu(fptr, 1, &hdutype, &status);
+        if (!(self->_.d_state.options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
+            fits_update_key_lng(fptr, "NEXTEND", self->_.d_exp.success_frames * 3, NULL, &status);
+        } else {
+            fits_update_key_lng(fptr, "NEXTEND", 3, NULL, &status);
+        }
+
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        gmtime_r(&tp.tv_sec, &tm_buf);
+        strftime(buf, TIMESTAMPSIZE, "%Y-%m-%d", &tm_buf);
+        fits_update_key_str(fptr, "DATE", buf, NULL, &status);
+        strftime(buf, TIMESTAMPSIZE, "%H:%m:%d", &tm_buf);
+        snprintf(buf + strlen(buf), TIMESTAMPSIZE - strlen(buf), ".%03d", (int) floor(tp.tv_nsec / 1000000));
+        fits_update_key_str(fptr, "TIME", buf, NULL, &status);
+        fits_update_key_dbl(fptr, "EXPTIME", self->_.d_param.exposure_time, 3, NULL, &status);
+        
+        fits_update_key_str(fptr, "FILENAME", bname, NULL, &status);
+        if (string != NULL) {
+            if (format == DETECTOR_OPTION_STRING_FORMART_JSON) {
+                __detector_json_string_to_header(fptr, string);
+            }
+        }
+    }
+
+    if (rpc == NULL) {
+        printf("%s\n", bname);
+    } else {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        if ((rpc != self->_.d_exp.rpc && self->_.d_exp.rpc != NULL) || rpc == self->_.d_exp.rpc) {
+            protobuf_set(rpc, PACKET_LENGTH, strlen(bname) + 1);
+            protobuf_set(rpc, PACKET_BUF, bname, strlen(bname) + 1);
+            ret = rpc_write(rpc);
+        } else {
+            ret = AAOS_OK;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    }
+    
+    free(basec);
+
+    return ret;
+}
+
 static void *
 USTCCamera_ctor(void *_self, va_list *app)
 {
     struct USTCCamera *self = super_ctor(USTCCamera(), _self, app);
     
     const char *s;
+	int ret;
+	
+	unsigned int (*Initialize) (unsigned int , unsigned int) = dlsym(self->dlh, "Initialize");
 
     self->_.d_state.state = (DETECTOR_STATE_OFFLINE|DETECTOR_STATE_UNINITIALIZED);
     s = va_arg(*app, const char *);
@@ -10338,7 +11176,22 @@ USTCCamera_ctor(void *_self, va_list *app)
     Pthread_cond_init(&self->cond, NULL);
     self->dlh = dlopen(self->so_path, RTLD_LAZY | RTLD_LOCAL);
     
+    self->_.d_proc.name_convention = USTCCamera_name_convention;
+    self->_.d_proc.pre_acquisition = USTCCamera_pre_acquisition;
+    self->_.d_proc.post_acquisition = USTCCamera_post_acquisition;
+    
+    self->_.d_state.options |= DETECTOR_OPTION_NOTIFY_EACH_COMPLETION;
+    
     self->_._vtab= ustc_camera_virtual_table();
+	
+	Pthread_mutex_lock(&self->mtx);
+    ret = Initialize(self->log_level, self->which);
+    Pthread_mutex_unlock(&self->mtx);
+	if (ret != USTC_CCD_SUCCESS) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- Initialize error: %d.\n", __FILE__, __func__, __LINE__ - 2, ret);
+#endif
+	}
     
     return (void *) self;
 }
@@ -10453,11 +11306,13 @@ USTCCamera(void)
 static int
 ustc_error_mapping(int ustc_error)
 {
-switch (ustc_error) {
+    switch (ustc_error) {
         case USTC_CCD_SUCCESS:
             return AAOS_OK;
             break;
         case USTC_CCD_ARG_ERROR:
+            return AAOS_EBADCMD;
+            break;
         case USTC_CCD_OUTOFRANGE:
             return AAOS_EINVAL;
             break;
@@ -10499,1088 +11354,2677 @@ switch (ustc_error) {
 static int
 USTCCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
 {
-struct USTCCamera *self = cast(USTCCamera(), _self);
-
-FILE *fp = fmemopen((void *) write_buffer, write_buffer_size, "r+");
-char func_name[NAMESIZE];
-int ret = AAOS_OK;
-
-fscanf(fp, "%s", func_name);
-
-if (strcmp(func_name, "Initialize") == 0 ) {
-        unsigned int (*Initialize) (unsigned int , unsigned int);
-	unsigned int which, log_level;
-	Initialize = dlsym(self->dlh, "Initialize");
-        if ((ret = fscanf(fp, "%u %u", &log_level, &which)) < 2 ){
-		ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-		ret = Initialize(log_level, which);
-		ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-} else if (strcmp(func_name, "ShutDown") == 0 ) {
-        unsigned int (*ShutDown) (void);
-        ShutDown = dlsym(self->dlh, "ShutDown");
-        ret = ShutDown();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "CameraReset") == 0 ) {
-        unsigned int (*CameraReset) (void);
-        CameraReset = dlsym(self->dlh, "CameraReset");
-        ret = CameraReset();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "CancelWait") == 0 ) {
-        unsigned int (*CancelWait) (void);
-        CancelWait = dlsym(self->dlh, "CancelWait");
-        ret = CancelWait();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "GetExposureInterval") == 0 ) {
-        double interval = -1.00;
-        unsigned int (*GetExposureInterval) (double *);
-        GetExposureInterval = dlsym(self->dlh, "GetExposureInterval");
-        ret = GetExposureInterval(&interval);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", interval);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetExposureTime") == 0 ) {
-        double exposure_time = -1.00;
-        unsigned int (*GetExposureTime) (double *);
-        GetExposureTime = dlsym(self->dlh, "GetExposureTime");
-        ret = GetExposureTime(&exposure_time);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", exposure_time);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetLDCMode") == 0 ) {
-        uint8_t mode = 255;
-        unsigned int (*GetLDCMode) (uint8_t *);
-        GetLDCMode = dlsym(self->dlh, "GetLDCMode");
-        ret = GetLDCMode(&mode);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d", mode);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetNumReadoutSpeed") == 0 ) {
-        unsigned int (*GetNumReadoutSpeed) (void);
-        GetNumReadoutSpeed = dlsym(self->dlh, "GetNumReadoutSpeed");
-        snprintf(read_buffer, read_buffer_size, "%d", GetNumReadoutSpeed());
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetTriggerMode") == 0 ) {
-        uint8_t mode = 255;
-        unsigned int (*GetTriggerMode) (uint8_t *);
-        GetTriggerMode = dlsym(self->dlh, "GetTriggerMode");
-        ret = GetTriggerMode(&mode);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d", mode);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "SetContinuousCapture") == 0 ) {
-        unsigned int (*SetContinuousCapture) (uint16_t);
-        unsigned int n_frame;
-        SetContinuousCapture = dlsym(self->dlh, "SetContinuousCapture");
-        if ((ret = fscanf(fp, "%u", &n_frame)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            ret = SetContinuousCapture(n_frame);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetEraseCount") == 0 ) {
-        unsigned int (*SetEraseCount) (uint8_t);
-        uint8_t count;
-        SetEraseCount = dlsym(self->dlh, "SetEraseCount");
-        if ((ret = fscanf(fp, "%c", &count)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            ret = SetEraseCount(count);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetExposureInterval") == 0 ) {
-        unsigned int (*SetExposureInterval) (double);
-	double interval;
-	SetExposureInterval = dlsym(self->dlh, "SetExposureInterval");
-	if ((ret = fscanf(fp, "%lf", &interval)) < 1 ){
-		ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-		ret = SetExposureInterval(interval);
-		ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-} else if (strcmp(func_name, "SetExposureTime") == 0 ) {
-        unsigned int (*SetExposureTime) (double);
-	double exposure_time;
-	SetExposureTime = dlsym(self->dlh, "SetExposureTime");
-	if ((ret = fscanf(fp, "%lf", &exposure_time)) < 1 ){
-		ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-		ret = SetExposureTime(exposure_time);
-		ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-} else if (strcmp(func_name, "SetEraseCount") == 0 ) {
-        unsigned int (*SetEraseCount) (uint8_t);
-        uint8_t count;
-        SetEraseCount = dlsym(self->dlh, "SetEraseCount");
-        if ((ret = fscanf(fp, "%c", &count)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            ret = SetEraseCount(count);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetPreAmpGain") == 0 ) {
-        unsigned int (*SetPreAmpGain) (uint8_t);
-        uint8_t gain;
-        if ((ret = fscanf(fp, "%c", &gain)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (gain > 1) {
-                ret = AAOS_EINVAL;
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    FILE *fp = fmemopen((void *) write_buffer, write_buffer_size, "r+");
+    char func_name[NAMESIZE];
+    int ret = AAOS_OK, retval;
+    const struct FunctionPair *pair;
+    unsigned int index;
+    
+    if ((retval = fscanf(fp, "%s", func_name)) != 1) {
+        goto error;
+    }
+    
+    if ((pair = USTCCamera_lookup_keyword(func_name, (unsigned int) strlen(func_name))) == NULL) {
+        goto error;
+    }
+    
+    index = pair->index;
+    
+    switch (pair->index) {
+        case 1:
+        {
+            unsigned int (*Initialize) (unsigned int , unsigned int);
+            unsigned int which, log_level;
+            
+            Initialize = dlsym(self->dlh, "Initialize");
+            if ((retval = fscanf(fp, "%u %u", &log_level, &which)) != 2 ) {
                 goto error;
             }
-            SetPreAmpGain = dlsym(self->dlh, "SetPreAmpGain");
-            ret = SetPreAmpGain(gain);
-            ret = ustc_error_mapping(ret);
+            if ((ret = Initialize(log_level, which)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+        }
+            break;
+        case 2:
+        {
+            unsigned int (*ShutDown) (void);
+            
+            ShutDown = dlsym(self->dlh, "ShutDown");
+            if ((ret = ShutDown()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-} else if (strcmp(func_name, "SetShutter") == 0 ) {
-        unsigned int (*SetShutter) (uint8_t);
-        uint8_t mode;
-        if ((ret = fscanf(fp, "%c", &mode)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (mode > 2) {
-                ret = AAOS_EINVAL;
+            break;
+        case 3:
+        {
+            unsigned int (*CameraReset) (void);
+            
+            CameraReset = dlsym(self->dlh, "CameraReset");
+            if ((ret = CameraReset()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 4:
+        {
+            unsigned int (*SetExposureTime) (float);
+            float exptime;
+            
+            if ((retval = fscanf(fp, "%f", &exptime)) != 1) {
                 goto error;
             }
-            SetShutter = dlsym(self->dlh, "SetShutter");
-            ret = SetShutter(mode);
-            ret = ustc_error_mapping(ret);
+            
+            SetExposureTime = dlsym(self->dlh, "SetExposureTime");
+            if ((ret = SetExposureTime(exptime)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "SetTriggerMode") == 0 ) {
-        unsigned int (*SetTriggerMode) (uint8_t);
-        uint8_t mode;
-        if ((ret = fscanf(fp, "%c", &mode)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (mode > 3) {
-                ret = AAOS_EINVAL;
+            break;
+        case 5:
+        {
+            unsigned int (*SetExposureTimeByLSB) (long long);
+            long long exptime;
+            
+            if ((retval = fscanf(fp, "%lld", &exptime)) != 1) {
+                goto error;
+            }
+            SetExposureTimeByLSB = dlsym(self->dlh, "SetExposureTimeByLSB");
+            if ((ret = SetExposureTimeByLSB(exptime)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 6:
+        {
+            unsigned int (*GetExposureTime) (float *);
+            float exptime;
+            cJSON *root_json;
+            
+            GetExposureTime = dlsym(self->dlh, "GetExposureTime");
+            if ((ret = GetExposureTime(&exptime)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "exptime", (double) exptime);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 7:
+        {
+            unsigned int (*GetExposureTimeByLSB) (long long *);
+            long long exptime;
+            cJSON *root_json;
+            
+            GetExposureTimeByLSB = dlsym(self->dlh, "GetExposureTimeByLSB");
+            if ((ret = GetExposureTimeByLSB(&exptime)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "exptime_lsb", (double) exptime);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 8:
+        {
+            unsigned int (*GetCoolerVoltage) (float *);
+            float voltage;
+            cJSON *root_json;
+            
+            GetCoolerVoltage = dlsym(self->dlh, "GetCoolerVoltage");
+            if ((ret = GetCoolerVoltage(&voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerVoltage", (double) voltage);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 9:
+        {
+            unsigned int (*GetCoolerCurrent) (float *);
+            float current;
+            cJSON *root_json;
+            
+            GetCoolerCurrent = dlsym(self->dlh, "GetCoolerCurrent");
+            if ((ret = GetCoolerCurrent(&current)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "GetCoolerCurrent", (double) current);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 10:
+        {
+            unsigned int (*SetTriggerMode) (uint8_t);
+            uint8_t trigger_mode;
+            
+            if ((retval = fscanf(fp, "%c", &trigger_mode)) != 1) {
                 goto error;
             }
             SetTriggerMode = dlsym(self->dlh, "SetTriggerMode");
-            ret = SetTriggerMode(mode);
-            ret = ustc_error_mapping(ret);
+            if ((ret = SetTriggerMode(trigger_mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+            
+        }
+            break;
+        case 11:
+        {
+            unsigned int (*GetTriggerMode) (uint8_t *);
+            uint8_t trigger_mode;
+            cJSON *root_json;
+            
+            GetTriggerMode = dlsym(self->dlh, "GetTriggerMode");
+            if ((ret = GetTriggerMode(&trigger_mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "trigger_mode", (double) trigger_mode);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 12:
+        {
+            unsigned int (*SetExposureInterval) (float);
+            float interval;
+            
+            if ((retval = fscanf(fp, "%f", &interval)) != 1) {
+                goto error;
+            }
+            
+            SetExposureInterval = dlsym(self->dlh, "SetExposureInterval");
+            if ((ret = SetExposureInterval(interval)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "StopExposure") == 0 ) {
-        unsigned int (*StopExposure) (void);
-	StopExposure = dlsym(self->dlh, "StopExposure");
-	ret = StopExposure();
-	ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
+            break;
+        case 13:
+        {
+            unsigned int (*SetExposureIntervalByLSB) (long long);
+            long long interval;
+            
+            if ((retval = fscanf(fp, "%lld", &interval)) != 1) {
+                goto error;
+            }
+            SetExposureIntervalByLSB = dlsym(self->dlh, "SetExposureIntervalByLSB");
+            if ((ret = SetExposureIntervalByLSB(interval)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
         }
-} else if (strcmp(func_name, "StartExposure") == 0 ) {
-        unsigned int (*StartExposure) (void);
-        StartExposure = dlsym(self->dlh, "StartExposure");
-        ret = StartExposure();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
+            break;
+        case 14:
+        {
+            unsigned int (*GetExposureInterval) (float *);
+            float interval;
+            cJSON *root_json;
+            
+            GetExposureInterval = dlsym(self->dlh, "GetExposureInterval");
+            if ((ret = GetExposureInterval(&interval)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "interval", (double) interval);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
         }
-    } else if (strcmp(func_name, "WaitForAcquisition") == 0 ) {
-        unsigned int (*WaitForAcquisition) (void);
-        WaitForAcquisition = dlsym(self->dlh, "WaitForAcquisition");
-        ret = WaitForAcquisition();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
+            break;
+        case 15:
+        {
+            unsigned int (*GetExposureIntervalByLSB) (long long *);
+            long long interval;
+            cJSON *root_json;
+            
+            GetExposureIntervalByLSB = dlsym(self->dlh, "GetExposureIntervalByLSB");
+            if ((ret = GetExposureIntervalByLSB(&interval)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "interval_lsb", (double) interval);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
         }
-    } else if (strcmp(func_name, "WaitForAcquisitionTimeOut") == 0 ) {
-        unsigned int (*WaitForAcquisitionTimeOut) (int);
-        int timeout;
-        if ((ret = fscanf(fp, "%d", &timeout)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (timeout < 0) {
-                ret = AAOS_EINVAL;
+            break;
+        case 16:
+        {
+            unsigned int (*GetNumReadoutSpeed) (void);
+            unsigned int NumReadoutSpeed;
+            cJSON *root_json;
+            
+            GetNumReadoutSpeed = dlsym(self->dlh, "GetNumReadoutSpeed");
+            NumReadoutSpeed = GetNumReadoutSpeed();
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "NumReadoutSpeed", (double) NumReadoutSpeed);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 17:
+        {
+            unsigned int (*GetReadoutSpeed) (int);
+            int idx;
+            unsigned int ReadoutSpeed;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%d", &idx)) != 1) {
+                goto error;
+            }
+            GetReadoutSpeed = dlsym(self->dlh, "GetReadoutSpeed");
+            ReadoutSpeed = GetReadoutSpeed(idx);
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "ReadoutSpeed", (double) ReadoutSpeed);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 18:
+        {
+            unsigned int (*SetEraseCount) (uint8_t);
+            uint8_t count;
+            
+            if ((retval = fscanf(fp, "%c", &count)) != 1) {
+                goto error;
+            }
+            SetEraseCount = dlsym(self->dlh, "SetEraseCount");
+            if ((ret = SetEraseCount(count)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 19:
+        {
+            unsigned int (*StartExposure) (void);
+    
+            StartExposure = dlsym(self->dlh, "StartExposure");
+            if ((ret = StartExposure()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 20:
+        {
+            unsigned int (*SetContinuousCapture) (uint16_t);
+            uint16_t pic_num;
+            
+            if ((retval = fscanf(fp, "%hd", &pic_num)) != 1) {
+                goto error;
+            }
+            SetContinuousCapture = dlsym(self->dlh, "SetContinuousCapture");
+            if ((ret = SetContinuousCapture(pic_num)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 21:
+        {
+            unsigned int (*GetContinuousCapture) (uint16_t *);
+            uint16_t pic_num;
+            cJSON *root_json;
+            
+            GetContinuousCapture = dlsym(self->dlh, "GetContinuousCapture");
+            if ((ret = GetContinuousCapture(&pic_num)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "ReadoutSpeed", (double) pic_num);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 22:
+        {
+            unsigned int (*StopExposure) (void);
+    
+            StopExposure = dlsym(self->dlh, "StopExposure");
+            if ((ret = StopExposure()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 23:
+        {
+            unsigned int (*SetShutter) (uint8_t);
+            uint8_t shutter;
+            
+            if ((retval = fscanf(fp, "%c", &shutter)) != 1) {
+                goto error;
+            }
+            SetShutter = dlsym(self->dlh, "SetShutter");
+            if ((ret = SetShutter(shutter)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+            
+        }
+            break;
+        case 24:
+        {
+            unsigned int (*GetLDCMode) (uint8_t *);
+            uint8_t ldc_mode;
+            cJSON *root_json;
+            
+            GetLDCMode = dlsym(self->dlh, "GetLDCMode");
+            if ((ret = GetLDCMode(&ldc_mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "ldc_mode", (double) ldc_mode);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 25:
+        {
+            unsigned int (*SetPreAmpGain) (uint8_t);
+            uint8_t gain;
+            
+            if ((retval = fscanf(fp, "%c", &gain)) != 1) {
+                goto error;
+            }
+            SetPreAmpGain = dlsym(self->dlh, "SetPreAmpGain");
+            if ((ret = SetPreAmpGain(gain)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 26:
+        {
+            unsigned int (*CancelWait) (void);
+    
+            CancelWait = dlsym(self->dlh, "CancelWait");
+            if ((ret = CancelWait()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 27:
+        {
+            unsigned int (*WaitForAcquisition) (void);
+    
+            WaitForAcquisition = dlsym(self->dlh, "WaitForAcquisition");
+            if ((ret = WaitForAcquisition()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 28:
+        {
+            unsigned int (*WaitForAcquisitionTimeOut) (int);
+            int timeout;
+            
+            if ((retval = fscanf(fp, "%d", &timeout)) != 1) {
                 goto error;
             }
             WaitForAcquisitionTimeOut = dlsym(self->dlh, "WaitForAcquisitionTimeOut");
-            ret = WaitForAcquisitionTimeOut(timeout);
-            ret = ustc_error_mapping(ret);
+            if ((ret = WaitForAcquisitionTimeOut(timeout)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "DetectorPowerOn") == 0 ) {
-        unsigned int (*DetectorPowerON) (void);
-        DetectorPowerON = dlsym(self->dlh, "DetectorPowerOn");
-        ret = DetectorPowerON();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "DetectorPowerOff") == 0 ) {
-        unsigned int (*DetectorPowerOFF) (void);
-        DetectorPowerOFF = dlsym(self->dlh, "DetectorPowerOff");
-        ret = DetectorPowerOFF();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "Controller_temperature") == 0 ) {
-        unsigned int (*Controller_temperature) (double *);
-        double temperature = 9999.00;
-        Controller_temperature = dlsym(self->dlh, "Controller_temperature");
-        ret = Controller_temperature(&temperature);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", temperature);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "ControllerFan") == 0 ) {
-        unsigned int (*ControllerFan) (uint8_t);
-        unsigned int level;
-        if ((ret = fscanf(fp, "%u", &level)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            ControllerFan = dlsym(self->dlh, "ControllerFan");
-            ret = ControllerFan(level);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "ControllerHeat") == 0 ) {
-        unsigned int (*ControllerHeat) (uint8_t);
-        unsigned int heatpwm;
-        if ((ret = fscanf(fp, "%u", &heatpwm)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            ControllerHeat = dlsym(self->dlh, "ControllerHeat");
-            ret = ControllerHeat(heatpwm);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "CoolerOff") == 0 ) {
-        unsigned int (*CoolerOff) (void);
-        CoolerOff = dlsym(self->dlh, "CoolerOff");
-        ret = CoolerOff();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "CoolerOn") == 0 ) {
-        unsigned int (*CoolerOn) (void);
-        CoolerOn = dlsym(self->dlh, "CoolerOn");
-        ret = CoolerOn();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "entemp") == 0 ) {
-        unsigned int (*entemp) (double *);
-        double temperature = 9999.00;
-        entemp = dlsym(self->dlh, "entemp");
-        ret = entemp(&temperature);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", temperature);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "get_power") == 0 ) {
-        unsigned int (*get_power) (double *);
-        double power = -1.00;
-        get_power = dlsym(self->dlh, "get_power");
-        ret = get_power(&power);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", power);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetBitDepth") == 0 ) {
-        unsigned int (*GetBitDepth) (int *);
-        int depth = -1;
-        GetBitDepth = dlsym(self->dlh, "GetBitDepth");
-        ret = GetBitDepth(&depth);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d", depth);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetCameraReady") == 0 ) {
-        unsigned int (*GetCameraReady) (uint8_t *);
-        uint8_t stat_;
-        GetCameraReady = dlsym(self->dlh, "GetCameraReady");
-        ret = GetCameraReady(&stat_);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%u", stat_);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetChipNum") == 0) {
-        unsigned int (*GetChipNum) (int *);
-        int chipnum = 1;
-        GetChipNum = dlsym(self->dlh, "GetChipNum");
-        ret = GetChipNum(&chipnum);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d", chipnum);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetCoolerStatus") == 0 ) {
-        unsigned int (*GetCoolerStatus) (uint8_t *);
-        uint8_t coolstat;
-        GetCoolerStatus = dlsym(self->dlh, "GetCoolerStatus");
-        ret = GetCoolerStatus(&coolstat);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%u", coolstat);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetCurrentByChannel") == 0) {
-        unsigned int (*GetCurrentByChannel) (int, float *);
-        int chan;
-        float cur = -1.00;
-        if ((ret = fscanf(fp, "%d", &chan)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (chan < 0 || chan > 3) {
-                ret = AAOS_EINVAL;
+        case 29: /* GetImage*/
+        case 30:
+            break;
+        case 31:
+        {
+            unsigned int (*SaveAsFITS) (const char *);
+            char path[PATHSIZE];
+            
+            if ((retval = fscanf(fp, "%s", path)) != 1) {
                 goto error;
-            } else {
-                GetCurrentByChannel = dlsym(self->dlh, "GetCurrentByChannel");
-                ret = GetCurrentByChannel(chan, &cur);
-                snprintf(read_buffer, read_buffer_size, "%.2f", cur);
-                if (read_size != NULL) {
-                    *read_size = strlen(read_buffer) + 1;
-                }
             }
-        }
-    } else if (strcmp(func_name, "GetDetector") == 0 ) {
-        unsigned int (*GetDetector) (int *, int *);
-        int width = -1, height = -1;
-        GetDetector = dlsym(self->dlh, "GetDetector");
-        ret = GetDetector(&width, &height);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d %d", width, height);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetExposureROI") == 0 ) {
-        unsigned int (*GetExposureROI) (int *, int *, int *, int *);
-        int rowStartNum = -1, rowKeepNum = -1, colStartNum = -1, colKeepNum = -1;
-        GetExposureROI = dlsym(self->dlh, "GetExposureROI");
-        ret = GetExposureROI(&rowStartNum, &rowKeepNum, &colStartNum, &colKeepNum);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d %d %d %d", rowStartNum, rowKeepNum, colStartNum, colKeepNum);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetFanSpeed") == 0 ) {
-        unsigned int (*GetFanSpeed) (uint8_t *);
-        uint8_t speed = 255;
-        GetFanSpeed = dlsym(self->dlh, "GetFanSpeed");
-        ret = GetFanSpeed(&speed);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%u", speed);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetGain") == 0 ) {
-        unsigned int (*GetGain) (float *, float *);
-        float high = -1.00, low = -1.00;
-        GetGain = dlsym(self->dlh, "GetGain");
-        ret = GetGain(&high, &low);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f %.2f", high, low);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetHeatPWM") == 0 ) {
-        unsigned int (*GetHeatPWM) (uint8_t *);
-        uint8_t heatpwm = 255;
-        GetHeatPWM = dlsym(self->dlh, "GetHeatPWM");
-        ret = GetHeatPWM(&heatpwm);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%u", heatpwm);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetPumpCur") == 0 ) {
-        unsigned int (*GetPumpCur) (double *);
-        double cur = -1.00;
-        GetPumpCur = dlsym(self->dlh, "GetPumpCur");
-        ret = GetPumpCur(&cur);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", cur);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetPumpMaxPower") == 0 ) {
-        unsigned int (*GetPumpMaxPower) (double *);
-        double power = -1.00;
-        GetPumpMaxPower = dlsym(self->dlh, "GetPumpMaxPower");
-        ret = GetPumpMaxPower(&power);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", power);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetPumpTargetVol") == 0 ) {
-        unsigned int (*GetPumpTargetVol) (double *);
-        double voltage = -1.00;
-        GetPumpTargetVol = dlsym(self->dlh, "GetPumpTargetVol");
-        ret = GetPumpTargetVol(&voltage);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", voltage);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetPumpUint") == 0 ) {
-        unsigned int (*GetPumpUint) (int *);
-        int unit = -1;
-        GetPumpUint = dlsym(self->dlh, "GetPumpUint");
-        ret = GetPumpUint(&unit);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d", unit);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetPumpVacuum") == 0 ) {
-        unsigned int (* GetPumpVacuum) (double *);
-        double vac = -1.00;
-        GetPumpVacuum = dlsym(self->dlh, " GetPumpVacuum");
-        ret =  GetPumpVacuum(&vac);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", vac);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetPumpVol") == 0 ) {
-        unsigned int (*GetPumpVol) (double *);
-        double voltage = -1.00;
-        GetPumpVol = dlsym(self->dlh, "GetPumpVol");
-        ret = GetPumpVol(&voltage);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", voltage);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetTcbTemp") == 0 ) {
-        char temp_name[32];
-        if ((ret = fscanf(fp, "%s", temp_name)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            unsigned int (*GetTcbTemp) (const char *, float *);
-            float temperature = 9999.00;
-            GetTcbTemp = dlsym(self->dlh, "GetTcbTemp");
-            ret = GetTcbTemp(temp_name, &temperature);
-            ret = ustc_error_mapping(ret);
-            snprintf(read_buffer, read_buffer_size, "%.2f", temperature);
+            SaveAsFITS = dlsym(self->dlh, "SaveAsFITS");
+            if ((ret = SaveAsFITS(path)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
-                *read_size = strlen(read_buffer) + 1;
+                *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "GetTemperature") == 0 ) {
-        char temp_name[32];
-        if ((ret = fscanf(fp, "%s", temp_name)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            unsigned int (*GetTemperature) (const char *, float *);
-            float temperature = 9999.00;
-            GetTemperature = dlsym(self->dlh, "GetTemperature");
-            ret = GetTemperature(temp_name, &temperature);
-            ret = ustc_error_mapping(ret);
-            snprintf(read_buffer, read_buffer_size, "%.2f", temperature);
+            break;
+        case 32:
+        {
+            unsigned int (*SaveAsFITSAccum) (const char *);
+            char path[PATHSIZE];
+            
+            if ((retval = fscanf(fp, "%s", path)) != 1) {
+                goto error;
+            }
+            SaveAsFITSAccum = dlsym(self->dlh, "SaveAsFITSAccum");
+            if ((ret = SaveAsFITSAccum(path)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
-                *read_size = strlen(read_buffer) + 1;
+                *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "GetVacuum") == 0 ) {
-        int pr;
-        if ((ret = fscanf(fp, "%d", &pr)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
+            break;
+        case 33: /* SaveAsFITSEx */
+            break;
+        case 34:
+        {
+            unsigned int (*GetLastSavedFile) (char *, uint32_t);
+            char path[PATHSIZE];
+            cJSON *root_json;
+            
+            GetLastSavedFile = dlsym(self->dlh, "GetLastSavedFile");
+            if ((ret = GetLastSavedFile(path, PATHSIZE)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "LastSavedFile", path);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 35:
+        {
+            unsigned int (*SetSaveDirectory) (const char *);
+            char directory[PATHSIZE];
+            
+            if ((retval = fscanf(fp, "%s", directory)) != 1) {
+                goto error;
+            }
+            SetSaveDirectory = dlsym(self->dlh, "SetSaveDirectory");
+            if ((ret = SetSaveDirectory(directory)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 36:
+        {
+            unsigned int (*SaveNthAsFITS) (const char *, int);
+            char path[PATHSIZE];
+            int idx;
+            
+            if ((retval = fscanf(fp, "%s %d", path, &idx)) != 1) {
+                goto error;
+            }
+            SaveNthAsFITS = dlsym(self->dlh, "SaveNthAsFITS");
+            if ((ret = SaveNthAsFITS(path, idx)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 37: /* SetAutoSaveFITS */
+            break;
+        case 38: /* ConfigAutoSave */
+            break;
+        case 39:
+        {
+            unsigned int (*DetectorPowerON) (void);
+    
+            DetectorPowerON = dlsym(self->dlh, "DetectorPowerON");
+            if ((ret = DetectorPowerON()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 40:
+        {
+            unsigned int (*DetectorPowerOff) (void);
+    
+            DetectorPowerOff = dlsym(self->dlh, "DetectorPowerOff");
+            if ((ret = DetectorPowerOff()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 41:
+        {
+            unsigned int (*GetCameraReady) (uint8_t *);
+            uint8_t status[4];
+            cJSON *root_json;
+            
+            GetCameraReady = dlsym(self->dlh, "GetCameraReady");
+            if ((ret = GetCameraReady(status)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddBoolToObject(root_json, "failed+exposing", status[0]);
+            cJSON_AddBoolToObject(root_json, "success+exposing", status[1]);
+            cJSON_AddBoolToObject(root_json, "failed+exposed", status[2]);
+            cJSON_AddBoolToObject(root_json, "success+exposed", status[3]);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 42:
+        {
+            unsigned int (*SetLDCMode) (void);
+    
+            SetLDCMode = dlsym(self->dlh, "SetLDCMode");
+            if ((ret = SetLDCMode()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 43:
+        {
+            unsigned int (*UnsetLDCMode) (void);
+    
+            UnsetLDCMode = dlsym(self->dlh, "UnsetLDCMode");
+            if ((ret = UnsetLDCMode()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 44:
+        {
+            unsigned int (*LDCModeSet) (uint8_t);
+            uint8_t onoff;
+            
+            if ((retval = fscanf(fp, "%c", &onoff)) != 1) {
+                goto error;
+            }
+            LDCModeSet = dlsym(self->dlh, "LDCModeSet");
+            if ((ret = LDCModeSet(onoff)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 45:
+        {
+            unsigned int (*GetModelInfo) (uint8_t *, uint8_t *, uint8_t *);
+            uint8_t ModelInfo1, ModelInfo2, ModelInfo3;
+            cJSON *root_json;
+            
+            GetModelInfo = dlsym(self->dlh, "GetModelInfo");
+            if ((ret = GetModelInfo(&ModelInfo1, &ModelInfo2, &ModelInfo3)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "ModelInfo1", (double) ModelInfo1);
+            cJSON_AddNumberToObject(root_json, "ModelInfo2", (double) ModelInfo2);
+            cJSON_AddNumberToObject(root_json, "ModelInfo3", (double) ModelInfo3);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 46:
+        {
             unsigned int (*GetVacuum) (int, double *);
-            double press = -1.00;
+            int pr;
+            double press;
+            cJSON *root_json;
+            
             GetVacuum = dlsym(self->dlh, "GetVacuum");
-            ret = GetVacuum(pr, &press);
-            ret = ustc_error_mapping(ret);
-            snprintf(read_buffer, read_buffer_size, "%.2f", press);
-            if (read_size != NULL) {
-                *read_size = strlen(read_buffer) + 1;
-            }
-        }
-    } else if (strcmp(func_name, "GetVideoMode") == 0 ) {
-        unsigned int (*GetVideoMode) (uint16_t *);
-        uint16_t mode = 65535;
-        GetVideoMode = dlsym(self->dlh, "GetVideoMode");
-        ret = GetVideoMode(&mode);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%u", mode);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "GetVoltageByChannel") == 0) {
-        unsigned int (*GetVoltageByChannel) (int, float *);
-        int chan;
-        float voltage = -1.00;
-        if ((ret = fscanf(fp, "%d", &chan)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (chan < 0 || chan > 3) {
-                ret = AAOS_EINVAL;
+            if ((retval = fscanf(fp, "%d", &pr)) != 1) {
                 goto error;
-            } else {
-                GetVoltageByChannel = dlsym(self->dlh, "GetVoltageByChannel");
-                ret = GetVoltageByChannel(chan, &voltage);
-                snprintf(read_buffer, read_buffer_size, "%.2f", voltage);
-                if (read_size != NULL) {
-                    *read_size = strlen(read_buffer) + 1;
-                }
+            }
+            if ((ret = GetVacuum(pr, &press)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "pr", (double) pr);
+            cJSON_AddNumberToObject(root_json, "press", press);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
             }
         }
-    } else if (strcmp(func_name, "hottemp") == 0 ) {
-        unsigned int (*hottemp) (double *);
-        double temperature = 9999.00;
-        hottemp = dlsym(self->dlh, "hottemp");
-        ret = hottemp(&temperature);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", temperature);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
+            break;
+        case 47:
+        {
+            unsigned int (*SetVacuumUnit) (int);
+            int unit;
+            
+            SetVacuumUnit = dlsym(self->dlh, "SetVacuumUnit");
+            if ((retval = fscanf(fp, "%d", &unit)) != 1) {
+                goto error;
+            }
+            if ((ret = SetVacuumUnit(unit)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
         }
-    } else if (strcmp(func_name, "ListCameras") == 0 ) {
-        unsigned int (*ListCameras) (int *);
-        int camera_num = -1;
-        ListCameras = dlsym(self->dlh, "ListCameras");
-        ret = ListCameras(&camera_num);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d", camera_num);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
+            break;
+        case 48:
+        {
+            unsigned int (*PumpOn) (void);
+            
+            PumpOn = dlsym(self->dlh, "PumpOn");
+            if ((ret = PumpOn()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
         }
-    } else if (strcmp(func_name, "Motor_temperature") == 0 ) {
-        unsigned int (*Motor_temperature) (double *);
-        double temperature = 9999.00;
-        Motor_temperature = dlsym(self->dlh, "Motor_temperature");
-        ret = Motor_temperature(&temperature);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", temperature);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
+            break;
+        case 49:
+        {
+            unsigned int (*PumpOff) (void);
+            
+            PumpOff = dlsym(self->dlh, "PumpOff");
+            if ((ret = PumpOff()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
         }
-    } else if (strcmp(func_name, "PumpOff") == 0 ) {
-        unsigned int (*PumpOff) (void);
-        PumpOff = dlsym(self->dlh, "PumpOff");
-        ret = PumpOff();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "PumpOn") == 0 ) {
-        unsigned int (*PumpOn) (void);
-        PumpOn = dlsym(self->dlh, "PumpOn");
-        ret = PumpOn();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
-        }
-    } else if (strcmp(func_name, "PumpProtect") == 0) {
-        unsigned int (*PumpProtect) (bool);
-        unsigned int onoff_;
-        bool onoff;
-        if ((ret = fscanf(fp, "%u", &onoff_)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (onoff_) {
-                onoff = true;
-            } else {
-                onoff = false;
+            break;
+        case 50:
+        {
+            unsigned int (*PumpProtect) (bool);
+            int onoff;
+            
+            if ((retval = fscanf(fp, "%d", &onoff)) != 1) {
+                goto error;
             }
             PumpProtect = dlsym(self->dlh, "PumpProtect");
-            ret = PumpProtect(onoff);
-            ret = ustc_error_mapping(ret);
+            if ((ret = PumpProtect(onoff)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "read_cooler_status") == 0 ) {
-        unsigned int (*read_cooler_status) (int *);
-        int error = -1;
-        read_cooler_status = dlsym(self->dlh, "read_cooler_status");
-        ret = read_cooler_status(&error);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%d", error);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
-        }
-    } else if (strcmp(func_name, "RetransNthImg") == 0) {
-        unsigned int (*RetransNthImg) (uint16_t);
-        uint16_t idx;
-        if ((ret = fscanf(fp, "%hu", &idx)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            RetransNthImg = dlsym(self->dlh, "RetransNthImg");
-            ret = RetransNthImg(idx);
-            ret = ustc_error_mapping(ret);
+            break;
+        case 51:
+        {
+            unsigned int (*SetPumpMaxPower) (double);
+            double power;
+            
+            if ((retval = fscanf(fp, "%lf", &power)) != 1) {
+                goto error;
+            }
+            SetPumpMaxPower = dlsym(self->dlh, "SetPumpMaxPower");
+            if ((ret = SetPumpMaxPower(power)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "ROIDisable") == 0) {
-        unsigned int (*ROIDisable) (void);
-        ROIDisable = dlsym(self->dlh, "ROIDisable");
-        ret = ROIDisable();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
+            break;
+        case 52:
+        {
+            unsigned int (*GetPumpMaxPower) (double *);
+            double power;
+            cJSON *root_json;
+            
+            GetPumpMaxPower = dlsym(self->dlh, "GetPumpMaxPower");
+            if ((ret = GetPumpMaxPower(&power)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "PumpMaxPower", power);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
         }
-    } else if (strcmp(func_name, "ROIEnable") == 0) {
-        unsigned int (*ROIEnable) (uint16_t, uint16_t, uint16_t, uint16_t);
-        uint16_t rowStartNum, rowKeepNum, colStartNum, colKeepNum;
-        if ((ret = fscanf(fp, "%hu %hu %hu %hu", &rowStartNum, &rowKeepNum, &colStartNum, &colKeepNum)) < 4 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            ROIEnable = dlsym(self->dlh, "ROIEnable");
-            ret = ROIEnable(rowStartNum, rowKeepNum, colStartNum, colKeepNum);
-            ret = ustc_error_mapping(ret);
+            break;
+        case 53:
+        {
+            unsigned int (*SetPumpTargetVol) (double);
+            double voltage;
+            
+            if ((retval = fscanf(fp, "%lf", &voltage)) != 1) {
+                goto error;
+            }
+            SetPumpTargetVol = dlsym(self->dlh, "SetPumpTargetVol");
+            if ((ret = SetPumpTargetVol(voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "Runningtime") == 0 ) {
-        unsigned int (*Runningtime) (double *);
-        double running_time = -1.00;
-        Runningtime = dlsym(self->dlh, "Runningtime");
-        ret = Runningtime(&running_time);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f", running_time);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
+            break;
+        case 54:
+        {
+            unsigned int (*GetPumpTargetVol) (double *);
+            double voltage;
+            cJSON *root_json;
+            
+            GetPumpTargetVol = dlsym(self->dlh, "GetPumpTargetVol");
+            if ((ret = GetPumpTargetVol(&voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "PumpTargetVol", voltage);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
         }
-    } else if (strcmp(func_name, " Save_configuration") == 0) {
-        unsigned int (* Save_configuration) (void);
-        Save_configuration = dlsym(self->dlh, " Save_configuration");
-        ret =  Save_configuration();
-        ret = ustc_error_mapping(ret);
-        if (read_size != NULL) {
-            *read_size = 0;
+            break;
+        case 55:
+        {
+            unsigned int (*GetPumpVol) (double *);
+            double voltage;
+            cJSON *root_json;
+            
+            GetPumpVol = dlsym(self->dlh, "GetPumpVol");
+            if ((ret = GetPumpVol(&voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "PumpVol", voltage);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
         }
-    } else if (strcmp(func_name, "set_channel_votlage") == 0) {
-        unsigned int (*set_channel_votlage) (int, float);
-        int chan;
-        float voltage;
-        if ((ret = fscanf(fp, "%d %f", &chan, &voltage)) < 2 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (chan < 1 || chan > 3) {
-                ret = AAOS_EINVAL;
+            break;
+        case 56:
+        {
+            unsigned int (*GetPumpCur) (double *);
+            double current;
+            cJSON *root_json;
+            
+            GetPumpCur = dlsym(self->dlh, "GetPumpCur");
+            if ((ret = GetPumpCur(&current)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "PumpCur", current);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 57:
+        {
+            unsigned int (*GetPumpVacuum) (double *);
+            double vac;
+            cJSON *root_json;
+            
+            GetPumpVacuum = dlsym(self->dlh, "GetPumpVacuum");
+            if ((ret = GetPumpVacuum(&vac)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "PumpVacuum", vac);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 58:
+        {
+            unsigned int (*SetPumpUnit) (int);
+            int unit;
+            
+            SetPumpUnit = dlsym(self->dlh, "SetPumpUnit");
+            if ((retval = fscanf(fp, "%d", &unit)) != 1) {
+                goto error;
+            }
+            if ((ret = SetPumpUnit(unit)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 59:
+        {
+            unsigned int (*GetPumpUint) (int *);
+            int unit;
+            cJSON *root_json;
+            
+            GetPumpUint = dlsym(self->dlh, "GetPumpUint");
+            if ((ret = GetPumpUint(&unit)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "GetPumpUint", (double) unit);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 60:
+        {
+            unsigned int (*CoolerOn) (void);
+            
+            CoolerOn = dlsym(self->dlh, "CoolerOn");
+            if ((ret = CoolerOn()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 61:
+        {
+            unsigned int (*CoolerOff) (void);
+            
+            CoolerOff = dlsym(self->dlh, "CoolerOff");
+            if ((ret = CoolerOff()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 62:
+        {
+            unsigned int (*Coolertemp) (double *);
+            double temperature;
+            cJSON *root_json;
+            
+            Coolertemp = dlsym(self->dlh, "Coolertemp");
+            if ((ret = Coolertemp(&temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerColdHeadTemp", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 63:
+        {
+            unsigned int (*Save_configuration) (void);
+            
+            Save_configuration = dlsym(self->dlh, "Save_configuration");
+            if ((ret = Save_configuration()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 64:
+        {
+            unsigned int (*error_clear) (void);
+            
+            error_clear = dlsym(self->dlh, "error_clear");
+            if ((ret = error_clear()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 65:
+        {
+            unsigned int (*hottemp) (double *);
+            double temperature;
+            cJSON *root_json;
+            
+            hottemp = dlsym(self->dlh, "hottemp");
+            if ((ret = hottemp(&temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerHotEndTemp", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 66:
+        {
+            unsigned int (*entemp) (double *);
+            double temperature;
+            cJSON *root_json;
+            
+            entemp = dlsym(self->dlh, "entemp");
+            if ((ret = entemp(&temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerUnitTemp", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 67:
+        {
+            unsigned int (*Controller_temperature) (double *);
+            double temperature;
+            cJSON *root_json;
+            
+            Controller_temperature = dlsym(self->dlh, "Controller_temperature");
+            if ((ret = Controller_temperature(&temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerControllerTemp", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 68:
+        {
+            unsigned int (*Motor_temperature) (double *);
+            double temperature;
+            cJSON *root_json;
+            
+            Motor_temperature = dlsym(self->dlh, "Motor_temperature");
+            if ((ret = Motor_temperature(&temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerMotorTemp", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 69:
+        {
+            unsigned int (*get_power) (double *);
+            double power;
+            cJSON *root_json;
+            
+            get_power = dlsym(self->dlh, "get_power");
+            if ((ret = get_power(&power)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerPower", power);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 70:
+        {
+            unsigned int (*Runningtime) (double *);
+            double uptime;
+            cJSON *root_json;
+            
+            Runningtime = dlsym(self->dlh, "Runningtime");
+            if ((ret = Runningtime(&uptime)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerUpTime", uptime);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 71:
+        {
+            unsigned int (*set_cooltemp) (double);
+            double temperature;
+            
+            if ((retval = fscanf(fp, "%lf", &temperature)) != 1) {
+                goto error;
+            }
+            set_cooltemp = dlsym(self->dlh, "set_cooltemp");
+            if ((ret = set_cooltemp(temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 72:
+        {
+            unsigned int (*read_cooler_status) (int *);
+            int status;
+            cJSON *root_json;
+            
+            read_cooler_status = dlsym(self->dlh, "read_cooler_status");
+            if ((ret = read_cooler_status(&status)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerStatus", status);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 73:
+        {
+            unsigned int (*GetCoolerStatus) (int *);
+            int status;
+            cJSON *root_json;
+            
+            GetCoolerStatus = dlsym(self->dlh, "GetCoolerStatus");
+            if ((ret = GetCoolerStatus(&status)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddBoolToObject(root_json, "IsCoolerOn", status);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 74:
+        {
+            unsigned int (*CircleContinuousCaptureOn) (void);
+            
+            CircleContinuousCaptureOn = dlsym(self->dlh, "CircleContinuousCaptureOn");
+            if ((ret = CircleContinuousCaptureOn()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 75:
+        {
+            unsigned int (*CircleContinuousCaptureOff) (void);
+            
+            CircleContinuousCaptureOff = dlsym(self->dlh, "CircleContinuousCaptureOff");
+            if ((ret = CircleContinuousCaptureOff()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 76:
+        {
+            unsigned int (*CoolerSet) (uint8_t);
+            uint8_t onoff;
+            
+            if ((retval = fscanf(fp, "%c", &onoff)) != 1) {
+                goto error;
+            }
+            CoolerSet = dlsym(self->dlh, "CoolerSet");
+            if ((ret = CoolerSet(onoff)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 77:
+        {
+            unsigned int (*SetCoolerTemp) (double);
+            double temperature;
+            
+            if ((retval = fscanf(fp, "%lf", &temperature)) != 1) {
+                goto error;
+            }
+            SetCoolerTemp = dlsym(self->dlh, "SetCoolerTemp");
+            if ((ret = SetCoolerTemp(temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 78:
+        {
+            unsigned int (*set_channel_votlage) (int, double);
+            int channel;
+            double voltage;
+            
+            if ((retval = fscanf(fp, "%d %lf", &channel, &voltage)) != 2) {
                 goto error;
             }
             set_channel_votlage = dlsym(self->dlh, "set_channel_votlage");
-            ret = set_channel_votlage(chan, voltage);
-            ret = ustc_error_mapping(ret);
+            if ((ret = set_channel_votlage(channel, voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "set_cooltemp") == 0) {
-        unsigned int (*set_cooltemp) (float);
-        float temperature;
-        if ((ret = fscanf(fp, "%f", &temperature)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            set_cooltemp = dlsym(self->dlh, "set_cooltemp");
-            ret = set_cooltemp(temperature);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "set_pid") == 0) {
-        unsigned int (*set_pid) (int, int);
-        int chan, status;
-        if ((ret = fscanf(fp, "%d %d", &chan, &status)) < 2 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (chan < 1 || chan > 3) {
-                ret = AAOS_EINVAL;
-                goto error;
-            }
-            if (status != 0 && status != 1) {
-                ret = AAOS_EINVAL;
+            break;
+        case 79:
+        {
+            unsigned int (*set_pid) (int, int);
+            int channel, pid;
+            
+            if ((retval = fscanf(fp, "%d %d", &channel, &pid)) != 2) {
                 goto error;
             }
             set_pid = dlsym(self->dlh, "set_pid");
-            ret = set_pid(chan, status);
-            ret = ustc_error_mapping(ret);
+            if ((ret = set_pid(channel, pid)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "set_power") == 0) {
-        unsigned int (*set_power) (int, int);
-        int chan, status;
-        if ((ret = fscanf(fp, "%d %d", &chan, &status)) < 2 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (chan != 1 && chan != 2) {
-                ret = AAOS_EINVAL;
-                goto error;
-            }
-            if (status != 0 && status != 1) {
-                ret = AAOS_EINVAL;
+            break;
+        case 80:
+        {
+            unsigned int (*set_power) (int, int);
+            int channel, pid;
+            
+            if ((retval = fscanf(fp, "%d %d", &channel, &pid)) != 2) {
                 goto error;
             }
             set_power = dlsym(self->dlh, "set_power");
-            ret = set_power(chan, status);
-            ret = ustc_error_mapping(ret);
+            if ((ret = set_power(channel, pid)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "set_tcb_target_temp") == 0) {
-        unsigned int (*set_tcb_target_temp) (int, int);
-        int chan, temperature;
-        if ((ret = fscanf(fp, "%d %d", &chan, &temperature)) < 2 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            if (chan < 1 || chan > 3) {
-                ret = AAOS_EINVAL;
+            break;
+        case 81:
+        {
+            unsigned int (*set_tcb_target_temp) (int, int);
+            int channel, temperature;
+            
+            if ((retval = fscanf(fp, "%d %d", &channel, &temperature)) != 2) {
                 goto error;
             }
             set_tcb_target_temp = dlsym(self->dlh, "set_tcb_target_temp");
-            ret = set_tcb_target_temp(chan, temperature);
-            ret = ustc_error_mapping(ret);
+            if ((ret = set_tcb_target_temp(channel, temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
             if (read_size != NULL) {
                 *read_size = 0;
             }
         }
-    } else if (strcmp(func_name, "SetGain") == 0) {
-        unsigned int (*SetGain) (float, float);
-        float high, low;
-        if ((ret = fscanf(fp, "%f %f", &high, &low)) < 2 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SetGain = dlsym(self->dlh, "SetGain");
-            ret = SetGain(high, low);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetHeatPWM") == 0) {
-        unsigned int (*SetHeatPWM) (int, uint8_t *);
-        int chan;
-        uint8_t heatpwm;
-        if ((ret = fscanf(fp, "%d %c", &chan, &heatpwm)) < 2 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SetHeatPWM = dlsym(self->dlh, "SetHeatPWM");
-            ret = SetHeatPWM(chan, &heatpwm);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetPumpMaxPower") == 0) {
-        unsigned int (*SetPumpMaxPower) (double);
-        double power;
-        if ((ret = fscanf(fp, "%lf", &power)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SetPumpMaxPower = dlsym(self->dlh, "SetPumpMaxPower");
-            if (power < 10. || power > 40.) {
-                ret =AAOS_EINVAL;
-                goto error;
-            }
-            ret = SetPumpMaxPower(power);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetPumpTargetVol") == 0) {
-        unsigned int (*SetPumpTargetVol) (double);
-        double voltage;
-        if ((ret = fscanf(fp, "%lf", &voltage)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SetPumpTargetVol = dlsym(self->dlh, "SetPumpMaxPower");
-            if (voltage < 3000. || voltage > 7000.) {
-                ret =AAOS_EINVAL;
-                goto error;
-            }
-            ret = SetPumpTargetVol(voltage);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetPumpUnit") == 0) {
-        unsigned int (*SetPumpUnit) (int);
-        int unit;
-        if ((ret = fscanf(fp, "%d", &unit)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SetPumpUnit = dlsym(self->dlh, "SetPumpUnit");
-            if (unit < 0 || unit > 2) {
-                ret =AAOS_EINVAL;
-                goto error;
-            }
-            ret = SetPumpUnit(unit);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetRtnsMode") == 0) {
-        unsigned int (*SetRtnsMode) (uint16_t);
-        uint16_t mode;
-        if ((ret = fscanf(fp, "%hu", &mode)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SetRtnsMode = dlsym(self->dlh, "SetRtnsMode");
-            if (mode > 1) {
-                ret =AAOS_EINVAL;
-                goto error;
-            }
-            ret = SetRtnsMode(mode);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetVacuumUnit") == 0) {
-        unsigned int (*SetVacuumUnit) (int);
-        int unit;
-        if ((ret = fscanf(fp, "%d", &unit)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SetVacuumUnit = dlsym(self->dlh, "SetVacuumUnit");
-            if (unit < 0 || unit > 2) {
-                ret =AAOS_EINVAL;
-                goto error;
-            }
-            ret = SetVacuumUnit(unit);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "VideoMode") == 0) {
-        unsigned int (*VideoMode) (uint16_t);
-        uint16_t mode;
-        if ((ret = fscanf(fp, "%hu", &mode)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            VideoMode = dlsym(self->dlh, "VideoMode");
-            if (mode > 1) {
-                ret =AAOS_EINVAL;
-                goto error;
-            }
-            ret = VideoMode(mode);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SetSerialNumber") == 0) {
-        unsigned int (*SetSerialNumber) (PIXELX_SERIAL *);
-        uint8_t Model_Enum, MB_ID, Year, Month, Day, Hour, version, version_aa, id, checksum;
-        if ((ret = fscanf(fp, "%c %c %c %c %c %c %c %c %c %c", &Model_Enum, &MB_ID, &Year, &Month, &Day, &Hour, &version, &version_aa, &id, &checksum)) < 10){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            PIXELX_SERIAL serial_no;
-            serial_no.Model_Enum = Model_Enum;
-            serial_no.MB_ID = MB_ID;
-            serial_no.Year = Year;
-            serial_no.Month = Month;
-            serial_no.Day = Day;
-            serial_no.Hour = Hour;
-            serial_no.version = version;
-            serial_no.version_aa = version_aa;
-            serial_no.id = id;
-            serial_no.checksum = checksum;
-            SetSerialNumber = dlsym(self->dlh, "SetSerialNumber");
-            ret = SetSerialNumber(&serial_no);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "GetSerialNumber") == 0) {
-        unsigned int (*GetSerialNumber) (PIXELX_SERIAL *);
-        PIXELX_SERIAL serial_no;
+            break;
+        case 82:
+        {
+            unsigned int (*GetCoolerTargetTemp) (double *);
+            double temperature;
+            cJSON *root_json;
             
-        GetSerialNumber = dlsym(self->dlh, "GetSerialNumber");
-        ret = GetSerialNumber(&serial_no);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%03d %03d %02d %02d %02d %02d %03d %03d %03d %03d", serial_no.Model_Enum, serial_no.MB_ID, serial_no.Year, serial_no.Month, serial_no.Day, serial_no.Hour, serial_no.version, serial_no.version_aa, serial_no.id, serial_no.checksum);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
+            GetCoolerTargetTemp = dlsym(self->dlh, "GetCoolerTargetTemp");
+            if ((ret = GetCoolerTargetTemp(&temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerTargetTemp", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
         }
-    } else if (strcmp(func_name, "GetTemperatureDiff") == 0) {
-        unsigned int (*GetTemperatureDiff) (double *, double *);
-        double cold_diff, hot_diff;
-        GetTemperatureDiff = dlsym(self->dlh, "GetTemperatureDiff");
-        ret = GetTemperatureDiff(&cold_diff, &hot_diff);
-        ret = ustc_error_mapping(ret);
-        snprintf(read_buffer, read_buffer_size, "%.2f %.2f", cold_diff, hot_diff);
-        if (read_size != NULL) {
-            *read_size = strlen(read_buffer) + 1;
+            break;
+        case 83:
+        {
+            unsigned int (*PauseCool) (void);
+            
+            PauseCool = dlsym(self->dlh, "PauseCool");
+            if ((ret = PauseCool()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
         }
-    } else if (strcmp(func_name, "CamErrorName") == 0) {
-        const char * (*CamErrorName) (int);
-        int errorcode;
-        if ((ret = fscanf(fp, "%d", &errorcode)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
+            break;
+        case 84:
+        {
+            unsigned int (*RecoverCool) (void);
+            
+            RecoverCool = dlsym(self->dlh, "RecoverCool");
+            if ((ret = RecoverCool()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 85:
+        {
+            unsigned int (*GetTemperature) (const char *, double *);
+            char channel[COMMANDSIZE];
+            double temperature;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%s", channel)) != 1) {
+                goto error;
+            }
+            GetTemperature = dlsym(self->dlh, "GetTemperature");
+            if ((ret = GetTemperature(channel, &temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "ChannelName", channel);
+            cJSON_AddNumberToObject(root_json, "temperature", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 86:
+        {
+            unsigned int (*GetTcbTemp) (const char *, double *);
+            char channel[COMMANDSIZE];
+            double temperature;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%s", channel)) != 1) {
+                goto error;
+            }
+            GetTcbTemp = dlsym(self->dlh, "GetTemperature");
+            if ((ret = GetTcbTemp(channel, &temperature)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "TcbName", channel);
+            cJSON_AddNumberToObject(root_json, "temperature", temperature);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 87:
+        {
+            unsigned int (*GetCurrent) (double *, double *, double *, double *);
+            double iboard, i5_5v, i24v, itec;
+            cJSON *root_json;
+            
+            GetCurrent = dlsym(self->dlh, "GetCurrent");
+            if ((ret = GetCurrent(&iboard, &i5_5v, &i24v, &itec)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "board", iboard);
+            cJSON_AddNumberToObject(root_json, "i5_5v", i5_5v);
+            cJSON_AddNumberToObject(root_json, "i24v", i24v);
+            cJSON_AddNumberToObject(root_json, "itec", itec);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 88:
+        {
+            unsigned int (*GetCurrentByChannel) (int, double *);
+            int channel;
+            double current;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%d", &channel)) != 1) {
+                goto error;
+            }
+            GetCurrentByChannel = dlsym(self->dlh, "GetCurrentByChannel");
+            if ((ret = GetCurrentByChannel(channel, &current)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "Channel", channel);
+            cJSON_AddNumberToObject(root_json, "current", current);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 89:
+        {
+            unsigned int (*GetVoltageByChannel) (int, double *);
+            int channel;
+            double voltage;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%d", &channel)) != 1) {
+                goto error;
+            }
+            GetVoltageByChannel = dlsym(self->dlh, "GetVoltageByChannel");
+            if ((ret = GetVoltageByChannel(channel, &voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "Channel", channel);
+            cJSON_AddNumberToObject(root_json, "voltage", voltage);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 90:
+        {
+            unsigned int (*GetCoolerRange) (int *, int *);
+            int min_, max_;
+            cJSON *root_json;
+            
+            GetCoolerRange = dlsym(self->dlh, "GetCoolerRange");
+            if ((ret = GetCoolerRange(&min_, &max_)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CoolerMinTemp", min_);
+            cJSON_AddNumberToObject(root_json, "CoolerMaxTemp", max_);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 91:
+        {
+            unsigned int (*GetDetector) (int *, int *);
+            int width, height;
+            cJSON *root_json;
+            
+            GetDetector = dlsym(self->dlh, "GetDetector");
+            if ((ret = GetDetector(&width, &height)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "width", (double) width);
+            cJSON_AddNumberToObject(root_json, "height", (double) height);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 92:
+        {
+            unsigned int (*GetBitDepth) (int *);
+            int depth;
+            cJSON *root_json;
+            
+            GetBitDepth = dlsym(self->dlh, "GetBitDepth");
+            if ((ret = GetBitDepth(&depth)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "depth", (double) depth);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 93:
+        {
+            unsigned int (*GetChipNum) (int *);
+            int chipnum;
+            cJSON *root_json;
+            
+            GetChipNum = dlsym(self->dlh, "GetChipNum");
+            if ((ret = GetChipNum(&chipnum)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "n_chip", (double) chipnum);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 94:
+        {
+            unsigned int (*GetAcquisitionStatus) (void);
+            int status;
+            cJSON *root_json;
+            
+            GetAcquisitionStatus = dlsym(self->dlh, "GetAcquisitionStatus");
+            status = GetAcquisitionStatus();
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "AcquisitionStatus", (double) status);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 95:
+        {
+            unsigned int (*ControllerFan) (uint8_t);
+            uint8_t speed;
+            
+            if ((retval = fscanf(fp, "%c", &speed)) != 1) {
+                goto error;
+            }
+            ControllerFan = dlsym(self->dlh, "ControllerFan");
+            if ((ret = ControllerFan(speed)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+            
+        }
+            break;
+        case 96:
+        {
+            unsigned int (*PowerFan) (uint8_t);
+            uint8_t speed;
+            
+            if ((retval = fscanf(fp, "%c", &speed)) != 1) {
+                goto error;
+            }
+            PowerFan = dlsym(self->dlh, "PowerFan");
+            if ((ret = PowerFan(speed)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+            
+        }
+            break;
+        case 97:
+        {
+            unsigned int (*FanStatusSet) (uint8_t);
+            uint8_t onoff;
+            
+            if ((retval = fscanf(fp, "%c", &onoff)) != 1) {
+                goto error;
+            }
+            FanStatusSet = dlsym(self->dlh, "FanStatusSet");
+            if ((ret = FanStatusSet(onoff)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 98:
+        {
+            unsigned int (*GetFanSpeed) (uint8_t *);
+            uint8_t speed;
+            cJSON *root_json;
+            
+            GetFanSpeed = dlsym(self->dlh, "GetFanSpeed");
+            if ((ret = GetFanSpeed(&speed)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "FanSpeed", (double) speed);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+        case 99:
+        {
+            unsigned int (*ImageAccumulationStatusSet) (uint8_t);
+            uint8_t enable;
+            
+            if ((retval = fscanf(fp, "%c", &enable)) != 1) {
+                goto error;
+            }
+            ImageAccumulationStatusSet = dlsym(self->dlh, "ImageAccumulationStatusSet");
+            if ((ret = ImageAccumulationStatusSet(enable)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 100:
+        {
+            unsigned int (*ImageAccumulationNumberSet) (uint16_t);
+            uint16_t AccumNum;
+            
+            if ((retval = fscanf(fp, "%hu", &AccumNum)) != 1) {
+                goto error;
+            }
+            ImageAccumulationNumberSet = dlsym(self->dlh, "ImageAccumulationNumberSet");
+            if ((ret = ImageAccumulationNumberSet(AccumNum)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 101:
+        {
+            unsigned int (*GetImageAccumulationStatus) (uint8_t *);
+            uint8_t status;
+            cJSON *root_json;
+            
+            GetImageAccumulationStatus = dlsym(self->dlh, "GetImageAccumulationStatus");
+            if ((ret = GetImageAccumulationStatus(&status)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "ImageAccumulationStatus", (double) status);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 102:
+        {
+            unsigned int (*HeatStatusSet) (uint8_t);
+            uint8_t status;
+            
+            if ((retval = fscanf(fp, "%c", &status)) != 1) {
+                goto error;
+            }
+            HeatStatusSet = dlsym(self->dlh, "HeatStatusSet");
+            if ((ret = HeatStatusSet(status)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 103:
+        {
+            unsigned int (*ControllerHeat) (uint8_t);
+            uint8_t heatpwm;
+            
+            if ((retval = fscanf(fp, "%c", &heatpwm)) != 1) {
+                goto error;
+            }
+            ControllerHeat = dlsym(self->dlh, "ControllerHeat");
+            if ((ret = ControllerHeat(heatpwm)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+        case 104:
+        {
+            unsigned int (*SendIMROHead) (void);
+            
+            SendIMROHead = dlsym(self->dlh, "SendIMROHead");
+            if ((ret = SendIMROHead()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 105:
+        {
+            unsigned int (*SendIMROTail) (void);
+            
+            SendIMROTail = dlsym(self->dlh, "SendIMROTail");
+            if ((ret = SendIMROTail()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 106:
+        {
+            unsigned int (*GetHeatPWM) (uint8_t *);
+            uint8_t heatpwm;
+            cJSON *root_json;
+            
+            GetHeatPWM = dlsym(self->dlh, "GetHeatPWM");
+            if ((ret = GetHeatPWM(&heatpwm)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "HeatPWM", (double) heatpwm);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 107:
+        {
+            unsigned int (*SetHeatPWM) (int, uint8_t *);
+            uint8_t heatpwm[2];
+            
+            if ((retval = fscanf(fp, "%c %c", &heatpwm[0], &heatpwm[1])) != 2) {
+                goto error;
+            }
+            SetHeatPWM = dlsym(self->dlh, "SetHeatPWM");
+            if ((ret = SetHeatPWM(2, heatpwm)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 108:
+        {
+            unsigned int (*VideoMode) (uint16_t);
+            uint16_t photoNum;
+            
+            if ((retval = fscanf(fp, "%hu", &photoNum)) != 1) {
+                goto error;
+            }
+            VideoMode = dlsym(self->dlh, "VideoMode");
+            if ((ret = VideoMode(photoNum)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 109:
+        {
+            unsigned int (*GetVideoMode) (uint16_t *);
+            uint16_t photoNum;
+            cJSON *root_json;
+            
+            GetVideoMode = dlsym(self->dlh, "GetVideoMode");
+            if ((ret = GetVideoMode(&photoNum)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "PhotoNumber", (double) photoNum);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 110:
+        {
+            unsigned int (*VideoROISet) (uint8_t, uint16_t, uint16_t, uint16_t, uint16_t);
+            uint8_t SetOnOff;
+            uint16_t rowStartNum, rowKeepNum, columnStartNum, columnKeepNum;
+            
+            if ((retval = fscanf(fp, "%c %hu %hu %hu %hu", &SetOnOff, &rowStartNum, &rowKeepNum, &columnStartNum, &columnKeepNum)) != 5) {
+                goto error;
+            }
+            VideoROISet = dlsym(self->dlh, "VideoROISet");
+            if ((ret = VideoROISet(SetOnOff, rowStartNum, rowKeepNum, columnStartNum, columnKeepNum)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 111:
+        {
+            unsigned int (*VideoROIEnsure) (void);
+            
+            VideoROIEnsure = dlsym(self->dlh, "VideoROIEnsure");
+            if ((ret = VideoROIEnsure()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 112:
+        {
+            unsigned int (*ROIEnable) (uint16_t, uint16_t, uint16_t, uint16_t);
+            uint16_t rowStartNum, rowKeepNum, columnStartNum, columnKeepNum;
+            
+            if ((retval = fscanf(fp, "%hu %hu %hu %hu", &rowStartNum, &rowKeepNum, &columnStartNum, &columnKeepNum)) != 4) {
+                goto error;
+            }
+            ROIEnable = dlsym(self->dlh, "ROIEnable");
+            if ((ret = ROIEnable(rowStartNum, rowKeepNum, columnStartNum, columnKeepNum)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 113:
+        {
+            unsigned int (*ROIDisable) (void);
+            
+            ROIDisable = dlsym(self->dlh, "ROIDisable");
+            if ((ret = ROIDisable()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 114:
+        {
+            unsigned int (*GetExposureROI) (uint16_t *, uint16_t *, uint16_t *, uint16_t *);
+            uint16_t rowStartNum, rowKeepNum, columnStartNum, columnKeepNum;
+            cJSON *root_json;
+            
+            GetExposureROI = dlsym(self->dlh, "GetExposureROI");
+            if ((ret = GetExposureROI(&rowStartNum, &rowKeepNum, &columnStartNum, &columnKeepNum)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "x_offset", (double) rowStartNum);
+            cJSON_AddNumberToObject(root_json, "y_offset", (double) columnStartNum);
+            cJSON_AddNumberToObject(root_json, "image_width", (double) rowKeepNum);
+            cJSON_AddNumberToObject(root_json, "image_height", (double) columnKeepNum);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 115:
+        {
+            unsigned int (*BINEnable) (uint16_t, uint16_t);
+            uint16_t binReadRow, binReadColumn;
+            
+            if ((retval = fscanf(fp, "%hu %hu", &binReadRow, &binReadColumn)) != 2) {
+                goto error;
+            }
+            BINEnable = dlsym(self->dlh, "BINEnable");
+            if ((ret = BINEnable(binReadRow, binReadColumn)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 116:
+        {
+            unsigned int (*BINDisable) (void);
+            
+            BINDisable = dlsym(self->dlh, "BINDisable");
+            if ((ret = BINDisable()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 117:
+        {
+            unsigned int (*SetCurrImageSize) (bool, uint16_t, uint16_t);
+            int imageDefault;
+            uint16_t sizex, sizey;
+            
+            if ((retval = fscanf(fp, "%d %hu %hu", &imageDefault, &sizex, &sizey)) != 3) {
+                goto error;
+            }
+            SetCurrImageSize = dlsym(self->dlh, "SetCurrImageSize");
+            if ((ret = SetCurrImageSize(imageDefault, sizex, sizey)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 118:
+        {
+            unsigned int (*SpecialImageCircle) (void);
+            
+            SpecialImageCircle = dlsym(self->dlh, "SpecialImageCircle");
+            if ((ret = SpecialImageCircle()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 119:
+        {
+            unsigned int (*PhotoMode) (uint8_t);
+            uint8_t mode;
+            
+            if ((retval = fscanf(fp, "%c", &mode)) != 1) {
+                goto error;
+            }
+            PhotoMode = dlsym(self->dlh, "PhotoMode");
+            if ((ret = PhotoMode(mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 120:
+        {
+            unsigned int (*TransferCycle) (uint16_t);
+            uint16_t cycle;
+            
+            if ((retval = fscanf(fp, "%hu", &cycle)) != 1) {
+                goto error;
+            }
+            TransferCycle = dlsym(self->dlh, "TransferCycle");
+            if ((ret = TransferCycle(cycle)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 121:
+        {
+            unsigned int (*SetDriftMode) (uint8_t);
+            uint8_t mode;
+            
+            if ((retval = fscanf(fp, "%c", &mode)) != 1) {
+                goto error;
+            }
+            SetDriftMode = dlsym(self->dlh, "SetDriftMode");
+            if ((ret = SetDriftMode(mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 122:
+        {
+            unsigned int (*SetDriftSpeed) (double);
+            double speed;
+            
+            if ((retval = fscanf(fp, "%lf", &speed)) != 1) {
+                goto error;
+            }
+            SetDriftSpeed = dlsym(self->dlh, "SetDriftSpeed");
+            if ((ret = SetDriftSpeed(speed)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 123:
+        {
+            unsigned int (*SetDCDS) (uint8_t, uint8_t, uint16_t, uint8_t);
+            uint8_t T1, T2, T4;
+            uint16_t T3;
+            
+            if ((retval = fscanf(fp, "%c %c %hu %c", &T1, &T2, &T3, &T4)) != 1) {
+                goto error;
+            }
+            SetDCDS = dlsym(self->dlh, "SetDCDS");
+            if ((ret = SetDCDS(T1, T2, T3, T4)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 124:
+        {
+            unsigned int (*SetDCDS_2) (uint8_t, uint8_t, uint16_t, uint8_t);
+            uint8_t T1, T2, T4;
+            uint16_t T3;
+            
+            if ((retval = fscanf(fp, "%c %c %hu %c", &T1, &T2, &T3, &T4)) != 1) {
+                goto error;
+            }
+            SetDCDS_2 = dlsym(self->dlh, "SetDCDS_2");
+            if ((ret = SetDCDS_2(T1, T2, T3, T4)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 125:
+        {
+            unsigned int (*GetWaitingTime) (uint16_t, float *);
+            uint16_t readoutSpeed;
+            float waitingTime;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%hu", &readoutSpeed)) != 1) {
+                goto error;
+            }
+            GetWaitingTime = dlsym(self->dlh, "GetWaitingTime");
+            if ((ret = GetWaitingTime(readoutSpeed, &waitingTime)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "WaitingTime", (double) waitingTime);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 126:
+        {
+            unsigned int (*GetModel) (uint8_t *);
+            uint8_t Num;
+            cJSON *root_json;
+            
+            GetModel = dlsym(self->dlh, "GetModel");
+            if ((ret = GetModel(&Num)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "Model", (double) Num);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 127:
+        {
+            unsigned int (*GetSerialNum) (uint8_t *);
+            uint8_t Num;
+            cJSON *root_json;
+            
+            GetSerialNum = dlsym(self->dlh, "GetSerialNum");
+            if ((ret = GetSerialNum(&Num)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "SerialNum", (double) Num);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 128:
+        {
+            unsigned int (*GetLogicVer) (uint8_t *);
+            uint8_t Num;
+            cJSON *root_json;
+            
+            GetLogicVer = dlsym(self->dlh, "GetLogicVer");
+            if ((ret = GetLogicVer(&Num)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "LogicVer", (double) Num);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 129:
+        {
+            unsigned int (*AnalogPowerOn) (void);
+            
+            AnalogPowerOn = dlsym(self->dlh, "AnalogPowerOn");
+            if ((ret = AnalogPowerOn()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 130:
+        {
+            unsigned int (*AnalogPowerOff) (void);
+            
+            AnalogPowerOff = dlsym(self->dlh, "AnalogPowerOff");
+            if ((ret = AnalogPowerOff()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 131:
+        {
+            unsigned int (*SetForcedTraining) (void);
+            
+            SetForcedTraining = dlsym(self->dlh, "SetForcedTraining");
+            if ((ret = SetForcedTraining()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 132:
+        {
+            unsigned int (*GetForcedTraining) (uint8_t *);
+            uint8_t ForcedTraining;
+            cJSON *root_json;
+            
+            GetForcedTraining = dlsym(self->dlh, "GetForcedTraining");
+            if ((ret = GetForcedTraining(&ForcedTraining)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "ForcedTraining", (double) ForcedTraining);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 133:
+        {
+            unsigned int (*Sync) (void);
+            
+            Sync = dlsym(self->dlh, "Sync");
+            if ((ret = Sync()) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 134:
+        {
+            unsigned int (*SetIntegrateCycle) (uint16_t);
+            uint16_t cycle;
+            
+            if ((retval = fscanf(fp, "%hu", &cycle)) != 1) {
+                goto error;
+            }
+            SetIntegrateCycle = dlsym(self->dlh, "SetIntegrateCycle");
+            if ((ret = SetIntegrateCycle(cycle)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 135:
+        {
+            unsigned int (*GetEffectiveArea) (int *, int *, int *, int *);
+            int start_x, start_y, end_x, end_y;
+            cJSON *root_json;
+            
+            GetEffectiveArea = dlsym(self->dlh, "GetEffectiveArea");
+            if ((ret = GetEffectiveArea(&start_x, &start_y, &end_x, &end_y)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "x_start", (double) start_x);
+            cJSON_AddNumberToObject(root_json, "y_start", (double) start_y);
+            cJSON_AddNumberToObject(root_json, "x_end", (double) end_x);
+            cJSON_AddNumberToObject(root_json, "y_end", (double) end_y);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 136:
+        {
+            unsigned int (*ListCameras) (int *);
+            int Num;
+            cJSON *root_json;
+            
+            ListCameras = dlsym(self->dlh, "ListCameras");
+            if ((ret = ListCameras(&Num)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CamNum", (double) Num);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 137:
+        {
+            unsigned int (*ListCamerasFiber) (int *);
+            int Num;
+            cJSON *root_json;
+            
+            ListCamerasFiber = dlsym(self->dlh, "ListCamerasFiber");
+            if ((ret = ListCamerasFiber(&Num)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "CamFiberNum", (double) Num);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 138:
+        {
+            unsigned int (*GetClockVoltage) (uint8_t, uint8_t, float *);
+            uint8_t mode, channel;
+            float voltage;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%c %c", &mode, &channel)) != 2) {
+                goto error;
+            }
+            GetClockVoltage = dlsym(self->dlh, "GetClockVoltage");
+            if ((ret = GetClockVoltage(mode, channel, &voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "mode", (double) mode);
+            cJSON_AddNumberToObject(root_json, "channel", (double) channel);
+            cJSON_AddNumberToObject(root_json, "voltage", voltage);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 139:
+        {
+            unsigned int (*GetAnalogVoltage) (uint8_t, float *);
+            uint8_t channel;
+            float voltage;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%c", &channel)) != 2) {
+                goto error;
+            }
+            GetAnalogVoltage = dlsym(self->dlh, "GetAnalogVoltage");
+            if ((ret = GetAnalogVoltage(channel, &voltage)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "channel", (double) channel);
+            cJSON_AddNumberToObject(root_json, "voltage", voltage);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 140:
+        {
+            unsigned int (*PICMode) (uint8_t);
+            uint8_t mode;
+            
+            if ((retval = fscanf(fp, "%c", &mode)) != 1) {
+                goto error;
+            }
+            PICMode = dlsym(self->dlh, "PICMode");
+            if ((ret = PICMode(mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 141:
+        {
+            unsigned int (*GetPICMode) (uint8_t *);
+            uint8_t mode;
+            cJSON *root_json;
+            
+            GetPICMode = dlsym(self->dlh, "GetPICMode");
+            if ((ret = GetPICMode(&mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "PICMode", (double) mode);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 142:
+        {
+            unsigned int (*setPID) (uint8_t, uint8_t, uint8_t, uint8_t);
+            uint8_t p, i, d, T;
+            
+            if ((retval = fscanf(fp, "%c %c %c %c", &p, &i, &d, &T)) != 4) {
+                goto error;
+            }
+            setPID = dlsym(self->dlh, "setPID");
+            if ((ret = setPID(p, i, d, T)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+            
+        }
+            break;
+        case 143:
+        {
+            unsigned int (*SetBlackLevel) (uint8_t, uint8_t);
+            uint16_t top, bottom;
+            
+            if ((retval = fscanf(fp, "%hu %hu", &top, &bottom)) != 2) {
+                goto error;
+            }
+            SetBlackLevel = dlsym(self->dlh, "SetBlackLevel");
+            if ((ret = SetBlackLevel(top, bottom)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 144:
+        {
+            unsigned int (*GetBlackLevel) (uint16_t *, uint16_t *);
+            uint16_t top, bottom;
+            cJSON *root_json;
+            
+            GetBlackLevel = dlsym(self->dlh, "GetBlackLevel");
+            if ((ret = GetBlackLevel(&top, &bottom)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "TopBlackLevel", (double) top);
+            cJSON_AddNumberToObject(root_json, "BottomBlackLevel", (double) bottom);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+            
+        }
+            break;
+        case 145:
+        {
+            unsigned int (*SetExposureStartTime) (uint64_t, uint64_t);
+            uint64_t sec, nsec;
+            
+#ifdef LINUX
+            if ((retval = fscanf(fp, "%lu %lu", &sec, &nsec)) != 2) {
+                goto error;
+            }
+#else
+            if ((retval = fscanf(fp, "%llu %llu", &sec, &nsec)) != 2) {
+                goto error;
+            }
+#endif
+            SetExposureStartTime = dlsym(self->dlh, "SetExposureStartTime");
+            if ((ret = SetExposureStartTime(sec, nsec)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 146:
+        {
+            unsigned int (*RecordExposureStartTime) (uint64_t, uint64_t);
+            uint64_t sec, nsec;
+            
+#ifdef LINUX
+            if ((retval = fscanf(fp, "%lu %lu", &sec, &nsec)) != 2) {
+                goto error;
+            }
+#else
+            if ((retval = fscanf(fp, "%llu %llu", &sec, &nsec)) != 2) {
+                goto error;
+            }
+#endif
+            RecordExposureStartTime = dlsym(self->dlh, "RecordExposureStartTime");
+            if ((ret = RecordExposureStartTime(sec, nsec)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 147:
+        {
+            unsigned int (*SetRtnsMode) (uint16_t);
+            uint16_t mode;
+            
+            if ((retval = fscanf(fp, "%hu", &mode)) != 1) {
+                goto error;
+            }
+            SetRtnsMode = dlsym(self->dlh, "SetRtnsMode");
+            if ((ret = SetRtnsMode(mode)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 148:
+        {
+            unsigned int (*RetransNthImg) (uint16_t);
+            uint16_t idx;
+            
+            if ((retval = fscanf(fp, "%hu", &idx)) != 1) {
+                goto error;
+            }
+            RetransNthImg = dlsym(self->dlh, "RetransNthImg");
+            if ((ret = RetransNthImg(idx)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 149:
+        {
+            unsigned int (*SetGain) (float, float);
+            float top, bottom;
+            
+            if ((retval = fscanf(fp, "%f, %f", &top, &bottom)) != 2) {
+                goto error;
+            }
+            SetGain = dlsym(self->dlh, "SetGain");
+            if ((ret = SetGain(top, bottom)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            if (read_size != NULL) {
+                *read_size = 0;
+            }
+        }
+            break;
+        case 150:
+        {
+            unsigned int (*GetGain) (float *, float *);
+            float top, bottom;
+            cJSON *root_json;
+            
+            GetGain = dlsym(self->dlh, "GetGain");
+            if ((ret = GetGain(&top, &bottom)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "HighGain", (double) top);
+            cJSON_AddNumberToObject(root_json, "LowGain", (double) bottom);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+            
+        }
+            break;
+        case 151:
+        {
+            unsigned int (*GetGPSTime) (int *, int *, int *);
+            int GPSTime1, GPSTime2, GPSTime3;
+            cJSON *root_json;
+            
+            GetGPSTime = dlsym(self->dlh, "GetGPSTime");
+            if ((ret = GetGPSTime(&GPSTime1, &GPSTime2, &GPSTime3)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "GPSTime1", (double) GPSTime1);
+            cJSON_AddNumberToObject(root_json, "GPSTime2", (double) GPSTime2);
+            cJSON_AddNumberToObject(root_json, "GPSTime3", (double) GPSTime3);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+            
+        }
+            break;
+        case 152:
+        case 153:
+        case 154:
+            break;
+        case 155:
+        {
+            unsigned int (*GetTemperatureDiff) (float *, float *);
+            float cold, hot;
+            cJSON *root_json;
+            
+            GetTemperatureDiff = dlsym(self->dlh, "GetTemperatureDiff");
+            if ((ret = GetTemperatureDiff(&cold, &hot)) != USTC_CCD_SUCCESS) {
+                goto error2;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "ColdTempDiff", (double) cold);
+            cJSON_AddNumberToObject(root_json, "HotTempDiff", (double) hot);
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen((char *) read_buffer) + 1;
+            }
+        }
+            break;
+        case 156:
+        {
+            const char * (*CamErrorName) (int);
+            int errcode;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%d", &errcode)) != 1) {
+                goto error;
+            }
             CamErrorName = dlsym(self->dlh, "CamErrorName");
-            snprintf(read_buffer, read_buffer_size, "%s", CamErrorName(errorcode));
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "ErrorName", CamErrorName(errcode));
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
             if (read_size != NULL) {
-                *read_size = strlen(read_buffer) + 1;
+                *read_size = strlen((char *) read_buffer) + 1;
             }
         }
-    } else if (strcmp(func_name, "CamErrorStrerror") == 0) {
-        const char * (*CamErrorStrerror) (int);
-        int errorcode;
-        if ((ret = fscanf(fp, "%d", &errorcode)) < 1){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
+            break;
+        case 157:
+        {
+            const char * (*CamErrorStrerror) (int);
+            int errcode;
+            cJSON *root_json;
+            
+            if ((retval = fscanf(fp, "%d", &errcode)) != 1) {
+                goto error;
+            }
             CamErrorStrerror = dlsym(self->dlh, "CamErrorStrerror");
-            snprintf(read_buffer, read_buffer_size, "%s", CamErrorStrerror(errorcode));
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "ErrorString", CamErrorStrerror(errcode));
+            cJSON_PrintPreallocated(root_json, read_buffer, (int) read_buffer_size, 1);
+            cJSON_Delete(root_json);
             if (read_size != NULL) {
-                *read_size = strlen(read_buffer) + 1;
+                *read_size = strlen((char *) read_buffer) + 1;
             }
         }
-    } else if (strcmp(func_name, "SaveAsFITS") == 0) {
-        unsigned int (*SaveAsFITS) (const char *);
-        char path[PATHSIZE];
-        if ((ret = fscanf(fp, "%s", path)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SaveAsFITS = dlsym(self->dlh, "SaveAsFITS");
-            ret = SaveAsFITS(path);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SaveAsFITSAccum") == 0) {
-        unsigned int (*SaveAsFITSAccum) (const char *);
-        char path[PATHSIZE];
-        if ((ret = fscanf(fp, "%s", path)) < 1 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SaveAsFITSAccum = dlsym(self->dlh, "SaveAsFITSAccum");
-            ret = SaveAsFITSAccum(path);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
-    } else if (strcmp(func_name, "SaveNthAsFITS") == 0) {
-        unsigned int (*SaveNthAsFITS) (const char *, uint16_t);
-        char path[PATHSIZE];
-        uint16_t idx;
-        if ((ret = fscanf(fp, "%s %hu", path, &idx)) < 2 ){
-            ret = AAOS_EBADCMD;
-            goto error;
-        } else {
-            SaveNthAsFITS = dlsym(self->dlh, "SaveNthAsFITS");
-            ret = SaveNthAsFITS(path, idx);
-            ret = ustc_error_mapping(ret);
-            if (read_size != NULL) {
-                *read_size = 0;
-            }
-        }
+            break;
+        default:
+            break;
     }
-    else {
-	ret = AAOS_EBADCMD;
-}
+
+    return AAOS_OK;
+    
+error2:
+    fclose(fp);
+    if (read_size != NULL) {
+        *read_size = 0;
+    }
+    return ustc_error_mapping(ret);
     
 error:
-fclose(fp);
-return ret;
+    fclose(fp);
+    if (read_size != NULL) {
+        *read_size = 0;
+    }
+    return AAOS_EBADCMD;
 }
 
 static int
@@ -11612,7 +14056,27 @@ USTCCamera_abort(void *_self)
 static int
 USTCCamera_stop(void *_self)
 {
-    return AAOS_ENOTSUP;
+	struct USTCCamera *self = cast(USTCCamera(), _self);
+	
+	int ret = AAOS_OK;
+	unsigned int state;
+	
+	Pthread_mutex_lock(&self->_.d_state.mtx);
+	state = self->_.d_state.state;
+	Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+	if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+		self->_.d_exp.stop_flag = true;
+		while (self->_.d_exp.stop_flag) {
+			Pthread_cond_wait(&self->_.d_exp.cond, &self->_.d_exp.mtx);
+		}
+		Pthread_mutex_unlock(&self->_.d_exp.mtx);
+	} else {
+		
+	}
+	
+	return ret;
 }
 
 static int
@@ -11632,7 +14096,7 @@ USTCCamera_set_frame_rate(void *_self, double frame_rate)
     }
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-return ustc_error_mapping(ret);
+    return ustc_error_mapping(ret);
 }
 
 static int
@@ -11648,7 +14112,7 @@ USTCCamera_get_frame_rate(void *_self, double *frame_rate)
     *frame_rate = 1. / *frame_rate;
     Pthread_mutex_unlock(&self->mtx);
     
-return ustc_error_mapping(ret);
+    return ustc_error_mapping(ret);
 }
 
 static int
@@ -11698,7 +14162,7 @@ USTCCamera_enable_cooling(void *_self)
     ret = CoolerOn();
     Pthread_mutex_unlock(&self->mtx);
     
-return ustc_error_mapping(ret);
+    return ustc_error_mapping(ret);
 }
 
 static int
@@ -11850,7 +14314,7 @@ USTCCamera_set_gain(void *_self, double gain)
     }
     
 error:
-return ustc_error_mapping(ret);
+    return ustc_error_mapping(ret);
 }
 
 static int 
@@ -11861,20 +14325,20 @@ USTCCamera_get_gain(void *_self, double *gain)
     Pthread_mutex_lock(&self->_.d_state.mtx);
     *gain = self->_.d_param.gain;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
-
-return AAOS_OK;
+    
+    return AAOS_OK;
 }
 
 static int 
 USTCCamera_set_readout_speed(void *_self, double readout_speed)
 {
-return AAOS_ENOTSUP;
+    return AAOS_ENOTSUP;
 }
 
 static int 
 USTCCamera_get_readout_speed(void *_self, double *readout_speed)
 {
-return AAOS_ENOTSUP;
+    return AAOS_ENOTSUP;
 }
 
 static int 
@@ -11959,14 +14423,13 @@ USTCCamera_init(void *_self)
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         goto error;
     }
-    Pthread_mutex_lock(&self->mtx);
-    ret = Initialize(self->log_level, self->which);
-    Pthread_mutex_lock(&self->mtx);
+    
     if (ret != USTC_CCD_SUCCESS) {
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         goto error;
     }
     self->_.d_state.state &= ~DETECTOR_STATE_UNINITIALIZED;
+    
 power_on:
     if (!(self->_.d_state.state&DETECTOR_STATE_OFFLINE)) {
         ret = USTC_CCD_SUCCESS;
@@ -11975,16 +14438,16 @@ power_on:
     }
     Pthread_mutex_lock(&self->mtx);
     ret = DetectorPowerON();
-    Pthread_mutex_lock(&self->mtx);
+    Pthread_mutex_unlock(&self->mtx);
     self->_.d_state.state &= ~DETECTOR_STATE_OFFLINE;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     
-    self->_.d_cap.binning_available = TRUE;
-    self->_.d_cap.cooling_available = TRUE;
-    self->_.d_cap.exposure_time_available = TRUE;
-    self->_.d_cap.frame_rate_available = TRUE;
-    self->_.d_cap.gain_available = TRUE;
-    self->_.d_cap.gain_available = TRUE;
+    self->_.d_cap.binning_available = true;
+    self->_.d_cap.cooling_available = true;
+    self->_.d_cap.exposure_time_available = true;
+    self->_.d_cap.frame_rate_available = true;
+    self->_.d_cap.gain_available = true;
+    self->_.d_cap.gain_available = true;
     self->_.d_cap.n_gain = 2;
     self->_.d_cap.gain_array = (double *) Malloc(2 * sizeof(double));
 
@@ -11993,13 +14456,17 @@ power_on:
         Pthread_mutex_unlock(&self->mtx);
         goto error;
     }
-    self->_.d_cap.n_chip = chipnum;
+    //self->_.d_cap.n_chip = chipnum;
+    self->_.d_cap.n_chip = 3;
     if ((ret = GetDetector(&width, &height)) != USTC_CCD_SUCCESS) {
         Pthread_mutex_unlock(&self->mtx);
         goto error;
     }
-    self->_.d_cap.width = width;
+    self->_.d_cap.width = width / self->_.d_cap.n_chip;
     self->_.d_cap.height = height;
+    self->_.d_param.image_width = self->_.d_cap.width;
+    self->_.d_param.image_height = self->_.d_cap.height;
+    self->_.d_param.gain = 0.9;
     if ((ret = GetGain(&high, &low)) != USTC_CCD_SUCCESS) {
         Pthread_mutex_unlock(&self->mtx);
         goto error;
@@ -12007,6 +14474,10 @@ power_on:
     self->_.d_cap.gain_array[0] = low;
     self->_.d_cap.gain_array[1] = high;
     Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state |= DETECTOR_STATE_IDLE;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
     
 error:
     return ustc_error_mapping(ret);
@@ -12022,58 +14493,7 @@ struct USTCCameraFrameProcess {
     size_t n;
 };
 
-void static
-USTCCamera_name_convention(struct USTCCamera *self, char *buf, size_t size, ...)
-{
-    FILE *fp;
-    char time_buf[TIMESTAMPSIZE];
-    struct timespec tp;
-    struct tm tm_buf;
-    size_t i, n;
-    va_list ap;
-    
-    va_start(ap, size);
-    i = va_arg(ap, size_t);
-    n = va_arg(ap, size_t);
-    va_end(ap);
-    
-    fp = fmemopen(buf, size, "rw+");
-    if (self->_.d_proc.image_directory != NULL) {
-        fprintf(fp, "%s/", self->_.d_proc.image_directory);
-    }
-    if (self->_.d_proc.image_prefix != NULL) {
-        fprintf(fp, "%s_", self->_.d_proc.image_prefix);
-    }
-    if (self->_.name != NULL) {
-        fprintf(fp, "%s_", self->_.name);
-    }
-    Clock_gettime(CLOCK_REALTIME, &tp);
-    gmtime_r(&tp.tv_sec, &tm_buf);
-    if (n == 1) {
-        strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S.fits", &tm_buf);
-        fprintf(fp, "%s", time_buf);
-    } else {
-        strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S", &tm_buf);
-        fprintf(fp, "%s_%04lu.fits", time_buf, i + 1);
-    }
-    
-    fclose(fp);
-}
-
-void static
-USTCCamera_post_acquisition(struct USTCCamera *self, const char *pathname, ...)
-{
-    va_list ap;
-    
-    va_start(ap, pathname);
-    void *rpc = va_arg(ap, void *);
-    va_end(ap);
-    if (rpc != NULL) {
-        protobuf_set(rpc, PACKET_LENGTH, pathname, strlen(pathname) + 1);
-        rpc_write(rpc);
-    }
-}
-
+/*
 void static
 USTCCamera_write_image(struct USTCCamera *self, void *buf, struct timespec *tp, size_t nth, size_t n_frame, char *string, void *rpc)
 {
@@ -12225,7 +14645,8 @@ USTCCamera_write_image(struct USTCCamera *self, void *buf, struct timespec *tp, 
         self->_.d_proc.post_acquisition(self, pathname, rpc);
     }
 }
-
+*/
+/*
 static void *
 USTCCamera_image_process(void *arg)
 {
@@ -12244,7 +14665,9 @@ USTCCamera_image_process(void *arg)
     
     return NULL;
 }
+ */
 
+/*
 static int
 USTCCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *app)
 {
@@ -12281,21 +14704,33 @@ USTCCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *
             ret = SetExposureInterval(exposure_time);
             ret = ustc_error_mapping(ret);
             if (ret != AAOS_OK) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d: SetExposureInterval error.\n", __FILE__, __func__, __LINE__ - 4);
+#endif
                 goto error2;
             }
             ret = SetExposureTime(exposure_time);
             ret = ustc_error_mapping(ret);
             if (ret != AAOS_OK) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d: SetExposureTime error.\n", __FILE__, __func__, __LINE__ - 4);
+#endif
                 goto error2;
             }
             ret = SetContinuousCapture(n_frame);
             ret = ustc_error_mapping(ret);
             if (ret != AAOS_OK) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d: SetContinuousCapture error.\n", __FILE__, __func__, __LINE__ - 4);
+#endif
                 goto error2;
             }
             ret = SetEraseCount(self->erase_count);
             ret = ustc_error_mapping(ret);
             if (ret != AAOS_OK) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d: SetEraseCount error.\n", __FILE__, __func__, __LINE__ - 4);
+#endif
                 goto error2;
             }
             ret = StartExposure();
@@ -12308,6 +14743,7 @@ USTCCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *
             Pthread_mutex_unlock(&self->_.d_state.mtx);
             
             tids = (pthread_t *) Malloc(sizeof(pthread_t));
+            
             for (i = 0; i < n_frame; i++) {
                 Nanosleep(exposure_time);
                 Pthread_mutex_lock(&self->mtx);
@@ -12399,6 +14835,7 @@ USTCCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *
                     return AAOS_ECANCELED;
                 }
             }
+             
             for (i = 0; i < n_frame; i++) {
                 Pthread_join(tids[i], NULL);
             }
@@ -12435,41 +14872,530 @@ error:
     return ret;
 }
 
+*/
+
+static void
+USTCCamera_image_write(struct USTCCamera *self, void *image_data, size_t image_size, size_t n, fitsfile *fptr)
+{
+    char *array = (char *) image_data;
+    char *array1 = (char *) Malloc(image_size / 3), *array2 = (char *) Malloc(image_size / 3), *array3 = (char *) Malloc(image_size / 3);
+    struct timespec tp;
+    struct tm tm_buf;
+    char time_buf[TIMESTAMPSIZE];
+    char *s;
+    int naxis = 2;
+    long naxes[2], nelements;
+    size_t j;
+    int status = 0;
+    float temperature;
+    unsigned int (*GetTcbTemp)(const char *, float *);
+    unsigned int ret;
+    
+    GetTcbTemp = dlsym(self->dlh, "GetTcbTemp");
+    naxes[0] = (long) self->_.d_param.image_width;
+    naxes[1] = (long) self->_.d_param.image_height;
+    nelements = naxes[0] * naxes[1];
+    
+    for (j = 0; j < naxes[1]; j++) {
+        memcpy(array1 + j * naxes[0] * 2, array + 3 * j * naxes[0] * 2, naxes[0] * 2);
+        memcpy(array2 + j * naxes[0] * 2, array + (3 * j + 1) * naxes[0] * 2, naxes[0] * 2);
+        memcpy(array3 + j * naxes[0] * 2, array + (3 * j + 2) * naxes[0] * 2, naxes[0] * 2);
+    }
+    
+    fits_create_img(fptr, USHORT_IMG, naxis, naxes, &status);
+    fits_update_key_str(fptr, "DATASEC", "[1:640, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "AMPSEC", "[1:640, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "CCDSEC", "[1:640, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "DETSEC", "[1:640, 1:512]", NULL, &status);
+    if (self->_.d_param.gain > 1) {
+        fits_update_key_fixflt(fptr, "GAIN", 1.95, 2, "gain requested gain (electrons/ADU)", &status);
+    } else {
+        fits_update_key_fixflt(fptr, "GAIN", 0.78, 2, "gain requested gain (electrons/ADU)", &status);
+    }
+    if ((ret = GetTcbTemp("PT5", &temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = GetTcbTemp("PT5", &temperature)) != USTC_CCD_SUCCESS) {
+            //temperature = 9999.0;
+        } else {
+            //temperature -= 273.15;
+        }
+    } else {
+        //temperature -= 273.15;
+    }
+    fits_update_key_fixflt(fptr, "FPATEMP", temperature, 2, "focal plane temperature (K)", &status);
+    fits_update_key_str(fptr, "EXTNAME", "raw", "extension name", &status);
+    fits_update_key_lng(fptr, "EXTVER", n + 1, "extension version", &status);
+    fits_write_img(fptr, TUSHORT, 1, nelements, array1, &status);
+    
+    fits_create_img(fptr, USHORT_IMG, naxis, naxes, &status);
+    fits_update_key_str(fptr, "DATASEC", "[1:640, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "AMPSEC", "[1:640, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "CCDSEC", "[641:1280, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "DETSEC", "[641:1280, 1:512]", NULL, &status);
+    if (self->_.d_param.gain > 1) {
+        fits_update_key_fixflt(fptr, "GAIN", 2.14, 2, "gain requested gain (electrons/ADU)", &status);
+    } else {
+        fits_update_key_fixflt(fptr, "GAIN", 0.90, 2, "gain requested gain (electrons/ADU)", &status);
+    }
+    if ((ret = GetTcbTemp("PT6", &temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = GetTcbTemp("PT6", &temperature)) != USTC_CCD_SUCCESS) {
+            temperature = 9999.0;
+        } else {
+            //temperature -= 273.15;
+        }
+    } else {
+        //temperature -= 273.15;
+    }
+    fits_update_key_fixflt(fptr, "FPATEMP", temperature, 2, "focal plane temperature (K)", &status);
+    fits_update_key_str(fptr, "EXTNAME", "raw", "extension name", &status);
+    fits_update_key_lng(fptr, "EXTVER", n + 2, "extension version", &status);
+    fits_write_img(fptr, TUSHORT, 1, nelements, array2, &status);
+    
+    fits_create_img(fptr, USHORT_IMG, naxis, naxes, &status);
+    fits_update_key_str(fptr, "DATASEC", "[1:640, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "AMPSEC", "[1:640, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "CCDSEC", "[1281:1920, 1:512]", NULL, &status);
+    fits_update_key_str(fptr, "DETSEC", "[1281:1920, 1:512]", NULL, &status);
+    if (self->_.d_param.gain > 1) {
+        fits_update_key_fixflt(fptr, "GAIN", 2.16, 2, "gain requested gain (electrons/ADU)", &status);
+    } else {
+        fits_update_key_fixflt(fptr, "GAIN", 0.87, 2, "gain requested gain (electrons/ADU)", &status);
+    }
+    if ((ret = GetTcbTemp("PT7", &temperature)) != USTC_CCD_SUCCESS) {
+        if ((ret = GetTcbTemp("PT7", &temperature)) != USTC_CCD_SUCCESS) {
+            //temperature = 9999.0;
+        } else {
+            //temperature -= 273.15;
+        }
+    } else {
+        //temperature -= 273.15;
+    }
+    fits_update_key_fixflt(fptr, "FPATEMP", temperature, 2, "focal plane temperature (K)", &status);
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    gmtime_r(&tp.tv_sec, &tm_buf);
+    strftime(time_buf, TIMESTAMPSIZE, "%Y-%m-%d", &tm_buf);
+    fits_update_key_str(fptr, "DATE", time_buf, "UTC date of this image written", &status);
+    strftime(time_buf, TIMESTAMPSIZE, "%H:%M:%S", &tm_buf);
+    s = time_buf + strlen(time_buf);
+    snprintf(s, TIMESTAMPSIZE - strlen(time_buf), "%03ld", tp.tv_nsec / 1000000);
+    fits_update_key_str(fptr, "TIME", time_buf, "UTC time of this image written", &status);
+    
+    fits_update_key_str(fptr, "EXTNAME", "raw", "extension name", &status);
+    fits_update_key_lng(fptr, "EXTVER", n + 3, "extension version", &status);
+    fits_write_img(fptr, TUSHORT, 1, nelements, array3, &status);
+    
+    free(array1);
+    free(array2);
+    free(array3);
+}
+
+static void
+USTCCamera_image_process(struct USTCCamera *self, void *image_data, size_t image_size, size_t i, size_t n, void *rpc, const char *json_string)
+{
+    char filename[FILENAMESIZE];
+    fitsfile *fptr = NULL;
+    int status = 0;
+    struct timespec tp;
+    
+    uint16_t options = self->_.d_state.options;
+    
+    if (!(options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
+        if (self->_.d_proc.name_convention == NULL) {
+
+        } else {
+            self->_.d_proc.name_convention(self, filename, FILENAMESIZE, 1, 1);
+        }
+        if (self->_.d_proc.img_fptr == NULL) {
+            if (self->_.d_proc.tpl_fptr != NULL) {
+                fits_create_file(&fptr, filename, &status);
+                if (status != 0) {
+    #ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+    #endif
+                }
+                fits_copy_file(self->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
+                if (status != 0) {
+    #ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+    #endif
+                }
+            } else {
+                fits_create_template(&fptr, filename, self->_.d_proc.tpl_filename, &status);
+                if (status != 0) {
+    #ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+    #endif
+                }
+            }
+            Clock_gettime(CLOCK_REALTIME, &tp);
+            if (self->_.d_proc.pre_acquisition == NULL) {
+            } else {
+                self->_.d_proc.pre_acquisition(self, filename, fptr, &tp);
+            }
+            self->_.d_proc.img_fptr = fptr;
+            
+        } else {
+            fptr = self->_.d_proc.img_fptr;
+        }
+        USTCCamera_image_write(self, image_data, image_size, i * 3, fptr);
+        if (i == n - 1) {
+            if (self->_.d_proc.post_acquisition == NULL) {
+            } else {
+                self->_.d_proc.post_acquisition(self, filename, fptr, json_string, 0, rpc);
+            }
+            fits_close_file(fptr, &status);
+            self->_.d_proc.img_fptr = NULL;
+        }
+    } else {
+        self->_.d_proc.img_fptr = NULL;
+        if (self->_.d_proc.name_convention == NULL) {
+            
+        } else {
+            self->_.d_proc.name_convention(self, filename, FILENAMESIZE, i, n);
+        }
+        if (self->_.d_proc.tpl_fptr != NULL) {
+            fits_create_file(&fptr, filename, &status);
+            if (status != 0) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- fits_create_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+            }
+            fits_copy_file(self->_.d_proc.tpl_fptr, fptr, 0, 1, 1, &status);
+            if (status != 0) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- fits_copy_file error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+            }
+        } else {
+            fits_create_template(&fptr, filename, self->_.d_proc.tpl_filename, &status);
+            if (status != 0) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- fits_create_template error: %d\n", __FILE__, __func__, __LINE__ - 3, status);
+#endif
+            }
+        }
+        Clock_gettime(CLOCK_REALTIME, &tp);
+        if (self->_.d_proc.pre_acquisition == NULL) {
+            
+        } else {
+            self->_.d_proc.pre_acquisition(self, filename, fptr, &tp);
+        }
+        self->_.d_proc.img_fptr = fptr;
+        USTCCamera_image_write(self, image_data, image_size, 0, fptr);
+        if (self->_.d_proc.post_acquisition == NULL) {
+        } else {
+            self->_.d_proc.post_acquisition(self, filename, fptr, json_string, 0, rpc);
+        }
+        self->_.d_proc.img_fptr = NULL;
+        fits_close_file(fptr, &status);
+    }
+}
+
 static int
-USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
+USTCCamera_expose_snapshot(struct USTCCamera *self, double exposure_time, uint32_t n_frame, va_list *app)
+{
+    double frame_rate;
+    uint32_t i, j, n;
+    unsigned char *buf;
+    unsigned int state;
+    uint16_t options;
+    int ret = AAOS_OK;
+    unsigned int ustc_ret;
+    void *image_data = NULL;
+    size_t image_size;
+    int status = 0;
+    
+    void *rpc = va_arg(*app, char *);
+    char *json_string = va_arg(*app, char *);
+    
+    unsigned int (*SetExposureInterval)(float) = dlsym(self->dlh, "SetExposureInterval");
+    unsigned int (*SetExposureTime)(float)= dlsym(self->dlh, "SetExposureTime");
+    unsigned int (*SetContinuousCapture)(uint16_t) = dlsym(self->dlh, "SetContinuousCapture");
+    unsigned int (*StartExposure)(void) = dlsym(self->dlh, "StartExposure");
+    unsigned int (*StopExposure)(void) = dlsym(self->dlh, "StopExposure");
+    unsigned int (*GetNthImage)(void *, int, int) = dlsym(self->dlh, "GetImage");
+    unsigned int (*WaitForAcquisition)(void) = dlsym(self->dlh, "WaitForAcquisition");
+    unsigned int (*SetEraseCount)(uint8_t) = dlsym(self->dlh, "SetEraseCount");
+    unsigned int (*GetAcquisitionStatus)(void) = dlsym(self->dlh, "GetAcquisitionStatus");
+    
+    if (exposure_time < 0.) {
+        return AAOS_EINVAL;
+    }
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    
+    if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            Pthread_mutex_unlock(&self->_.d_state.mtx);
+            return AAOS_EBUSY;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EPWROFF;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EUNINIT;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    Pthread_mutex_lock(&self->mtx);
+    ustc_ret = SetExposureInterval((float) exposure_time);
+    ret = ustc_error_mapping(ustc_ret);
+    if (ret != AAOS_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- SetExposureInterval error: %u.\n", __FILE__, __func__, __LINE__ - 4, ustc_ret);
+#endif
+        goto error2;
+    }
+    ustc_ret = SetExposureTime((float) exposure_time);
+    ret = ustc_error_mapping(ustc_ret);
+    if (ret != AAOS_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- SetExposureTime error: %u.\n", __FILE__, __func__, __LINE__ - 4, ustc_ret);
+#endif
+        goto error2;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+        
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.exposure_time = exposure_time;
+    self->_.d_param.frame_rate = 1. / exposure_time;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    
+    /*
+     Do not use this function for mosaic MCT for SYSU80 telescope.
+    ustc_ret = SetContinuousCapture(n_frame);
+    ret = ustc_error_mapping(ustc_ret);
+    if (ret != AAOS_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- SetContinuousCapture error: %u.\n", __FILE__, __func__, __LINE__ - 4, ustc_ret);
+#endif
+        goto error2;
+    }
+    */
+    
+    /*
+    ret = SetEraseCount(self->erase_count);
+    ret = ustc_error_mapping(ret);
+    if (ret != AAOS_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d: SetEraseCount error.\n", __FILE__, __func__, __LINE__ - 4);
+#endif
+        goto error2;
+    }
+     */
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state = DETECTOR_STATE_EXPOSING|(state&DETECTOR_STATE_MALFUNCTION);
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.request_frames = n_frame;
+    self->_.d_exp.success_frames = 0;
+    self->_.d_exp.rpc = rpc;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    
+    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+    image_size = self->_.d_param.image_width * self->_.d_param.image_height * self->_.d_cap.n_chip * 2;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    image_data = Malloc(image_size);
+    
+    for (i = 0; i < n_frame; i++) {
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        if (self->_.d_exp.stop_flag) {
+            self->_.d_exp.stop_flag = false;
+            free(image_data);
+            goto error3;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+
+        Pthread_mutex_lock(&self->mtx);
+        if ((ustc_ret = StartExposure()) != USTC_CCD_SUCCESS) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- StartExposure error: %d.\n", __FILE__, __func__, __LINE__ - 2, ustc_ret);
+#endif
+            ret = ustc_error_mapping(ustc_ret);
+            Pthread_mutex_unlock(&self->mtx);
+            break;
+        }
+        Pthread_mutex_unlock(&self->mtx);
+        
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        if (self->_.d_exp.stop_flag) {
+            self->_.d_exp.stop_flag = false;
+            free(image_data);
+            goto error3;
+        }
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        
+        if ((ustc_ret = WaitForAcquisition()) != USTC_CCD_SUCCESS) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- WaitForAcquisition error: %d.\n", __FILE__, __func__, __LINE__ - 2, ustc_ret);
+#endif
+            ret = ustc_error_mapping(ustc_ret);
+            goto error;
+        }
+        memset(image_data, '\0', image_size);
+        
+        Pthread_mutex_lock(&self->mtx);
+        if ((ustc_ret = GetNthImage(image_data, (int) image_size, -1)) != USTC_CCD_SUCCESS) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- GetNthImage error: %d.\n", __FILE__, __func__, __LINE__ - 2, ustc_ret);
+#endif
+            ret = ustc_error_mapping(ustc_ret);
+            Pthread_mutex_unlock(&self->mtx);
+            break;
+        }
+        Pthread_mutex_unlock(&self->mtx);
+        
+        Pthread_mutex_lock(&self->_.d_exp.mtx);
+        self->_.d_exp.success_frames++;
+        Pthread_mutex_unlock(&self->_.d_exp.mtx);
+        
+        USTCCamera_image_process(self, image_data, image_size, i, n_frame, rpc, json_string);
+        
+    }
+    free(image_data);
+
+error:
+    if (self->_.d_proc.img_fptr != NULL) {
+        fits_close_file(self->_.d_proc.img_fptr, &status);
+    }
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.rpc = NULL;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state = DETECTOR_STATE_IDLE|(state&DETECTOR_STATE_MALFUNCTION);
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return ret;
+    
+error2:
+    if (self->_.d_proc.img_fptr != NULL) {
+        fits_close_file(self->_.d_proc.img_fptr, &status);
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.rpc = NULL;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    return ret;
+    
+error3:
+    if (self->_.d_proc.img_fptr != NULL) {
+        fits_close_file(self->_.d_proc.img_fptr, &status);
+    }
+    Pthread_cond_broadcast(&self->_.d_exp.cond);
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.rpc = NULL;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    self->_.d_state.state = DETECTOR_STATE_IDLE|(state&DETECTOR_STATE_MALFUNCTION);
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_ECANCELED;
+}
+
+static int
+USTCCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *app)
 {
     struct USTCCamera *self = cast(USTCCamera(), _self);
     
-    cJSON *root_json, *detector_json, *dewars_json, *pump_json, *electronics_json;
-    char *json_string = NULL;
-    uint8_t readystat, coolstat, speed, heatpwm;
-    uint16_t rowStartNum, rowKeepNum, colStartNum, colKeepNum;
-    int chan;
-    double running_time, power, temperature, en_temp, hot_temp, press, cur, vol;
-    float vol2, cur2, temp;
-    int ret;
+    return USTCCamera_expose_snapshot(self, exposure_time, n_frame, app);
+}
+
+
+static int
+USTCCamera_status_json(struct USTCCamera *self, void *res, size_t res_size, size_t *res_len)
+{
+    unsigned int state;
+    uint16_t options;
+    cJSON *root_json, *detector_json, *dewars_json, *pump_json, *electronics_json, *cooler_json;
+    //char *json_string = NULL;
+    //uint8_t readystat, coolstat, speed, heatpwm;
+    //uint16_t rowStartNum, rowKeepNum, colStartNum, colKeepNum;
+    int chan, unit;
+    double running_time, power, temperature, en_temp, hot_temp, press, cur, vol, vac;
+    float temp, voltage, current;
+    int ret = AAOS_OK;
     
-    unsigned int (*GetAcquisitionStatus)(void) = dlsym(self->dlh, "GetAcquisitionStatus");
-    unsigned int (*GetCameraReady)(uint8_t *) = dlsym(self->dlh, "GetCameraReady");
-    unsigned int (*Runningtime)(double *) = dlsym(self->dlh, "Runningtime");
-    unsigned int (*GetExposureROI)(uint16_t *, uint16_t *, uint16_t *, uint16_t *) = dlsym(self->dlh, "GetExposureROI");
-    unsigned int (*GetCoolerStatus)(uint8_t *) = dlsym(self->dlh, "GetCoolerStatus");
+    //unsigned int (*GetAcquisitionStatus)(void) = dlsym(self->dlh, "GetAcquisitionStatus");
+    //unsigned int (*GetCameraReady)(uint8_t *) = dlsym(self->dlh, "GetCameraReady");
+    //unsigned int (*Runningtime)(double *) = dlsym(self->dlh, "Runningtime");
+    //unsigned int (*GetExposureROI)(uint16_t *, uint16_t *, uint16_t *, uint16_t *) = dlsym(self->dlh, "GetExposureROI");
+    //unsigned int (*GetCoolerStatus)(uint8_t *) = dlsym(self->dlh, "GetCoolerStatus");
     unsigned int (*get_power)(double *) = dlsym(self->dlh, "get_power");
+    unsigned int (*Coolertemp)(double *) = dlsym(self->dlh, "Coolertemp");
     unsigned int (*Controller_temperature)(double *) = dlsym(self->dlh, "Controller_temperature");
     unsigned int (*entemp)(double *) = dlsym(self->dlh, "entemp");
     unsigned int (*hottemp)(double *) = dlsym(self->dlh, "hottemp");
+    unsigned int (*Motor_temperature)(double *) = dlsym(self->dlh, "Motor_temperature");
+    unsigned int (*GetCoolerVoltage)(double *) = dlsym(self->dlh, "GetCoolerVoltage");
+    unsigned int (*GetCoolerCurrent)(double *) = dlsym(self->dlh, "GetCoolerCurrent");
+    
     unsigned int (*GetVacuum)(int, double *) = dlsym(self->dlh, "ControllerHeat");
+    
+    unsigned int (*GetPumpMaxPower)(double *) = dlsym(self->dlh, "GetPumpMaxPower");
     unsigned int (*GetPumpVol)(double *) = dlsym(self->dlh, "GetPumpVol");
     unsigned int (*GetPumpCur)(double *) = dlsym(self->dlh, "GetPumpCur");
     unsigned int (*GetPumpTargetVol)(double *) = dlsym(self->dlh, "GetPumpTargetVol");
+    unsigned int (*GetPumpVacuum)(double *) = dlsym(self->dlh, "GetPumpVacuum");
+    unsigned int (*GetPumpUint)(int *) = dlsym(self->dlh, "GetPumpUint");
+    
+    
     unsigned int (*GetCurrentByChannel)(int, float *) = dlsym(self->dlh, "GetCurrentByChannel");
     unsigned int (*GetVoltageByChannel)(int, float *) = dlsym(self->dlh, "GetVoltageByChannel");
-    unsigned int (*GetFanSpeed)(uint8_t *) = dlsym(self->dlh, "GetFanSpeed");
-    unsigned int (*GetHeatPWM)(uint8_t *) = dlsym(self->dlh, "GetHeatPWM");
+    unsigned int (*GetTcbTemp)(const char *, float *) = dlsym(self->dlh, "GetTcbTemp");
+    
+    
+    //unsigned int (*GetFanSpeed)(uint8_t *) = dlsym(self->dlh, "GetFanSpeed");
+    //unsigned int (*GetHeatPWM)(uint8_t *) = dlsym(self->dlh, "GetHeatPWM");
     unsigned int (*GetTemperature)(const char *, float *) = dlsym(self->dlh, "GetTemperature");
     
     root_json = cJSON_CreateObject();
     
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    cJSON_AddStringToObject(root_json, "Name", self->_.name);
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "Description", self->_.description);
+    }
+    
+    if (state&DETECTOR_STATE_MALFUNCTION) {
+        cJSON_AddStringToObject(root_json, "status", "MALFUNCTION");
+    }
+    switch (state&(~DETECTOR_STATE_MALFUNCTION)) {
+        case DETECTOR_STATE_IDLE:
+            cJSON_AddStringToObject(root_json, "state", "IDLE");
+            break;
+        case DETECTOR_STATE_OFFLINE:
+            cJSON_AddStringToObject(root_json, "state", "OFFLINE");
+            break;
+        case DETECTOR_STATE_UNINITIALIZED:
+            cJSON_AddStringToObject(root_json, "state", "UNINITIALIZED");
+            break;
+        case DETECTOR_STATE_EXPOSING:
+            cJSON_AddStringToObject(root_json, "state", "EXPOSING");
+            break;
+        case DETECTOR_STATE_READING:
+            cJSON_AddStringToObject(root_json, "state", "READING");
+            break;
+        default:
+            break;
+    }
+    
+    /*
     detector_json = cJSON_CreateObject();
     cJSON_AddItemToObject(root_json, "Detector", detector_json);
     Pthread_mutex_lock(&self->mtx);
@@ -12506,6 +15432,8 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
                 break;
         }
     }
+     */
+    /*
     Pthread_mutex_lock(&self->mtx);
     ret = GetCameraReady(&readystat);
     Pthread_mutex_unlock(&self->mtx);
@@ -12515,6 +15443,8 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
         cJSON_AddNumberToObject(detector_json, "ReadyState", -1);
     }
     Pthread_mutex_lock(&self->mtx);
+     */
+    /*
     ret = Runningtime(&running_time);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
@@ -12536,9 +15466,53 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
         cJSON_AddNumberToObject(detector_json, "RIO-W", -1);
         cJSON_AddNumberToObject(detector_json, "RIO-H", -1);
     }
-
+     */
     dewars_json = cJSON_CreateObject();
+    ret = GetVacuum(1, &press);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(dewars_json, "PR1", press);
+    } else {
+        cJSON_AddNumberToObject(dewars_json, "PR1", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetVacuum(2, &press);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(dewars_json, "PR2", press);
+    } else {
+        cJSON_AddNumberToObject(dewars_json, "PR2", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetVacuum(3, &press);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(dewars_json, "PR3", press);
+    } else {
+        cJSON_AddNumberToObject(dewars_json, "PR3", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetVacuum(4, &press);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(dewars_json, "PR4", press);
+    } else {
+        cJSON_AddNumberToObject(dewars_json, "PR4", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetVacuum(5, &press);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(dewars_json, "PR5", press);
+    } else {
+        cJSON_AddNumberToObject(dewars_json, "PR5", -1.);
+    }
     cJSON_AddItemToObject(root_json, "Dewars", dewars_json);
+    /*
     Pthread_mutex_lock(&self->mtx);
     ret = GetCoolerStatus(&coolstat);
     Pthread_mutex_unlock(&self->mtx);
@@ -12547,39 +15521,85 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
     } else {
         cJSON_AddNumberToObject(dewars_json, "CoolerStatus", -1);
     }
+     */
+    
+    cooler_json = cJSON_CreateObject();
     Pthread_mutex_lock(&self->mtx);
-    ret = get_power(&power);
+    ret = Coolertemp(&temperature);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(dewars_json, "CoolerPower", power);
+        cJSON_AddNumberToObject(cooler_json, "ColdEndTemp", temperature);
     } else {
-        cJSON_AddNumberToObject(dewars_json, "CoolerPower", -1.);
+        cJSON_AddNumberToObject(cooler_json, "ColdEndTemp", 9999.0);
     }
-    Pthread_mutex_lock(&self->mtx);
-    ret = Controller_temperature(&temperature);
-    Pthread_mutex_unlock(&self->mtx);
-    if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(dewars_json, "ControllerTemp", temperature);
-    } else {
-        cJSON_AddNumberToObject(dewars_json, "ControllerTemp", 9999.0);
-    }
-    Pthread_mutex_lock(&self->mtx);
-    ret = entemp(&en_temp);
-    Pthread_mutex_unlock(&self->mtx);
-    if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(dewars_json, "AmbientTemp", en_temp);
-    } else {
-        cJSON_AddNumberToObject(dewars_json, "AmbientTemp", 9999.0);
-    }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = hottemp(&hot_temp);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(dewars_json, "HotEndTemp", hot_temp);
+        cJSON_AddNumberToObject(cooler_json, "HotEndTemp", hot_temp);
     } else {
-        cJSON_AddNumberToObject(dewars_json, "HotEndTemp", 9999.0);
+        cJSON_AddNumberToObject(cooler_json, "HotEndTemp", 9999.0);
     }
+    
     Pthread_mutex_lock(&self->mtx);
+    ret = entemp(&en_temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(cooler_json, "AmbientTemp", en_temp);
+    } else {
+        cJSON_AddNumberToObject(cooler_json, "AmbientTemp", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = Controller_temperature(&temperature);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(cooler_json, "ControllerTemp", temperature);
+    } else {
+        cJSON_AddNumberToObject(cooler_json, "ControllerTemp", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = Motor_temperature(&temperature);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(cooler_json, "MotorTemp", temperature);
+    } else {
+        cJSON_AddNumberToObject(cooler_json, "MotorTemp", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = get_power(&power);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(cooler_json, "CoolerPower", power);
+    } else {
+        cJSON_AddNumberToObject(cooler_json, "CoolerPower", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetCoolerVoltage(&vol);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(cooler_json, "CoolerVoltage", vol);
+    } else {
+        cJSON_AddNumberToObject(cooler_json, "CoolerVoltage", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetCoolerCurrent(&cur);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(cooler_json, "CoolerCurrent", cur);
+    } else {
+        cJSON_AddNumberToObject(cooler_json, "CoolerCurrent", -1.);
+    }
+    
+    cJSON_AddItemToObject(root_json, "Cooler", cooler_json);
+    
+    
+    /*
     Pthread_mutex_lock(&self->mtx);
     ret = GetFanSpeed(&speed);
     Pthread_mutex_unlock(&self->mtx);
@@ -12596,57 +15616,36 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
     } else {
         cJSON_AddNumberToObject(dewars_json, "HeatPWM", -1);
     }
+    */
     
     pump_json = cJSON_CreateObject();
-    cJSON_AddItemToObject(root_json, "Pump", pump_json);
     Pthread_mutex_lock(&self->mtx);
-    ret = GetVacuum(1, &press);
+    ret = GetPumpMaxPower(&power);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(pump_json, "PR1", press);
+        cJSON_AddNumberToObject(pump_json, "PumpMaxPower", power);
     } else {
-        cJSON_AddNumberToObject(pump_json, "PR1", -1.);
+        cJSON_AddNumberToObject(pump_json, "PumpMaxPower", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetVacuum(2, &press);
+    ret = GetPumpTargetVol(&vol);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(pump_json, "PR2", press);
+        cJSON_AddNumberToObject(pump_json, "PumpTargetVolume", vol);
     } else {
-        cJSON_AddNumberToObject(pump_json, "PR2", -1.);
+        cJSON_AddNumberToObject(pump_json, "PumpTargetVolume", -1.);
     }
-    Pthread_mutex_lock(&self->mtx);
-    ret = GetVacuum(3, &press);
-    Pthread_mutex_unlock(&self->mtx);
-    if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(pump_json, "PR3", press);
-    } else {
-        cJSON_AddNumberToObject(pump_json, "PR3", -1.);
-    }
-    Pthread_mutex_lock(&self->mtx);
-    ret = GetVacuum(4, &press);
-    Pthread_mutex_unlock(&self->mtx);
-    if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(pump_json, "PR4", press);
-    } else {
-        cJSON_AddNumberToObject(pump_json, "PR4", -1.);
-    }
-    Pthread_mutex_lock(&self->mtx);
-    ret = GetVacuum(5, &press);
-    Pthread_mutex_unlock(&self->mtx);
-    if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(pump_json, "PR5", press);
-    } else {
-        cJSON_AddNumberToObject(pump_json, "PR5", -1.);
-    }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetPumpVol(&vol);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(pump_json, "PumpVoltage", vol);
+        cJSON_AddNumberToObject(pump_json, "PumpVolume", vol);
     } else {
-        cJSON_AddNumberToObject(pump_json, "PumpVoltage", -1.);
+        cJSON_AddNumberToObject(pump_json, "PumpVolume", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetPumpCur(&cur);
     Pthread_mutex_unlock(&self->mtx);
@@ -12655,97 +15654,180 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
     } else {
         cJSON_AddNumberToObject(pump_json, "PumpCurrent", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetPumpTargetVol(&vol);
+    ret = GetPumpVacuum(&vac);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(pump_json, "PumpTargetVoltage", vol);
+        cJSON_AddNumberToObject(pump_json, "PumpVacuum", vac);
     } else {
-        cJSON_AddNumberToObject(pump_json, "PumpTargetVoltage", -1.);
+        cJSON_AddNumberToObject(pump_json, "PumpVacuum", -1.);
     }
     
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetPumpUint(&unit);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(pump_json, "GetPumpUint", (double) unit);
+    } else {
+        cJSON_AddNumberToObject(pump_json, "GetPumpUint", -1);
+    }
+    cJSON_AddItemToObject(root_json, "Pump", pump_json);
+    
     electronics_json = cJSON_CreateObject();
-    cJSON_AddItemToObject(root_json, "Elesctronics", pump_json);
     Pthread_mutex_lock(&self->mtx);
-    ret = GetVoltageByChannel(0, &vol2);
+    ret = GetVoltageByChannel(0, &voltage);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB24V Voltage", vol2);
+        cJSON_AddNumberToObject(electronics_json, "Chan0Vol", voltage);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB24V Voltage", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan4Vol", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetCurrentByChannel(0, &cur2);
+    ret = GetCurrentByChannel(0, &current);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB24V Current", cur2);
+        cJSON_AddNumberToObject(electronics_json, "Chan1Cur", current);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB24V Current", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan1Cur", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetVoltageByChannel(1, &vol2);
+    ret = GetVoltageByChannel(1, &voltage);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB12V Voltage", vol2);
+        cJSON_AddNumberToObject(electronics_json, "Chan1Vol", voltage);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB12V Voltage", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan1Vol", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetCurrentByChannel(1, &cur2);
+    ret = GetCurrentByChannel(1, &current);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB12V Current", cur2);
+        cJSON_AddNumberToObject(electronics_json, "Chan1Cur", current);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB12V Current", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan1Cur", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetVoltageByChannel(2, &vol2);
+    ret = GetVoltageByChannel(2, &voltage);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB5V Voltage", vol2);
+        cJSON_AddNumberToObject(electronics_json, "Chan2Vol", voltage);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB5V Voltage", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan2Vol", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetCurrentByChannel(2, &cur2);
+    ret = GetCurrentByChannel(2, &current);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB5V Current", cur2);
+        cJSON_AddNumberToObject(electronics_json, "Chan2Cur", current);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB5V Current", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan2Cur", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetVoltageByChannel(3, &vol2);
+    ret = GetVoltageByChannel(3, &voltage);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB6V Voltage", vol2);
+        cJSON_AddNumberToObject(electronics_json, "Chan3Vol", voltage);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB6V Voltage", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan3Vol", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetCurrentByChannel(3, &cur2);
+    ret = GetCurrentByChannel(3, &current);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "PB6V Current", cur2);
+        cJSON_AddNumberToObject(electronics_json, "Chan3Cur", current);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "PB6V Current", -1.);
+        cJSON_AddNumberToObject(electronics_json, "Chan3Cur", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetTemperature("D1", &temp);
+    ret = GetVoltageByChannel(4, &voltage);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "D1Temp", temp - 273.15);
+        cJSON_AddNumberToObject(electronics_json, "Chan4Vol", voltage);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "D1Temp", 9999.0);
+        cJSON_AddNumberToObject(electronics_json, "Chan4Vol", -1.);
     }
+    
     Pthread_mutex_lock(&self->mtx);
-    ret = GetTemperature("D2", &temp);
+    ret = GetCurrentByChannel(4, &current);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(electronics_json, "D2Temp", temp - 273.15);
+        cJSON_AddNumberToObject(electronics_json, "Chan4Cur", current);
     } else {
-        cJSON_AddNumberToObject(electronics_json, "D2Temp", 9999.0);
+        cJSON_AddNumberToObject(electronics_json, "Chan4Cur", -1.);
     }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetVoltageByChannel(5, &voltage);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "Chan5Vol", voltage);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "Chan5Vol", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetCurrentByChannel(5, &current);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "Chan5Cur", current);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "Chan5Cur", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetVoltageByChannel(6, &voltage);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "Chan6Vol", voltage);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "Chan6Vol", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetCurrentByChannel(5, &current);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "Chan6Cur", current);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "Chan6Cur", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetVoltageByChannel(7, &voltage);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "Chan7Vol", voltage);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "Chan7Vol", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetCurrentByChannel(7, &current);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "Chan7Cur", current);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "Chan7Cur", -1.);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetCurrentByChannel(7, &current);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "Chan7Cur", current);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "Chan7Cur", -1.);
+    }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetTemperature("PT1", &temp);
     Pthread_mutex_unlock(&self->mtx);
@@ -12754,6 +15836,7 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
     } else {
         cJSON_AddNumberToObject(electronics_json, "PT1", 9999.0);
     }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetTemperature("PT2", &temp);
     Pthread_mutex_unlock(&self->mtx);
@@ -12762,6 +15845,7 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
     } else {
         cJSON_AddNumberToObject(electronics_json, "PT2", 9999.0);
     }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetTemperature("PT3", &temp);
     Pthread_mutex_unlock(&self->mtx);
@@ -12770,6 +15854,7 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
     } else {
         cJSON_AddNumberToObject(electronics_json, "PT3", 9999.0);
     }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetTemperature("PT4", &temp);
     Pthread_mutex_unlock(&self->mtx);
@@ -12778,29 +15863,106 @@ USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
     } else {
         cJSON_AddNumberToObject(electronics_json, "PT4", 9999.0);
     }
-
-error:
-    json_string = cJSON_Print(root_json);
-    cJSON_Delete(root_json);
-    snprintf(res, res_size, "%s", json_string);
-    if (res_len != NULL) {
-        *res_len = strlen(res) + 1;
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT5", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT5", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT5", 9999.0);
     }
-    free(json_string);
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT6", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT6", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT6", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT7", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT7", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT7", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT8", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT8", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT8", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT9", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT9", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT9", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT10", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT10", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT10", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT11", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT11", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT11", 9999.0);
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    ret = GetTemperature("PT12", &temp);
+    Pthread_mutex_unlock(&self->mtx);
+    if (ret == USTC_CCD_SUCCESS) {
+        cJSON_AddNumberToObject(electronics_json, "PT12", temp - 273.15);
+    } else {
+        cJSON_AddNumberToObject(electronics_json, "PT12", 9999.0);
+    }
+    cJSON_AddItemToObject(root_json, "Elesctronics", electronics_json);
+    
+error:
+    cJSON_PrintPreallocated(root_json, res, (int) res_size, 1);
+    if (res_len != NULL) {
+        *res_len = strlen((char *) res) + 1;
+    }
+    cJSON_Delete(root_json);
+    
     return AAOS_OK;
+    //return ustc_error_mapping(ret);
 }
 
 static int
-USTCCamera_info(void *_self, void *res, size_t res_size, size_t *res_len)
+USTCCamera_status(void *_self, void *res, size_t res_size, size_t *res_len)
 {
     struct USTCCamera *self = cast(USTCCamera(), _self);
     
-    cJSON *root_json;
-    char *json_string = NULL;
+    return USTCCamera_status_json(self, res, res_size, res_len);
+}
+
+static int
+USTCCamera_info_json(struct USTCCamera *self, void *res, size_t res_size, size_t *res_len)
+{
+    cJSON *root_json, *capability_json;
     PIXELX_SERIAL serial_no;
     int chipnum, width, height;
-    
-    int ret;
+    int ret = AAOS_OK;
     
     unsigned int(*GetSerialNumber)(PIXELX_SERIAL *) = dlsym(self->dlh, "GetSerialNumber");
     unsigned int(*GetChipNum)(int *) = dlsym(self->dlh, "GetChipNum");
@@ -12812,50 +15974,73 @@ USTCCamera_info(void *_self, void *res, size_t res_size, size_t *res_len)
         cJSON_AddStringToObject(root_json, "Description", self->_.description);
     }
     
+    capability_json = cJSON_CreateObject();
     Pthread_mutex_lock(&self->mtx);
     ret = GetSerialNumber(&serial_no);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
         char buf[TIMESTAMPSIZE];
-        cJSON_AddNumberToObject(root_json, "Model_Enum", serial_no.Model_Enum);
-        cJSON_AddNumberToObject(root_json, "MB_ID", serial_no.MB_ID);
-        cJSON_AddNumberToObject(root_json, "version", serial_no.version);
-        cJSON_AddNumberToObject(root_json, "version_aa", serial_no.version_aa);
-        cJSON_AddNumberToObject(root_json, "ID", serial_no.id);
-        cJSON_AddNumberToObject(root_json, "Checksum", serial_no.checksum);
+        cJSON_AddNumberToObject(capability_json, "Model_Enum", serial_no.Model_Enum);
+        cJSON_AddNumberToObject(capability_json, "MB_ID", serial_no.MB_ID);
+        cJSON_AddNumberToObject(capability_json, "version", serial_no.version);
+        cJSON_AddNumberToObject(capability_json, "version_aa", serial_no.version_aa);
+        cJSON_AddNumberToObject(capability_json, "ID", serial_no.id);
+        cJSON_AddNumberToObject(capability_json, "Checksum", serial_no.checksum);
         snprintf(buf, TIMESTAMPSIZE, "%04u-%02u-%02u %02u", serial_no.Year, serial_no.Month, serial_no.Day, serial_no.Hour);
-        cJSON_AddStringToObject(root_json, "Date", buf);
-        
+        cJSON_AddStringToObject(capability_json, "Date", buf);
     }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetChipNum(&chipnum);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(root_json, "ChipNumber", chipnum);
+        cJSON_AddNumberToObject(capability_json, "n_chip", chipnum);
     } else {
-        cJSON_AddNumberToObject(root_json, "ChipNumber", 1);
+        cJSON_AddNumberToObject(capability_json, "n_chip", self->_.d_cap.n_chip);
     }
+    
     Pthread_mutex_lock(&self->mtx);
     ret = GetDetector(&width, &height);
     Pthread_mutex_unlock(&self->mtx);
     if (ret == USTC_CCD_SUCCESS) {
-        cJSON_AddNumberToObject(root_json, "Width", width);
-        cJSON_AddNumberToObject(root_json, "Height", height);
+        cJSON_AddNumberToObject(capability_json, "Width", width);
+        cJSON_AddNumberToObject(capability_json, "Height", height);
     } else {
-        cJSON_AddNumberToObject(root_json, "Width", self->_.d_cap.width);
-        cJSON_AddNumberToObject(root_json, "Height", self->_.d_cap.height);
+        cJSON_AddNumberToObject(capability_json, "Width", self->_.d_cap.width);
+        cJSON_AddNumberToObject(capability_json, "Height", self->_.d_cap.height);
     }
+    cJSON_AddItemToObject(root_json, "capability", capability_json);
     
 error:
-    json_string = cJSON_Print(root_json);
-    cJSON_Delete(root_json);
-    snprintf(res, res_size, "%s", json_string);
+    cJSON_PrintPreallocated(root_json, res, (int) res_size, 1);
     if (res_len != NULL) {
-        *res_len = strlen(res) + 1;
+        *res_len = strlen((char *) res) + 1;
     }
     cJSON_Delete(root_json);
-    free(json_string);
+    
     return AAOS_OK;
+}
+
+static int
+USTCCamera_info(void *_self, void *res, size_t res_size, size_t *res_len)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    return USTCCamera_info_json(self, res, res_size, res_len);
+}
+
+static int
+USTCCamera_inspect(void *_self)
+{
+    struct USTCCamera *self = cast(USTCCamera(), _self);
+    
+    unsigned int (*GetExposureTime)(float *) = dlsym(self->dlh, "GetExposureTime");
+    float exptime;
+    int ret;
+    
+    ret = GetExposureTime(&exptime);
+    
+    return ustc_error_mapping(ret);
 }
 
 static const void *_ustc_camera_virtual_table;
@@ -16270,13 +19455,14 @@ LeadingCamera_ctor(void *_self, va_list *app)
     
     const char *s;
     
-    bool (*EnumerateDevices_C_API)(int *, void ***, void ***);
+    bool (*EnumerateDevices_C_API)(int *, void **, void **);
     bool (*connectCamera_C_API)(void *, int *);
     void* (*LeadingCameraGetDeviceByName)(const char *, int, void **, void **, int *);
-    bool (*releaseCameras_C_API)(int, void **, void **);
+    bool (*releaseCameras_C_API)(void **, void **);
+
     void (*LeadingCameraCopyInfo)(void *, void *, struct LeadingCameraInfo *cam_info, struct LeadingInterfaceInfo *iface_info);
     int n_camera;
-    
+
     struct LeadingCameraInfo cam_info;
     struct LeadingInterfaceInfo iface_info;
 
@@ -16300,19 +19486,20 @@ LeadingCamera_ctor(void *_self, va_list *app)
     connectCamera_C_API = dlsym(self->dlh, "connectCamera_C_API");
     LeadingCameraGetDeviceByName = dlsym(self->dlh, "LeadingCameraGetDeviceByName");
     LeadingCameraCopyInfo = dlsym(self->dlh, "LeadingCameraCopyInfo");
-    if (EnumerateDevices_C_API(&n_camera, &self->device_list, &self->interface_list)) {
+    self->device_list = (void **) Malloc(sizeof(void **));
+    self->interface_list = (void **) Malloc(sizeof(void **));
+    if (EnumerateDevices_C_API(&n_camera, self->device_list, self->interface_list)) {
         self->n_camera = n_camera;
         void *leading_camera;
         if (self->camera_index < 0) {
             if (self->_.name != NULL) {
                 if ((leading_camera = LeadingCameraGetDeviceByName(self->_.name, n_camera, self->device_list, self->interface_list, &self->camera_index)) == NULL) {
 #ifdef DEBUG
-		    fprintf(stderr, "%s %s %d: camera \"%s\" is not found.\n", __FILE__, __func__, __LINE__ - 3, self->_.name);
+                    fprintf(stderr, "%s %s %d: camera \"%s\" is not found.\n", __FILE__, __func__, __LINE__ - 3, self->_.name);
 #endif
                     Pthread_mutex_destroy(&self->mtx);
                     Pthread_cond_destroy(&self->cond);
-                    releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
-		
+                    releaseCameras_C_API(self->device_list, self->interface_list);
                     free(self->so_path);
                     dlclose(self->dlh);
                     super_dtor(LeadingCamera(), self);
@@ -16322,7 +19509,7 @@ LeadingCamera_ctor(void *_self, va_list *app)
                     
                     Pthread_mutex_destroy(&self->mtx);
                     Pthread_cond_destroy(&self->cond);
-                    releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                    releaseCameras_C_API(self->device_list, self->interface_list);
                     free(self->so_path);
                     dlclose(self->dlh);
                     super_dtor(LeadingCamera(), self);
@@ -16331,7 +19518,7 @@ LeadingCamera_ctor(void *_self, va_list *app)
             } else {
                 Pthread_mutex_destroy(&self->mtx);
                 Pthread_cond_destroy(&self->cond);
-                releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                releaseCameras_C_API(self->device_list, self->interface_list);
                 free(self->so_path);
                 dlclose(self->dlh);
                 super_dtor(LeadingCamera(), self);
@@ -16341,7 +19528,7 @@ LeadingCamera_ctor(void *_self, va_list *app)
             if (self->camera_index >= n_camera) {
                 Pthread_mutex_destroy(&self->mtx);
                 Pthread_cond_destroy(&self->cond);
-                releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                releaseCameras_C_API(self->device_list, self->interface_list);
                 free(self->so_path);
                 dlclose(self->dlh);
                 super_dtor(LeadingCamera(), self);
@@ -16351,7 +19538,7 @@ LeadingCamera_ctor(void *_self, va_list *app)
             if (!connectCamera_C_API(leading_camera, &self->camera_id)) {
                 Pthread_mutex_destroy(&self->mtx);
                 Pthread_cond_destroy(&self->cond);
-                releaseCameras_C_API(self->n_camera, self->device_list, self->interface_list);
+                releaseCameras_C_API(self->device_list, self->interface_list);
                 free(self->so_path);
                 dlclose(self->dlh);
                 super_dtor(LeadingCamera(), self);
@@ -16384,14 +19571,16 @@ LeadingCamera_dtor(void *_self)
 {
     struct LeadingCamera *self = cast(LeadingCamera(), _self);
     
-    bool (*releaseCameras_C_API)(int, void **, void **);
+    bool (*releaseCameras_C_API)(void **, void **);
     bool (*disconnectCamera_C_API)(int);
     
     releaseCameras_C_API = dlsym(self->dlh, "releaseCameras_C_API");
     disconnectCamera_C_API = dlsym(self->dlh, "disconnectCamera_C_API");
     disconnectCamera_C_API(self->camera_index);
-    releaseCameras_C_API(self->n_camera, self->device_list[self->camera_index], self->interface_list[self->camera_index]);
-    
+    releaseCameras_C_API(self->device_list, self->interface_list);
+    free(self->device_list);
+    free(self->interface_list);
+
     Pthread_mutex_destroy(&self->mtx);
     Pthread_cond_destroy(&self->cond);
     free(self->so_path);
@@ -16399,7 +19588,6 @@ LeadingCamera_dtor(void *_self)
 
     return super_dtor(LeadingCamera(), _self);
 }
-
 
 static void *
 LeadingCameraClass_ctor(void *_self, va_list *app)
@@ -17120,14 +20308,14 @@ LeadingCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_siz
     } else if (strcmp(func_name, "setAutoExposeTimeLimitState") == 0) {
         bool (*setAutoExposeTimeLimitState_C_API)(int, bool);
         bool b_value;
-	unsigned int ui_value;
+        unsigned int ui_value;
         
         setAutoExposeTimeLimitState_C_API = dlsym(self->dlh, "setAutoExposeTimeLimitState_C_API");
         if (fscanf(fp, "%b", &ui_value) != 1) {
             fclose(fp);
             return AAOS_EBADCMD;
         }
-	b_value = ui_value;
+        b_value = ui_value;
         if (!setAutoExposeTimeLimitState_C_API(self->camera_id, b_value)) {
             fclose(fp);
             return AAOS_EDEVMAL;
@@ -18317,7 +21505,7 @@ LeadingCamera_status(void *_self, void *buffer, size_t size, size_t *len)
 }
 
 static void
-LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size, size_t *info)
+LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size)
 {
     cJSON *root_json, *leading_json, *capability_json, *array_json;
     size_t i;
@@ -18565,9 +21753,6 @@ LeadingCamera_info_json(struct LeadingCamera *self, void *buffer, size_t size, s
 
     cJSON_PrintPreallocated(root_json, buffer, (int) size, 1);
     cJSON_Delete(root_json);
-    if (len != NULL) {
-        *len = strlen((char *) buffer);
-    }
 }
 
 static int
@@ -19835,9 +23020,10 @@ LeadingCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_lis
 static int
 LeadingCamera_stop(void *_self)
 {
-	struct LeadingCamera *self = cast(LeadingCamera(), _self);
+
+    struct LeadingCamera *self = cast(LeadingCamera(), _self);
 		
-	unsigned int state;
+    unsigned int state;
     uint16_t options;
 
     Pthread_mutex_lock(&self->_.d_state.mtx);
@@ -19917,7 +23103,26 @@ leading_camera_virtual_table(void)
 
 #endif
 
-#ifdef __USE_QHY_CAMAERA__
+#ifdef __USE_QHY_CAMERA__
+
+#define QHYCAMERA_SUCCESS                       0
+#define QHYCAMERA_ERROR                         0xFFFFFFFF
+
+#define QHYCAMERA_CONTROL_GAIN                  6
+#define QHYCAMERA_CONTROL_EXPOSURE              8
+#define QHYCAMERA_CONTROL_TRANSFERBIT           10		
+#define QHYCAMERA_CONTROL_MANUALPWM             16		
+#define QHYCAMERA_CONTROL_COOLER                18
+#define QHYCAMERA_BIN1X1MODE                    21
+#define QHYCAMERA_BIN2X2MODE                    22
+#define QHYCAMERA_BIN3X3MODE                    23
+#define QHYCAMERA_BIN4X4MODE                    24
+#define QHYCAMERA_8BITS                         34
+#define QHYCAMERA_16BITS                        35
+#define QHYCAMERA_BIN6X6MODE                    75
+#define QHYCAMERA_BIN8X8MODE                    76
+#define QHYCAMERA_CONTROL_AUTOEXPOSURE          88
+#define QHYCAMERA_CONTROL_AUTOEXPexpMaxMS       91
 
 static int
 qhy_error_mapping(int error_code)
@@ -19935,6 +23140,64 @@ qhy_error_mapping(int error_code)
     return ret;
 }
 
+static void
+QHYCamera_name_convention(void *_self, char *pathname, size_t size, ...)
+{
+    struct QHYCamera *self = cast(QHYCamera(), _self);
+    
+    va_list ap;
+    size_t i, n;
+    int i_subdir;
+    bool subdir;
+    FILE *fp;
+    struct timespec *tp;
+    static __thread struct tm tm_buf;
+    char time_buf[TIMESTAMPSIZE], directory[PATHSIZE];
+    
+    va_start(ap, size);
+    i = va_arg(ap, size_t);
+    n = va_arg(ap, size_t);
+    tp = va_arg(ap, struct timespec *);
+    i_subdir = va_arg(ap, int);
+    va_end(ap);
+
+    subdir = i_subdir;
+    if (i == 1 || n == 1) {
+        //Clock_gettime(CLOCK_REALTIME, &tp);
+        gmtime_r(&tp->tv_sec, &tm_buf);
+    }
+    
+    if ((fp = fmemopen(pathname, size, "w+")) == NULL) {
+        return;
+    }
+    fprintf(fp, "%s/", self->_.d_proc.image_directory);
+    if (subdir) {
+        strftime(time_buf, TIMESTAMPSIZE, "%Y/%m/%d/", &tm_buf);
+        fprintf(fp, "%s", time_buf);
+        fflush(fp);
+        mkdirp(pathname);
+    }
+    strftime(time_buf, TIMESTAMPSIZE, "%Y%m%d%H%M%S", &tm_buf);
+    if (n == 1) {
+        if (self->_.d_proc.image_prefix != NULL) {
+            fprintf(fp, "%s_%s.fits", self->_.d_proc.image_prefix, time_buf);
+        } else {
+            fprintf(fp, "%s.fits", time_buf);
+        }
+    } else {
+        if (self->_.d_proc.image_prefix != NULL) {
+            fprintf(fp, "%s_%s_%04zd.fits", self->_.d_proc.image_prefix, time_buf, i);
+        } else {
+            fprintf(fp, "%s_%04zd.fits", time_buf, i);
+        }
+    }
+    if (self->_.d_state.state&DETECTOR_OPTION_COMPRESS_IMAGE) {
+        fprintf(fp, ".fz");
+    }
+    fclose(fp);
+}
+
+
 static const void *qhy_camera_virtual_table(void);
 
 static void *
@@ -19942,27 +23205,39 @@ QHYCamera_ctor(void *_self, va_list *app)
 {
     struct QHYCamera *self = super_ctor(QHYCamera(), _self, app);
     
-    const char *s;
+    const char *s, *keyname, *keyvalue;
 
     self->_.d_state.state = (DETECTOR_STATE_OFFLINE|DETECTOR_STATE_UNINITIALIZED);
-    memset(self->camera_id, '\0', 40);
+    memset(self->camera_id, '\0', 32);
     self->camera_index = -1;
     s = va_arg(*app, const char *);
     self->so_path = (char *) Malloc(strlen(s) + 1);
     snprintf(self->so_path, strlen(s) + 1, "%s", s);
+    
+    while ((keyname = va_arg(*app, const char *))) {
+        if (strcmp(keyname, "camera_id") == 0) {
+            keyvalue = va_arg(*app, const char *);
+            snprintf(self->camera_id, 32, "%s", keyvalue);
+            continue;
+        }
+        if (strcmp(keyname, "camera_index") == 0) {
+            self->camera_index = va_arg(*app, int);
+            continue;
+        }
+    }
     Pthread_mutex_init(&self->mtx, NULL);
     Pthread_cond_init(&self->cond, NULL);
     self->dlh = dlopen(self->so_path, RTLD_LAZY | RTLD_LOCAL);
-    self->capture_mode = DETECTOR_CAPTURE_MODE_VIDEO;
+    //self->capture_mode = DETECTOR_CAPTURE_MODE_VIDEO;
 #ifdef DEBUG
     if (self->dlh == NULL) {
         fprintf(stderr, "%s %s %d: dlopen \"%s\" error.\n", __FILE__, __func__, __LINE__ - 3, self->so_path);
     }
 #endif
     self->_._vtab= qhy_camera_virtual_table();
-    //self->_.d_proc.name_convention = ASICamera_name_convention;
-    //self->_.d_proc.pre_acquisition = ASICamera_pre_acquisition;
-    //self->_.d_proc.post_acquisition = __Detector_default_post_acquisition;
+    self->_.d_proc.name_convention = QHYCamera_name_convention;
+    self->_.d_proc.pre_acquisition = __Detector_default_pre_acquisition;
+    self->_.d_proc.post_acquisition = __Detector_default_post_acquisition;
     self->_.d_proc.queue = new(ThreadsafeQueue(), DetectorDataFrame_cleanup);
     
     return (void *) self;
@@ -20088,6 +23363,426 @@ QHYCamera(void)
 }
 
 static int
+QHYCamera_power_on(void *_self)
+{
+    struct QHYCamera *self = cast(QHYCamera(), _self);
+    
+    unsigned int state;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    state = (state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_UNINITIALIZED;
+    self->_.d_state.state = state;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+QHYCamera_power_off(void *_self)
+{
+    struct QHYCamera *self = cast(QHYCamera(), _self);
+    
+    unsigned int state;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    state = (state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_OFFLINE;
+    self->_.d_state.state = state;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+QHYCamera_init(void *_self)
+{
+    struct QHYCamera *self = cast(QHYCamera(), _self);
+    
+    unsigned int state;
+    uint16_t options;
+    int ret = AAOS_OK;
+   
+    uint32_t (*C_InitQHYCCDResource)(void) = dlsym(self->dlh, "C_InitQHYCCDResource");
+    uint32_t (*C_ScanQHYCCD)(void) = dlsym(self->dlh, "C_ScanQHYCCD");
+    uint32_t (*C_GetQHYCCDId)(uint32_t, char *) = dlsym(self->dlh, "C_GetQHYCCDId");
+    void *(*C_OpenQHYCCD)(char *) = dlsym(self->dlh, "C_OpenQHYCCD");
+    uint32_t (*C_InitQHYCCD)(void *) = dlsym(self->dlh, "C_InitQHYCCD");
+    uint32_t (*C_GetQHYCCDChipInfo)(void *, double *, double *, uint32_t *, uint32_t *, double *, double *, uint32_t*) = dlsym(self->dlh, "C_GetQHYCCDChipInfo");
+    uint32_t (*C_IsQHYCCDControlAvailable)(void *, int) = dlsym(self->dlh, "C_IsQHYCCDControlAvailable");
+    uint32_t (*C_SetQHYCCDParam)(void *, int, double) = dlsym(self->dlh, "C_SetQHYCCDParam");
+    uint32_t (*C_GetQHYCCDParam)(void *, int, double *) = dlsym(self->dlh, "C_GetQHYCCDParam");
+    uint32_t (*C_GetQHYCCDParamMinMaxStep)(void *, int, double *, double *, double *) = dlsym(self->dlh, "C_GetQHYCCDParamMinMaxStep");
+    uint32_t (*C_SetQHYCCDBinMode)(void *, uint32_t, uint32_t) = dlsym(self->dlh, "C_SetQHYCCDBinMode");
+    uint32_t (*C_SetQHYCCDReadMode)(void *, uint32_t) = dlsym(self->dlh, "C_SetQHYCCDReadMode");
+    uint32_t (*C_SetQHYCCDStreamMode)(void *, uint8_t) = dlsym(self->dlh, "C_SetQHYCCDStreamMode");
+    uint32_t (*C_GetQHYCCDOverScanArea)(void *, uint32_t *, uint32_t *, uint32_t *, uint32_t *) = dlsym(self->dlh, "C_GetQHYCCDOverScanArea");
+    uint32_t (*C_SetQHYCCDResolution)(void *, uint32_t, uint32_t, uint32_t, uint32_t) = dlsym(self->dlh, "C_SetQHYCCDResolution");
+    uint32_t (*C_GetQHYCCDCurrentROI)(void *, uint32_t *, uint32_t *, uint32_t *, uint32_t *) = dlsym(self->dlh, "C_GetQHYCCDCurrentROI");
+    uint32_t retval, n_camera;
+    
+    
+    if (self->camera_index < 0 && self->camera_id[0] == '\0') {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- camera index or camera id is invalid\n", __FILE__, __func__, __LINE__ - 2);
+#endif
+        return AAOS_ENOTFOUND;
+    }
+
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- detector %s has not been powered on\n", __FILE__, __func__, __LINE__ - 3, self->_.name);
+#endif
+        goto error;
+    }
+    
+    if (!(state&DETECTOR_STATE_UNINITIALIZED)) { //already initialized, do nothing, not really an error.
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        goto error;
+    }
+    
+    if ((retval = C_InitQHYCCDResource()) != QHYCAMERA_SUCCESS) {
+        ret = AAOS_ERROR;
+        goto error;
+    }
+    
+    if ((n_camera = C_ScanQHYCCD()) == 0) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- no camera is found by ScanQHYCCD\n", __FILE__, __func__, __LINE__ - 2);
+#endif
+        ret = AAOS_ENOTFOUND;
+        goto error;
+    }
+    
+    if (self->camera_index > n_camera - 1) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- camera index (%d) is larger than total number of cameras (%u) found by ScanQHYCCD\n", __FILE__, __func__, __LINE__ - 2, self->camera_index, n_camera);
+#endif
+        ret = AAOS_ENOTFOUND;
+        goto error;
+    }
+    
+    if (self->camera_index >= 0) {
+        if ((retval = C_GetQHYCCDId(self->camera_index, self->camera_id)) != QHYCAMERA_SUCCESS) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- GetQHYCCDId failed: %u\n", __FILE__, __func__, __LINE__ - 2, retval);
+#endif
+            ret = AAOS_ERROR;
+            goto error;
+        }
+    }
+    
+    if ((self->camera_handle = C_OpenQHYCCD(self->camera_id)) == NULL) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- OpenQHYCCD failed\n", __FILE__, __func__, __LINE__ - 2);
+#endif
+        ret = AAOS_ERROR;
+        goto error;
+    }
+    
+    if ((retval = C_SetQHYCCDReadMode(self->camera_handle, 0)) != QHYCAMERA_SUCCESS) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- C_SetQHYCCDReadMode failed: %u\n", __FILE__, __func__, __LINE__ - 2, retval);
+#endif
+        ret = AAOS_ERROR;
+        goto error2;
+    }
+
+    if ((retval = C_SetQHYCCDStreamMode(self->camera_handle, 1)) != QHYCAMERA_SUCCESS) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- C_SetQHYCCDStreamMode failed: %u\n", __FILE__, __func__, __LINE__ - 2, retval);
+#endif
+        ret = AAOS_ERROR;
+        goto error2;
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    if ((retval = C_InitQHYCCD(self->camera_handle)) != QHYCAMERA_SUCCESS) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- InitQHYCCD failed: %u\n", __FILE__, __func__, __LINE__ - 2, retval);
+#endif
+        ret = AAOS_ERROR;
+        goto error2;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_mutex_lock(&self->mtx);
+    uint32_t width, height, bpp;
+    double chipw, chiph, pixelw, pixelh;
+    if ((retval = C_GetQHYCCDChipInfo(self->camera_handle, &chipw, &chiph, &width, &height, &pixelw, &pixelh, &bpp)) != QHYCAMERA_SUCCESS) {
+        ret = AAOS_ERROR;
+        goto error2;
+    }
+    if ((retval = C_SetQHYCCDResolution(self->camera_handle, 0, 0, width, height)) != QHYCAMERA_SUCCESS) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- SetQHYCCDResolution failed: %u\n", __FILE__, __func__, __LINE__ - 2, retval);
+#endif
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    self->_.d_cap.width = width;
+    self->_.d_cap.height = height;
+    
+    Pthread_mutex_lock(&self->mtx);
+    size_t binning_cnt = 0;
+    self->_.d_cap.binning_available = false;
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN2X2MODE)) == QHYCAMERA_SUCCESS) {
+        binning_cnt++;
+    }
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN3X3MODE)) == QHYCAMERA_SUCCESS) {
+        binning_cnt++;
+    }
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN4X4MODE)) == QHYCAMERA_SUCCESS) {
+        binning_cnt++;
+    }
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN6X6MODE)) == QHYCAMERA_SUCCESS) {
+        binning_cnt++;
+    }
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN8X8MODE)) == QHYCAMERA_SUCCESS) {
+        binning_cnt++;
+    }
+    if ((retval = C_SetQHYCCDBinMode(self->camera_handle, 1, 1)) > 0) {
+        ret = AAOS_ERROR;
+        goto error2;
+    }
+
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.x_binning = 1;
+    self->_.d_param.y_binning = 1;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    if (binning_cnt > 0) {
+        self->_.d_cap.binning_available = true;
+        self->_.d_cap.n_x_binning = binning_cnt + 1;
+        self->_.d_cap.n_y_binning = binning_cnt + 1;
+        self->_.d_cap.x_binning_array = (uint32_t *) Malloc((binning_cnt + 1) * sizeof(uint32_t));
+        self->_.d_cap.y_binning_array = (uint32_t *) Malloc((binning_cnt + 1) * sizeof(uint32_t));
+        self->_.d_cap.x_binning_array[0] = 1;
+        self->_.d_cap.y_binning_array[0] = 1;
+        binning_cnt = 1;
+        if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN2X2MODE)) == QHYCAMERA_SUCCESS) {
+            self->_.d_cap.x_binning_array[binning_cnt] = 2;
+            self->_.d_cap.y_binning_array[binning_cnt] = 2;
+            binning_cnt++;
+        }
+        if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN3X3MODE)) == QHYCAMERA_SUCCESS) {
+            self->_.d_cap.x_binning_array[binning_cnt] = 3;
+            self->_.d_cap.y_binning_array[binning_cnt] = 3;
+            binning_cnt++;
+        }
+        if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN4X4MODE)) == QHYCAMERA_SUCCESS) {
+            self->_.d_cap.x_binning_array[binning_cnt] = 4;
+            self->_.d_cap.y_binning_array[binning_cnt] = 4;
+            binning_cnt++;
+        }
+        if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN6X6MODE)) == QHYCAMERA_SUCCESS) {
+            self->_.d_cap.x_binning_array[binning_cnt] = 6;
+            self->_.d_cap.y_binning_array[binning_cnt] = 6;
+            binning_cnt++;
+        }
+        if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_BIN8X8MODE)) == QHYCAMERA_SUCCESS) {
+            self->_.d_cap.x_binning_array[binning_cnt] = 8;
+            self->_.d_cap.y_binning_array[binning_cnt] = 8;
+            binning_cnt++;
+        }
+    }
+    Pthread_mutex_unlock(&self->mtx);
+
+    
+
+    self->_.d_cap.capture_mode_available = true;
+    self->_.d_cap.n_capture_mode = 3;
+    self->_.d_cap.capture_mode_array = (uint32_t *) Malloc(sizeof(uint32_t) * 3);
+    self->_.d_cap.capture_mode_array[0] = DETECTOR_CAPTURE_MODE_SNAPSHOT;
+    self->_.d_cap.capture_mode_array[1] = DETECTOR_CAPTURE_MODE_VIDEO;
+    self->_.d_cap.capture_mode_array[2] = DETECTOR_CAPTURE_MODE_MULTIFRAME;
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.capture_mode = DETECTOR_CAPTURE_MODE_VIDEO;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_mutex_lock(&self->mtx);
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_CONTROL_AUTOEXPOSURE)) != QHYCAMERA_SUCCESS) {
+        self->_.d_cap.auto_exposure_time_available = false;
+    } else {
+        double auto_exposure_time_max;
+        self->_.d_cap.auto_exposure_time_available = true;
+        if ((retval = C_GetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_AUTOEXPexpMaxMS, &auto_exposure_time_max)) != QHYCAMERA_SUCCESS) {
+            ret = AAOS_ERROR;
+            goto error2;
+        }
+        self->_.d_cap.auto_exposure_time_min = 0.;
+        self->_.d_cap.auto_exposure_time_max = auto_exposure_time_max / 10.;
+        if ((retval = C_SetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_AUTOEXPOSURE, 0)) != QHYCAMERA_SUCCESS) {
+            ret = AAOS_ERROR;
+            goto error2;
+        }
+        Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+        self->_.d_param.auto_exposure_time_enable = false;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_mutex_lock(&self->mtx);
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_CONTROL_EXPOSURE)) != QHYCAMERA_SUCCESS) {
+        self->_.d_cap.exposure_time_available = false;
+    } else {
+        double exposure_time_min, exposure_time_max, exposure_time_step, exposure_time;
+        self->_.d_cap.exposure_time_available = true;
+        if ((retval = C_GetQHYCCDParamMinMaxStep(self->camera_handle, QHYCAMERA_CONTROL_EXPOSURE, &exposure_time_min, &exposure_time_max, &exposure_time_step)) != QHYCAMERA_SUCCESS) {
+            ret = AAOS_ERROR;
+            goto error2;
+        }
+        if ((retval = C_GetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_EXPOSURE, &exposure_time)) == QHYCAMERA_SUCCESS) {
+            Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+            self->_.d_param.exposure_time = exposure_time;
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        }
+
+        self->_.d_cap.exposure_time_min = exposure_time_min / 1000000.;
+        self->_.d_cap.exposure_time_max = exposure_time_max / 1000000.;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    self->_.d_cap.auto_frame_rate_available = false;
+    self->_.d_cap.frame_rate_available = false;
+    
+    self->_.d_cap.auto_gain_available = false;
+    
+    Pthread_mutex_lock(&self->mtx);
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_CONTROL_GAIN)) != QHYCAMERA_SUCCESS) {
+        self->_.d_cap.gain_available = false;
+    } else {
+        self->_.d_cap.gain_available = true;
+        double gain, gain_min, gain_max, gain_step;
+        if ((retval = C_GetQHYCCDParamMinMaxStep(self->camera_handle, QHYCAMERA_CONTROL_GAIN, &gain_min, &gain_max, &gain_step)) == QHYCAMERA_SUCCESS) {
+            self->_.d_cap.gain_min = gain_min;
+            self->_.d_cap.gain_max = gain_max;
+        }
+        if ((retval = C_GetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_GAIN, &gain)) == QHYCAMERA_SUCCESS) {
+            Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+            self->_.d_param.gain = gain;
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        }
+    }
+    Pthread_mutex_unlock(&self->mtx);
+
+    uint32_t x_offset, y_offset, image_width, image_height;
+    Pthread_mutex_lock(&self->mtx);
+    if ((retval = C_GetQHYCCDCurrentROI(self->camera_handle, &x_offset, &y_offset, &image_width, &image_height)) != QHYCAMERA_SUCCESS) {
+        goto error2;
+    }
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.x_offset = x_offset;
+    self->_.d_param.y_offset = y_offset;
+    self->_.d_param.image_width = image_width;
+    self->_.d_param.image_height = image_height;
+    self->_.d_cap.offset_available = true;
+    self->_.d_cap.x_offset_min = 0;
+    self->_.d_cap.y_offset_max = 0;
+    if (self->_.d_param.x_binning > 0) {
+        self->_.d_cap.x_offset_max = self->_.d_cap.width / self->_.d_param.x_binning - 1;
+    }
+    if (self->_.d_param.y_binning > 0) {
+        self->_.d_cap.y_offset_max = self->_.d_cap.height / self->_.d_param.y_binning - 1;
+    }
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    
+    self->_.d_cap.overscan_available = false;
+    Pthread_mutex_lock(&self->mtx);
+    uint32_t x_overscan_start, y_overscan_start, x_overscan, y_overscan;
+    if ((retval = C_GetQHYCCDOverScanArea(self->camera_handle, &x_overscan_start, &y_overscan_start, &x_overscan, &y_overscan)) != QHYCAMERA_SUCCESS) {
+        goto error2;
+    }
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.x_overscan = x_overscan;
+    self->_.d_param.y_overscan = y_overscan;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    self->_.d_cap.pixel_format_available = true;
+    self->_.d_cap.n_pixel_format = 3;
+    self->_.d_cap.pixel_format_array = (uint32_t *) Malloc(sizeof(uint32_t) * 3);
+    self->_.d_cap.pixel_format_array[0] = DETECTOR_PIXEL_FORMAT_MONO_8;
+    self->_.d_cap.pixel_format_array[1] = DETECTOR_PIXEL_FORMAT_MONO_16;
+    self->_.d_cap.pixel_format_array[2] = DETECTOR_PIXEL_FORMAT_MONO_32;
+    Pthread_mutex_lock(&self->mtx);
+
+    if ((retval = C_SetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_TRANSFERBIT, 16)) != QHYCAMERA_SUCCESS) {
+        ret = AAOS_ERROR;
+        goto error2;
+    }
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_MONO_16;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    self->_.d_cap.trigger_available = false;
+    self->_.d_param.trigger_mode = DETECTOR_TRIGGER_MODE_DEFAULT;
+    
+    self->_.d_cap.auto_cooling_available = false;
+    Pthread_mutex_lock(&self->mtx);
+    if ((retval = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_CONTROL_COOLER)) != QHYCAMERA_SUCCESS) {
+        self->_.d_cap.cooling_available = false;
+    } else {
+        self->_.d_cap.cooling_available = true;
+        double settemp, temp_min, temp_max, temp_step;
+        if ((retval = C_GetQHYCCDParamMinMaxStep(self->camera_handle, QHYCAMERA_CONTROL_COOLER, &temp_min, &temp_max, &temp_step)) == QHYCAMERA_SUCCESS) {
+            self->_.d_cap.cooling_temperature_min = temp_min;
+            self->_.d_cap.cooling_temperature_max = temp_max;
+        }
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        settemp = self->_.d_param.temperature;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        if (settemp < 100.) {
+            if ((retval = C_SetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_MANUALPWM, 1.)) != QHYCAMERA_SUCCESS) {
+                ret = AAOS_ERROR;
+                goto error2;
+            }
+            if ((retval = C_SetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_COOLER, settemp)) != QHYCAMERA_SUCCESS) {
+                ret = AAOS_ERROR;
+                goto error2;
+            }
+            Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+            self->_.d_param.is_cooling_enable = true;
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        } else {
+            if ((retval = C_SetQHYCCDParam(self->camera_handle, QHYCAMERA_CONTROL_MANUALPWM, 0)) != QHYCAMERA_SUCCESS) {
+                ret = AAOS_ERROR;
+                goto error2;
+            }
+            Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+            self->_.d_param.is_cooling_enable = false;
+            Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        }
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    self->_.d_state.state = (state&DETECTOR_STATE_MALFUNCTION)|DETECTOR_STATE_IDLE;
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    self->_.d_cap.x_n_chip = 1;
+    self->_.d_cap.y_n_chip = 1;
+    self->_.d_cap.n_chip = 1;
+    self->_.d_cap.n_channel = 1;
+    
+    return AAOS_OK;
+    
+error2:
+    Pthread_mutex_unlock(&self->mtx);
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
 QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
 {
     struct QHYCamera *self = cast(QHYCamera(), _self);
@@ -20102,8 +23797,8 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         return AAOS_ERROR;
     }
     
-    if ((ret = fscanf(fp, "%s", &func_name)) != 1) {
-        flose(fp);
+    if ((ret = fscanf(fp, "%s", func_name)) != 1) {
+        fclose(fp);
         return AAOS_ERROR;
     }
     
@@ -20114,7 +23809,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         if (read_size != NULL) {
             *read_size = 0;
         }
-    } esle if (strcmp(func_name, "C_ReleaseQHYCCDResource") == 0) {
+    } else if (strcmp(func_name, "C_ReleaseQHYCCDResource") == 0) {
         uint32_t (*C_ReleaseQHYCCDResource)(void);
         C_ReleaseQHYCCDResource = dlsym(self->dlh, "C_ReleaseQHYCCDResource");
         qhy_ret = C_ReleaseQHYCCDResource();
@@ -20245,7 +23940,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
             fclose(fp);
             return AAOS_EBADCMD;
         }
-        if ((qhy_ret = C_GetQHYCCDReadModeName(self->camera_handle, index)) == -1) {
+        if ((qhy_ret = C_SetQHYCCDReadModeName(self->camera_handle, index)) == -1) {
             fclose(fp);
             return AAOS_EDEVMAL;
         }
@@ -20281,7 +23976,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         }
     } else if (strcmp(func_name, "C_SetQHYCCDDebayerOnOff") == 0) {
         uint32_t (*C_SetQHYCCDDebayerOnOff)(void *, bool);
-        bool onoff;
+        int onoff;
 
         C_SetQHYCCDDebayerOnOff = dlsym(self->dlh, "C_SetQHYCCDDebayerOnOff");
         if (fscanf(fp, "%d", &onoff) != 1) {
@@ -20334,7 +24029,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         C_SetQHYCCDResolution = dlsym(self->dlh, "C_SetQHYCCDResolution");
         if (fscanf(fp, "%u %u %u %u", &x_offset, &y_offset, &width, &height) != 4) {
             fclose(fp);
-            return AAOS_EBADCMD
+            return AAOS_EBADCMD;
         }
         if ((qhy_ret = C_SetQHYCCDResolution(self->camera_handle, x_offset, y_offset, width, height)) == -1) {
             fclose(fp);
@@ -20395,7 +24090,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         }
     } else if (strcmp(func_name, "C_GetQHYCCDOverScanArea") == 0) {
         uint32_t (*C_GetQHYCCDOverScanArea)(void *,  uint32_t *, uint32_t *, uint32_t *, uint32_t *);
-        uint32_t  oversacan_x_offset, overscan_y_offset, overscan_width, overscan_height;
+        uint32_t  overscan_x_offset, overscan_y_offset, overscan_width, overscan_height;
         cJSON *root_json;
         char *string;
 
@@ -20640,13 +24335,13 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
             *read_size = 0;
         }
     } else if (strcmp(func_name, "C_GetQHYCCDTrigerInterfaceNumber") == 0) {
-        uint32_t (*C_GetQHYCCDTrigerInterfaceNumber)(void *, uint32_t);
+        uint32_t (*C_GetQHYCCDTrigerInterfaceNumber)(void *, uint32_t *);
         uint32_t trigger_interface_number;
         cJSON *root_json;
         char *string;
 
         C_GetQHYCCDTrigerInterfaceNumber = dlsym(self->dlh, "C_GetQHYCCDTrigerInterfaceNumber");
-        if ((qhy_ret =  C_GetQHYCCDMemLength(self->camera_handle, &trigger_interface_number)) == -1) {
+        if ((qhy_ret = C_GetQHYCCDTrigerInterfaceNumber(self->camera_handle, &trigger_interface_number)) == -1) {
             fclose(fp);
             return AAOS_EDEVMAL;
         }
@@ -20703,7 +24398,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         }
     } else if (strcmp(func_name, "C_SetQHYCCDTrigerFunction") == 0) {
         uint32_t (* C_SetQHYCCDTrigerFunction)(void *, bool);
-        bool onoff;
+        int onoff;
 
         C_SetQHYCCDTrigerFunction = dlsym(self->dlh, "C_SetQHYCCDTrigerFunction");
         if (fscanf(fp, "%d", &onoff) != 1) {
@@ -20722,7 +24417,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         
          C_EnableQHYCCDTrigerOut = dlsym(self->dlh, "C_EnableQHYCCDTrigerOut");
        
-        if ((qhy_ret = C_EnableQHYCCDTrigerOut(self->camera_handle, index)) == -1) {
+        if ((qhy_ret = C_EnableQHYCCDTrigerOut(self->camera_handle)) == -1) {
             fclose(fp);
             return AAOS_EDEVMAL;
         }
@@ -20731,7 +24426,7 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
         }
     } else if (strcmp(func_name, "C_EnableQHYCCDBurstMode") == 0) {
         uint32_t (*C_EnableQHYCCDBurstMode)(void *, bool);
-        bool onoff;
+        int onoff;
 
         C_EnableQHYCCDBurstMode = dlsym(self->dlh, "C_EnableQHYCCDBurstMode");
         if (fscanf(fp, "%d", &onoff) != 1) {
@@ -20841,176 +24536,6 @@ QHYCamera_raw(void *_self, const void *write_buffer, size_t write_buffer_size, s
 }
 
 static int
-QHYCamera_int(void *_self)
-{
-    struct QHYCamera *self = cast(QHYCamera(), _self);
-
-    uint32_t state;
-    uint16_t options;
-    int ret = AAOS_OK;
-    uint32_t (*C_ScanQHYCCD)(void);
-    uint32_t (*C_GetQHYCCDId)(int, char *);
-    void * (*C_OpenQHYCCD)(char *);
-    uint32_t (*C_InitQHYCCD)(void *);
-    uint32_t (*C_CloseQHYCCD)(void *);
-    uint32_t (*C_GetQHYCCDInfo)(void *, double *, double *, uint32_t *, uint32_t *, double *, double *, uint32_t);
-    uint32_t (*C_SetQHYCCDBinMode)(void *, uint32_t, uint32_t);
-    uint32_t (*C_SetQHYCCDResolution)(void *, uint32_t, uint32_t, uint32_t, uint32_t);
-    uint32_t (*C_SetQHYCCDParam_Gain)(void *, double);
-    uint32_t (*C_SetQHYCCDParam_TargetTemperature)(void *, double);
-    uint32_t (*C_SetQHYCCDParam_Brightness)(void *, double);
-    uint32_t (*C_SetQHYCCDParam_Contrast)(void *, double);
-    uint32_t (*C_SetQHYCCDParam_Gamma)(void *, double);
-    uint32_t qhy_ret;
-    uint32_t i, width, height, bits_per_pixel;
-    double chip_width, chip_height, pixel_width, pixel_height;
-
-
-    C_ScanQHYCCD = dlsym(self->dlh, "C_ScanQHYCCD");
-    C_GetQHYCCDId = dlsym(self->dlh, "C_GetQHYCCDId");
-    C_OpenQHYCCD = dlsym(self->dlh, "C_OpenQHYCCD"); 
-    C_InitQHYCCD = dlsym(self->dlh, "C_InitQHYCCD"); 
-    C_CloseQHYCCD = dlsym(self->dlh, "C_CloseQHYCCD");
-    C_GetQHYCCDInfo = dlsym(self->dlh, "C_GetQHYCCDInfo");
-    C_SetQHYCCDBinMode = dlsym(self->dlh, "C_SetQHYCCDBinMode");
-    C_SetQHYCCDResolution = dlsym(self->dlh, "C_SetQHYCCDResolution");
-    C_SetQHYCCDParam_Gain = dlysm(self->dlh, "C_SetQHYCCDParam_Gain");
-    C_SetQHYCCDParam_TargetTemperature = dlsym(self->dlh, "C_SetQHYCCDParam_TargetTemperature");
-    C_SetQHYCCDParam_Brightness = dlsym(self->dlh, "C_SetQHYCCDParam_Brightness");
-    C_SetQHYCCDParam_Contrast = dlsym(self->dlh, "C_SetQHYCCDParam_Contrast");
-    C_SetQHYCCDParam_Gamma = dlsym(self->dlh, "C_SetQHYCCDParam_Gamma");
-
-
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    state = self->_.d_state.state;, 
-    options = self->_.d_state.options;
-    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        return AAOS_EDEVMAL;
-    }
-    if (state&DETECTOR_STATE_OFFLINE) {
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        return AAOS_EPWROFF;
-    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
-        if ((qhy_ret = C_ScanQHYCCD()) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            return AAOS_EDEVMAL;
-        }
-        self->n_camera = qhy_ret;
-
-        if (self->camera_index != 0) {
-            if (self->camera_index > qhy_ret) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                return AAOS_ENOTFOUND;
-            }
-            memset(self->camera_id, '\0', 40);
-            if ((qhy_ret = C_GetQHYCCDId(self->camera_index - 1, self->camera_id)) == -1) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                return AAOS_EDEVMAL;
-            }
-        } else {
-            for (i = 0; i < qhy_ret; i++) {
-                memset(self->camera_id, '\0', 40);
-                if ((qhy_ret = C_GetQHYCCDId(i, self->camera_id)) == -1) {
-                    Pthread_mutex_unlock(&self->_.d_state.mtx);
-                    return AAOS_EDEVMAL;
-                }
-                if (memcmp(self->camera_id, self->_.name) == 0) {
-                    self->camera_index = i + 1;
-                    break;   
-                }
-            }
-            if (i == qhy_ret - 1) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                return AAOS_ENOTFOUND;
-            }
-        }
-        if ((self->camera_handle = C_OpenQHYCCD(self->camera_id)) == NULL) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            return AAOS_EDEVMAL;
-        }
-        if ((qhy_ret = C_InitQHYCCD(self->camera_handle)) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            C_CloseQHYCCD(self->camera_handle);
-            return AAOS_EDEVMAL;
-        }
-        if ((qhy_ret = C_GetQHYCCDInfo(self->camera_handle, &chip_width, &chip_height, &width, &height, &pixel_width, &pixel_height, &bits_per_pixel)) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            C_CloseQHYCCD(self->camera_handle);
-            return AAOS_EDEVMAL;
-        }
-        self->_.d_cap.width = width;
-        self->_.d_cap.height = height;
-        if ((qhy_ret = C_SetQHYCCDBinMode(self->camera_handle, 1, 1)) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            C_CloseQHYCCD(self->camera_handle);
-            return AAOS_EDEVMAL;
-        }
-        self->_.d_param.x_binning = 1;
-        self->_.d_param.y_binning = 1;
-
-        if ((qhy_ret = C_SetQHYCCDResolution(self->camera_handle, 0, 0, width, height)) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            C_CloseQHYCCD(self->camera_handle);
-            return AAOS_EDEVMAL;
-        }
-        self->_.d_param.image_width = width;
-        self->_.d_param.image_height = height;
-        self->_d.param.x_offset = 0;
-        self->_d.param.y_offset = 0;
-        switch (bits_per_pixel) {
-            case 8:
-                self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_MONO_8;
-                break;
-            case 16:
-                self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_MONO_16;
-                break;
-            case 24: 
-                self->_.d_param.pixel_format = DETECTOR_PIXEL_FORMAT_RGB_24;
-                break;
-            default:
-                break;
-        }
-        if (self->d_param.gain > 0.) {
-            if ((qhy_ret = C_SetQHYCCDParam_Gain(self->camera_handle, self->_d.param.gain)) == -1) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                C_CloseQHYCCD(self->camera_handle);
-                return AAOS_EDEVMAL;
-            }
-        }
-        if (self->_d.param.temperature < 50.) {
-            if ((qhy_ret = C_SetQHYCCDParam_TargetTemperature(self->camera_handle, self->_d.param.temperature)) == -1) {
-                Pthread_mutex_unlock(&self->_.d_state.mtx);
-                C_CloseQHYCCD(self->camera_handle);
-                return AAOS_EDEVMAL;
-            }    
-        }
-        if ((qhy_ret = C_SetQHYCCDParam_Brightness(self->camera_handle, 0)) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            C_CloseQHYCCD(self->camera_handle);
-            return AAOS_EDEVMAL;
-        }
-        if ((qhy_ret = C_SetQHYCCDParam_Contrast(self->camera_handle, 0.)) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            C_CloseQHYCCD(self->camera_handle);
-            return AAOS_EDEVMAL;
-        }
-        if ((qhy_ret = C_SetQHYCCDParam_Gamma(self->camera_handle, 0.)) == -1) {
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            C_CloseQHYCCD(self->camera_handle);
-            return AAOS_EDEVMAL;
-        }
-        
-        state = DETECTOR_STATE_IDLE;
-        self->state &= state;
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-    } else {
-        Pthread_mutex_unlock(&self->_.d_state.mtx);
-        return AAOS_OK;
-    }
-}
-
-static int
 QHYCamera_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
 {
     struct QHYCamera *self = cast(QHYCamera(), _self);
@@ -21022,7 +24547,7 @@ QHYCamera_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
     uint32_t qhy_ret;
     size_t i;
 
-    if (!self->_.d_cap.binning_avaliable) {
+    if (!self->_.d_cap.binning_available) {
         return AAOS_ENOTSUP;
     }
     if (self->_.d_cap.x_binning_array != NULL) {
@@ -21054,7 +24579,7 @@ QHYCamera_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
         }
     }
 
-    C_SetQHYCCDBinMode = dlysm(self->dlh, "C_SetQHYCCDBinMode");
+    C_SetQHYCCDBinMode = dlsym(self->dlh, "C_SetQHYCCDBinMode");
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21077,12 +24602,15 @@ QHYCamera_set_binning(void *_self, uint32_t x_binning, uint32_t y_binning)
         goto error;
     }
 
-    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
-    if ((qhy_ret = C_SetQHYCCDResolution(self->camera_handle, x_offset, y_offset, width, height)) == -1) {  
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_SetQHYCCDBinMode(self->camera_handle, x_binning, y_binning)) == -1) {
         ret = AAOS_EDEVMAL;
-        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+        Pthread_mutex_unlock(&self->mtx);
         goto error;
     }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
     self->_.d_param.x_binning = x_binning;
     self->_.d_param.y_binning = y_binning;
     Pthread_rwlock_unlock(&self->_.d_param.rwlock);
@@ -21110,13 +24638,63 @@ QHYCamera_set_exposure_time(void *_self, double exposure_time)
 {
     struct QHYCamera *self = cast(QHYCamera(), _self);
 
-    uint32_t (*C_SetQHYCCDParam_Exposure)(void *, double);
+    uint32_t (*C_SetQHYCCDParam_ExposureTime)(void *, double);
     uint32_t state;
     uint16_t options;
     int ret = AAOS_OK;
     uint32_t qhy_ret;
 
-    C_SetQHYCCDParam_Exposure = dlysm(self->dlh, "C_SetQHYCCDParam_Exposure");
+    C_SetQHYCCDParam_ExposureTime = dlsym(self->dlh, "C_SetQHYCCDParam_ExposureTime");
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
+        if (options&DETECTOR_OPTION_NOWAIT) {
+            ret = AAOS_EBUSY;
+            goto error;
+        }
+        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
+            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+        }
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+    
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_SetQHYCCDParam_ExposureTime(self->camera_handle, exposure_time * 1000000.)) == -1) {
+        Pthread_mutex_unlock(&self->mtx);
+        ret = AAOS_EDEVMAL;
+        goto error;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.exposure_time = exposure_time;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+
+error:
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    return ret;
+}
+
+static int
+QHYCamera_get_exposure_time(void *_self, double *exposure_time)
+{
+    struct QHYCamera *self = cast(QHYCamera(), _self);
+    
+    uint32_t state;
+    uint16_t options;
+    uint32_t (*C_IsQHYCCDControlAvailable)(void *, int) = dlsym(self->dlh, "C_IsQHYCCDControlAvailable");
+    double (*C_GetQHYCCDParam_ExposureTime)(void *) = dlsym(self->dlh, "C_GetQHYCCDParam_ExposureTime");
+    uint32_t qhy_ret;
+    
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21130,32 +24708,19 @@ QHYCamera_set_exposure_time(void *_self, double exposure_time)
         ret = AAOS_EPWROFF;
         goto error;
     }
-    if (!self->_.d_cap.cooling_available) {
-        ret = AAOS_ENOTSUP;
-        goto error;
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_CONTROL_EXPOSURE)) == QHYCAMERA_SUCCESS) {
+        *exposure_time = C_GetQHYCCDParam_ExposureTime(self->camera_handle);
+    } else {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        *exposure_time = self->_.d_param.exposure_time;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
     }
-    Pthread_rwlock_wrlock(self->_.d_param.rwlock);
-    if ((qhy_ret = C_SetQHYCCDParam_Exposure(self->camera_handle, exposure_time * 1000000.)) == -1) {  
-        ret = AAOS_EDEVMAL;
-        goto error;
-    }
-    self->_.d_param.exposure_time = exposure_time;
-    Pthread_rwlock_unlock(self->_.d_param.rwlock);
-
+    Pthread_mutex_unlock(&self->mtx);
+    
 error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
-    return ret;
-}
-
-static int
-QHYCamera_get_exposure_time(void *_self, double *exposure_time)
-{
-    struct QHYCamera *self = cast(QHYCamera(), _self);
-
-    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
-    *exposure_time = self->_.d_param.exposure_time;
-    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
-
+    
     return AAOS_OK;
 }
 
@@ -21182,7 +24747,7 @@ QHYCamera_set_gain(void *_self, double gain)
     int ret = AAOS_OK;
     uint32_t qhy_ret;
 
-    C_SetQHYCCDParam_Gain = dlysm(self->dlh, "C_SetQHYCCDParam_Gain");
+    C_SetQHYCCDParam_Gain = dlsym(self->dlh, "C_SetQHYCCDParam_Gain");
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21204,13 +24769,18 @@ QHYCamera_set_gain(void *_self, double gain)
         ret = AAOS_EPWROFF;
         goto error;
     }
-    Pthread_rwlock_wrlock(self->_.d_param.rwlock);
-    if ((qhy_ret = C_SetQHYCCDParam_Gain(self->camera_handle, gain)) == -1) {  
+    
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_SetQHYCCDParam_Gain(self->camera_handle, gain)) != QHYCAMERA_SUCCESS) {
         ret = AAOS_EDEVMAL;
+        Pthread_mutex_unlock(&self->mtx);
         goto error;
     }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
     self->_.d_param.gain = gain;
-    Pthread_rwlock_unlock(self->_.d_param.rwlock);
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
 
 error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
@@ -21221,12 +24791,44 @@ static int
 QHYCamera_get_gain(void *_self, double *gain)
 {
     struct QHYCamera *self = cast(QHYCamera(), _self);
-
-    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
-    *gain = self->_.d_param.gain;
-    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    
+	unsigned int state;
+	uint16_t options;
+	int ret;
+	
+    uint32_t (*C_IsQHYCCDControlAvailable)(void *, int) = dlsym(self->dlh, "C_IsQHYCCDControlAvailable");
+    double (*C_GetQHYCCDParam_Gain)(void *) = dlsym(self->dlh, "C_GetQHYCCDParam_Gain");
+    uint32_t qhy_ret;
+    
+	Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+	if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+	Pthread_mutex_unlock(&self->_.t_state.mtx);
+	
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, QHYCAMERA_CONTROL_GAIN)) == QHYCAMERA_SUCCESS) {
+        *gain = C_GetQHYCCDParam_Gain(self->camera_handle);
+    } else {
+        Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+        *gain = self->_.d_param.gain;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+    }
+    Pthread_mutex_unlock(&self->mtx);
 
     return AAOS_OK;
+	
+error:
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
 }
 
 static int
@@ -21238,7 +24840,42 @@ QHYCamera_set_overscan(void *_self, uint32_t x_overscan, uint32_t y_overscan)
 static int
 QHYCamera_get_overscan(void *_self, uint32_t *x_overscan, uint32_t *y_overscan)
 {
-    return AAOS_ENOTSUP;
+    struct QHYCamera *self = cast(QHYCamera(), _self);
+    
+	unsigned int state;
+	uint16_t options;
+	int ret;
+
+    uint32_t (*C_GetQHYCCDOverScanArea)(void *, uint32_t *, uint32_t *, uint32_t *, uint32_t *) = dlsym(self->dlh, "C_GetQHYCCDOverScanArea");
+    uint32_t x_start, y_start, qhy_ret;
+    
+	Pthread_mutex_lock(&self->_.d_state.mtx);
+    state = self->_.d_state.state;
+    options = self->_.d_state.options;
+	if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
+        ret = AAOS_EDEVMAL;
+        goto error;
+    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
+        ret = AAOS_EUNINIT;
+        goto error;
+    } else if (state&DETECTOR_STATE_OFFLINE) {
+        ret = AAOS_EPWROFF;
+        goto error;
+    }
+	Pthread_mutex_unlock(&self->_.t_state.mtx);
+	
+    Pthread_mutex_lock(&self->mtx);
+    qhy_ret = C_GetQHYCCDOverScanArea(self->camera_handle, &x_start, &y_start, x_overscan, y_overscan);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    if (qhy_ret == QHYCAMERA_SUCCESS) {
+        return AAOS_OK;
+    } else {
+        return AAOS_EDEVMAL;
+    }
+	
+error:
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
 }
 
 static int
@@ -21254,7 +24891,7 @@ QHYCamera_set_pixel_format(void *_self, uint32_t pixel_format)
     int ret = AAOS_OK;
     uint32_t qhy_ret;
 
-    C_SetQHYCCDParam_Bits = dlysm(self->dlh, "C_SetQHYCCDParam_Bits");
+    C_SetQHYCCDParam_Bits = dlsym(self->dlh, "C_SetQHYCCDParam_Bits");
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21281,7 +24918,7 @@ QHYCamera_set_pixel_format(void *_self, uint32_t pixel_format)
         goto error;
     }
     for (i = 0; i < self->_.d_cap.n_pixel_format; i ++) {
-        if (pixel_format == self->_.d_cap.pixel_format[i]) {
+        if (pixel_format == self->_.d_cap.pixel_format_array[i]) {
             switch (pixel_format) {
                 case DETECTOR_PIXEL_FORMAT_MONO_8:
                     bits = 8.;
@@ -21302,13 +24939,18 @@ QHYCamera_set_pixel_format(void *_self, uint32_t pixel_format)
         ret = AAOS_EINVAL;
         goto error;
     }
-    Pthread_rwlock_wrlock(self->_.d_param.rwlock);
-    if ((qhy_ret = C_SetQHYCCDParam_Bits(self->camera_handle, bits)) == -1) {  
+    
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_SetQHYCCDParam_Bits(self->camera_handle, bits)) == -1) {
         ret = AAOS_EDEVMAL;
+        Pthread_mutex_unlock(&self->mtx);
         goto error;
     }
-    self->_.d_param.gain = gain;
-    Pthread_rwlock_unlock(self->_.d_param.rwlock);
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+    self->_.d_param.pixel_format = pixel_format;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
 
 error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
@@ -21338,7 +24980,7 @@ QHYCamera_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t
     int ret = AAOS_OK;
     uint32_t qhy_ret;
 
-    C_SetQHYCCDResolution = dlysm(self->dlh, "C_SetQHYCCDResolution");
+    C_SetQHYCCDResolution = dlsym(self->dlh, "C_SetQHYCCDResolution");
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21365,17 +25007,21 @@ QHYCamera_set_region(void *_self, uint32_t x_offset, uint32_t y_offset, uint32_t
         goto error;
     }
 
-    Pthread_rwlock_wrlock(self->_.d_param.rwlock);
-    if ((qhy_ret = C_SetQHYCCDResolution(self->camera_handle, x_offset, y_offset, width, height)) == -1) {  
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_SetQHYCCDResolution(self->camera_handle, x_offset, y_offset, width, height)) == -1) {
+        Pthread_mutex_unlock(&self->mtx);
         ret = AAOS_EDEVMAL;
         goto error;
     }
+    Pthread_mutex_unlock(&self->mtx);
+    
+    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
     self->_.d_param.x_offset = x_offset;
     self->_.d_param.y_offset = y_offset;
     self->_.d_param.image_width = width;
     self->_.d_param.image_height = height;
-    Pthread_rwlock_unlock(self->_.d_param.rwlock);
-
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
+	
 error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
@@ -21389,10 +25035,11 @@ QHYCamera_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32
     uint32_t (*C_GetQHYCCDEffectiveArea)(void *, uint32_t *, uint32_t *, uint32_t *, uint32_t *);
     uint32_t state;
     uint16_t options;
-    int ret = AAOS_OK;
+    int ret = AAOS_OK;	
     uint32_t qhy_ret;
 
-    C_GetQHYCCDEffectiveArea = dlysm(self->dlh, "_GetQHYCCDEffectiveArea");
+    C_GetQHYCCDEffectiveArea = dlsym(self->dlh, "C_GetQHYCCDEffectiveArea");
+	
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21406,11 +25053,15 @@ QHYCamera_get_region(void *_self, uint32_t *x_offset, uint32_t *y_offset, uint32
         ret = AAOS_EPWROFF;
         goto error;
     }
-
-    if ((qhy_ret = C_GetQHYCCDEffectiveArea(self->camera_handle, x_offset, y_offset, width, height)) == -1) {  
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_GetQHYCCDEffectiveArea(self->camera_handle, x_offset, y_offset, width, height)) == -1) {
+        Pthread_mutex_unlock(&self->mtx);
         ret = AAOS_EDEVMAL;
-        goto error;
     }
+    Pthread_mutex_unlock(&self->mtx);
+	return ret;
 
 error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
@@ -21426,9 +25077,10 @@ QHYCamera_set_temperature(void *_self, double temperature)
     uint32_t state;
     uint16_t options;
     int ret = AAOS_OK;
+	
     uint32_t qhy_ret;
-
-    C_SetQHYCCDParam_TargetTemperature = dlysm(self->dlh, "C_SetQHYCCDParam_TargetTemperature");
+    C_SetQHYCCDParam_TargetTemperature = dlsym(self->dlh, "C_SetQHYCCDParam_TargetTemperature");
+	
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21446,14 +25098,22 @@ QHYCamera_set_temperature(void *_self, double temperature)
         ret = AAOS_ENOTSUP;
         goto error;
     }
-    Pthread_rwlock_wrlock(self->_.d_param.rwlock);
-    if ((qhy_ret = C_SetQHYCCDParam_TargetTemperature(self->camera_handle, temperature)) == -1) {  
-        ret = AAOS_EDEVMAL;
-        goto error;
+	Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+	Pthread_mutex_lock(&self->mtx);
+	qhy_ret = C_SetQHYCCDParam_TargetTemperature(self->camera_handle, temperature)
+	Pthread_mutex_unlock(&self->mtx);
+    
+    if (qhy_ret == QHYCAMERA_SUCCESS) { 
+	    Pthread_rwlock_wrlock(&self->_.d_param.rwlock);
+	    self->_.d_param.temperature = temperature;
+        Pthread_rwlock_unlock(&self->_.d_param.rwlock);	
+    } else {
+	    ret = AAOS_EDEVMAL;		
     }
-    self->_.d_param.temperature = temperature;
-    Pthread_rwlock_unlock(self->_.d_param.rwlock);
-
+	
+	return ret;
+    
 error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
@@ -21464,13 +25124,14 @@ QHYCamera_get_temperature(void *_self, double *temperature)
 {
     struct QHYCamera *self = cast(QHYCamera(), _self);
 
-    double (*C_GetQHYCCDParam_CurTempture)(void *);
     uint32_t state;
     uint16_t options;
     int ret = AAOS_OK;
-    uint32_t qhy_ret;
-
-    C_GetQHYCCDParam_CurTempture = dlysm(self->dlh, "C_GetQHYCCDParam_CurTempture");
+	
+	double (*C_GetQHYCCDParam_CoolerTemp)(void *);
+	
+    C_GetQHYCCDParam_CoolerTemp = dlsym(self->dlh, "C_GetQHYCCDParam_CoolerTemp");
+	
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
@@ -21484,8 +25145,14 @@ QHYCamera_get_temperature(void *_self, double *temperature)
         ret = AAOS_EPWROFF;
         goto error;
     }
-
-    *temperature = C_GetQHYCCDParam_CurTempture(self->camera_handle);
+	Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+	Pthread_mutex_lock(&self->mtx);
+    *temperature = C_GetQHYCCDParam_CoolerTemp(self->camera_handle);
+	Pthread_mutex_unlock(&self->mtx);
+	
+	return ret;
+	
 error:
     Pthread_mutex_unlock(&self->_.d_state.mtx);
     return ret;
@@ -21495,89 +25162,11 @@ static int
 QHYCamera_set_trigger_mode(void *_self, uint32_t trigger_mode)
 {
     return AAOS_ENOTSUP;
-    /*
-    struct QHYCamera *self = cast(QHYCamera(), _self);
-
-    uint32_t (*C_SetQHYCCDParam_Bits)(void *, double);
-    double bits = 0.;
-    uint32_t state;
-    uint16_t options;
-    size_t i;
-    int ret = AAOS_OK;
-    uint32_t qhy_ret;
-
-    C_SetQHYCCDParam_Bits = dlysm(self->dlh, "C_SetQHYCCDParam_Bits");
-    Pthread_mutex_lock(&self->_.d_state.mtx);
-    state = self->_.d_state.state;
-    options = self->_.d_state.options;
-    if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
-        ret = AAOS_EDEVMAL;
-        goto error;
-    } else if ((state&DETECTOR_STATE_READING) || (state&DETECTOR_STATE_EXPOSING)) {
-        if (options&DETECTOR_OPTION_NOWAIT) {
-            ret = AAOS_EBUSY;
-            goto error;
-        }
-        while ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
-            Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
-        }
-    } else if (state&DETECTOR_STATE_UNINITIALIZED) {
-        ret = AAOS_EUNINIT;
-        goto error;
-    } else if (state&DETECTOR_STATE_OFFLINE) {
-        ret = AAOS_EPWROFF;
-        goto error;
-    }
-    if (!self->_.d_cap.pixel_format_available) {
-        ret = AAOS_ENOTSUP;
-        goto error;
-    }
-    for (i = 0; i < self->_.d_cap.n_pixel_format; i ++) {
-        if (pixel_format == self->_.d_cap.pixel_format[i]) {
-            switch (pixel_format) {
-                case DETECTOR_PIXEL_FORMAT_MONO_8:
-                    bits = 8.;
-                    break;
-                case DETECTOR_PIXEL_FORMAT_MONO_16:
-                    bits = 16.;
-                    break;
-                case DETECTOR_PIXEL_FORMAT_RGB_24:
-                    bits = 24.;
-                    break;
-                default:
-                    break;
-            }
-            break;
-        }
-    }
-    if (bits == 0.) {
-        ret = AAOS_EINVAL;
-        goto error;
-    }
-    Pthread_rwlock_wrlock(self->_.d_param.rwlock);
-    if ((qhy_ret = C_SetQHYCCDParam_Bits(self->camera_handle, bits)) == -1) {  
-        ret = AAOS_EDEVMAL;
-        goto error;
-    }
-    self->_.d_param.gain = gain;
-    Pthread_rwlock_unlock(self->_.d_param.rwlock);
-
-error:
-    Pthread_mutex_unlock(&self->_.d_state.mtx);
-    return ret;
-*/
 }
 
 static int
 QHYCamera_get_trigger_mode(void *_self, uint32_t *trigger_mode)
 {
-    /*
-    struct QHYCamera *self = cast(QHYCamera(), _self);
-
-    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
-    *pixel_format = self->_.d_param.pixel_format;
-    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
-    */
     return AAOS_ENOTSUP;
 }
 
@@ -21616,7 +25205,7 @@ QHYCamera_abort(void *_self)
     uint32_t (*abort_func)(void *);
     uint32_t qhy_ret;
 
-    Pthread_rwlock_rdlock(self->_.d_param.rwlock)
+    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
     switch (self->_.d_param.capture_mode)  {
         case DETECTOR_CAPTURE_MODE_SNAPSHOT:
             abort_func = dlsym(self->dlh, "C_CancelQHYCCDExposingAndReadout");
@@ -21631,13 +25220,14 @@ QHYCamera_abort(void *_self)
             abort_func = dlsym(self->dlh, "C_StopQHYCCDLive");
             break;
     }
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
 
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
     if ((state&DETECTOR_STATE_EXPOSING) || (state&DETECTOR_STATE_READING)) {
 
-        if ((qhy_ret = abort_func(self->camera_handles)) == -1) {
+        if ((qhy_ret = abort_func(self->camera_handle)) == -1) {
 #ifdef DEBUG
             fprintf(stderr, "%s %s %d: abort_func error.\n", __FILE__, __func__, __LINE__ - 2);
 #endif
@@ -21662,6 +25252,7 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
     cJSON *root_json, *qhy_json, *capability_json, *array_json;
     char *string = NULL;
     size_t i;
+    uint32_t qhy_ret;
 	
     root_json = cJSON_CreateObject();
     cJSON_AddStringToObject(root_json, "name", self->_.name);
@@ -21669,226 +25260,277 @@ QHYCamera_info_json(struct QHYCamera *self, void *buffer, size_t size)
         cJSON_AddStringToObject(root_json, "description", self->_.description);
     }
 	
-	qhy_json = cJSON_CreateObject();
-	cJSON_AddStringToObject(qhy_json, "name", camera_info->Name);
+    qhy_json = cJSON_CreateObject();
     cJSON_AddNumberToObject(qhy_json, "camera_index", self->camera_index);
-	cJSON_AddStringToObject(qhy_json, "camera_index", self->camera_id);
+    cJSON_AddStringToObject(qhy_json, "camera_id", self->camera_id);
+    unsigned char firmware[32];
+    memset(firmware, '\0', 32);
+    uint32_t (*C_GetQHYCCDFWVersion)(void *, unsigned char *) = dlsym(self->dlh, "C_GetQHYCCDFWVersion");
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_GetQHYCCDFWVersion(self->camera_handle, firmware)) == 0) {
+        char buf[32];
+        if ((firmware[0] >> 4) <= 9) {
+            snprintf(buf, 32, "20%d-%d-%d", firmware[0]>>4 + 0x10, firmware[0]&~0xf0, firmware[1]);
+        } else {
+            snprintf(buf, 32, "20%d-%d-%d", firmware[0]>>4, firmware[0]&~0xf0, firmware[1]);
+        }
+        cJSON_AddStringToObject(qhy_json, "firmware_version", buf);
+    }
+    Pthread_mutex_unlock(&self->mtx);
+
+    uint32_t year, month, day, subday;
+    uint32_t (*C_GetQHYCCDSDKVersion)(uint32_t *, uint32_t *, uint32_t *, uint32_t *) = dlsym(self->dlh, "C_GetQHYCCDSDKVersion");
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_GetQHYCCDSDKVersion(&year, &month, &day, &subday)) == 0) {
+        char buf[32];
+        snprintf(buf, 32, "%u-%u-%u-,%u", year, month, day, subday);
+        cJSON_AddStringToObject(qhy_json, "sdk_version", buf);
+    }
+    Pthread_mutex_unlock(&self->mtx);
+
+    double chip_width, chip_height, pixel_width, pixel_height;
+    uint32_t width, height, bpp;
+    uint32_t (*C_GetQHYCCDChipInfo)(void *, double *, double *, uint32_t *, uint32_t *, double *, double *, uint32_t *) = dlsym(self->dlh, "C_GetQHYCCDChipInfo");
+    if ((qhy_ret = C_GetQHYCCDChipInfo(self->camera_handle, &chip_width, &chip_height, &width, &height, &pixel_width, &pixel_height, &bpp)) == 0) {
+        cJSON_AddNumberToObject(qhy_json, "chip_width", chip_width);
+        cJSON_AddNumberToObject(qhy_json, "chip_height", chip_height);
+        cJSON_AddNumberToObject(qhy_json, "pixel_width", pixel_width);
+        cJSON_AddNumberToObject(qhy_json, "pixel_height", pixel_height);
+        cJSON_AddNumberToObject(qhy_json, "bpp", bpp);
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    cJSON_AddItemToObject(root_json, "qhy", qhy_json);
 	
-	capability_json = cJSON_CreateObject();
-	cJSON_AddNumberToObject(capability_json, "width", self->_.d_cap.width);
-	cJSON_AddNumberToObject(capability_json, "heigth", self->_.d_cap.height);
-	cJSON_AddNumberToObject(capability_json, "x_n_chip", self->_.d_cap.x_n_chip);
-	cJSON_AddNumberToObject(capability_json, "y_n_chip", self->_.d_cap.y_n_chip);
-	cJSON_AddNumberToObject(capability_json, "n_chip", self->_.d_cap.n_chip);
+    capability_json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(capability_json, "width", self->_.d_cap.width);
+
+    cJSON_AddNumberToObject(capability_json, "heigth", self->_.d_cap.height);
+
+    cJSON_AddNumberToObject(capability_json, "x_n_chip", self->_.d_cap.x_n_chip);
+
+    cJSON_AddNumberToObject(capability_json, "y_n_chip", self->_.d_cap.y_n_chip);
+
+    cJSON_AddNumberToObject(capability_json, "n_chip", self->_.d_cap.n_chip);
     cJSON_AddNumberToObject(capability_json, "n_channel", self->_.d_cap.n_channel);
 
-	if (self->_.d_cap.flip_map != NULL) {
 
-	}
-	if (self->_.d_cap.mirror_map != NULL) {
-		
-	}	
+    if (self->_.d_cap.flip_map != NULL) {
+
+    }
+
+    if (self->_.d_cap.mirror_map != NULL) {
+
+    }	
 	
-	if (self->_.d_cap.binning_available) {
-		cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_True);
+    if (self->_.d_cap.binning_available) {
+        cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_True);
         if (self->_.d_cap.x_binning_array != NULL && self->_.d_cap.y_binning_array != NULL) {
             char binning_buffer[BUFSIZE];
             FILE *fp;
-			size_t i;
+            size_t i;
             fp = fmemopen(binning_buffer, BUFSIZE, "w");
-			for (i = 0; i < self->_.d_cap.n_x_binning - 1; i++) {
-				fprintf(fp, "(%d,%d) ", self->_.d_cap.x_binning_array[i], self->_.d_cap.y_binning_array[i]);
-			}
-			fprintf(fp, "(%d,%d)", self->_.d_cap.x_binning_array[self->_.d_cap.n_x_binning - 1], self->_.d_cap.y_binning_array[self->_.d_cap.n_x_binning - 1]);
-			cJSON_AddStringToObject(capability_json, "binning_array", binning_buffer);
+            for (i = 0; i < self->_.d_cap.n_x_binning - 1; i++) {
+                fprintf(fp, "(%d,%d) ", self->_.d_cap.x_binning_array[i], self->_.d_cap.y_binning_array[i]);
+            }
+            fprintf(fp, "(%d,%d)", self->_.d_cap.x_binning_array[self->_.d_cap.n_x_binning - 1], self->_.d_cap.y_binning_array[self->_.d_cap.n_x_binning - 1]);
+            fclose(fp);
+            cJSON_AddStringToObject(capability_json, "binning_array", binning_buffer);
+  
         } else {
-			cJSON_AddNumberToObject(capability_json, "x_binning_min", self->_.d_cap.x_binning_min);
-			cJSON_AddNumberToObject(capability_json, "x_binning_max", self->_.d_cap.x_binning_max);
-			cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_min);
-			cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_max);
-        }		
-	} else {
-		cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_False);
-	}
-	
-	if (self->_.d_cap.offset_available) {
-		cJSON_AddBoolToObject(capability_json, "ROI_available", cJSON_True);
-	} else {
-		cJSON_AddBoolToObject(capability_json, "ROI_available", cJSON_False);
-	}
+            cJSON_AddNumberToObject(capability_json, "x_binning_min", self->_.d_cap.x_binning_min);
+            cJSON_AddNumberToObject(capability_json, "x_binning_max", self->_.d_cap.x_binning_max);
+            cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_min);
+            cJSON_AddNumberToObject(capability_json, "y_binning_max", self->_.d_cap.y_binning_max);
+        }
+    } else {
+        cJSON_AddBoolToObject(capability_json, "binning_available", cJSON_False);
+    }
+
+    if (self->_.d_cap.offset_available) {
+        cJSON_AddBoolToObject(capability_json, "ROI_available", cJSON_True);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "ROI_available", cJSON_False);
+    }
 	
 	if (self->_.d_cap.gain_available) {
-		cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_True);
-		if (self->_.d_cap.gain_array == NULL) {
-			cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
-			cJSON_AddNumberToObject(capability_json, "gain_max", self->_.d_cap.gain_max);
-		} else {
-			array_json = cJSON_CreateArray();
-			for (i = 0; i < self->_.d_cap.n_gain; i++) {
-				cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.gain_array[i]));
-			}
-			cJSON_AddItemToObject(capability_json, "gain_array", array_json);
-		}
-	} else {
-		cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_False);
-	}
-	if (self->_.d_cap.auto_gain_available) {
-		cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_True);
-		cJSON_AddNumberToObject(capability_json, "auto_gain_min", self->_.d_cap.auto_gain_min);
-		cJSON_AddNumberToObject(capability_json, "auto_gain_max", self->_.d_cap.auto_gain_max);
-	} else {
-		cJSON_AddBoolToObject(capability_json, "auto_gain_available", cJSON_False);
-	}
-	
-	if (self->_.d_cap.exposure_time_available) {
-		cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_True);
-		if (self->_.d_cap.exposure_time_array == NULL) {
-			cJSON_AddNumberToObject(capability_json, "exposure_time_min", self->_.d_cap.exposure_time_min);
-			cJSON_AddNumberToObject(capability_json, "exposure_time_max", self->_.d_cap.exposure_time_max);
-		} else {
-			array_json = cJSON_CreateArray();
-			for (i = 0; i < self->_.d_cap.n_exposure_time; i++) {
-				cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.exposure_time_array[i]));
-			}
-			cJSON_AddItemToObject(capability_json, "exposure_time_array", array_json);
-		}
-	} else {
-		cJSON_AddBoolToObject(capability_json, "exposure_time_available", cJSON_False);
-	}
-	if (self->_.d_cap.auto_exposure_available) {
-		cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_True);
-		cJSON_AddNumberToObject(capability_json, "auto_exposure_time_min", self->_.d_cap.auto_exposure_time_min);
-		cJSON_AddNumberToObject(capability_json, "auto_exposure_time_max", self->_.d_cap.auto_exposure_time_max);
-	} else {
-		cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", cJSON_False);
-	}
-	
-	if (self->_.d_cap.frame_rate_available) {
-		cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_True);
-		if (self->_.d_cap.frame_rate_array == NULL) {
-			cJSON_AddNumberToObject(capability_json, "frame_rate_min", self->_.d_cap.frame_rate_min);
-			cJSON_AddNumberToObject(capability_json, "frame_rate_max", self->_.d_cap.frame_rate_max);
-		} else {
-			array_json = cJSON_CreateArray();
-			for (i = 0; i < self->_.d_cap.n_frame_rate; i++) {
-				cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.frame_rate_array[i]));
-			}
-			cJSON_AddItemToObject(capability_json, "frame_rate_array", array_json);
-		}
-	} else {
-		cJSON_AddBoolToObject(capability_json, "frame_rate_available", cJSON_False);
-	}
-	if (self->_.d_cap.auto_frame_rate_available) {
-		cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_True);
-		cJSON_AddNumberToObject(capability_json, "auto_frame_rate_min", self->_.d_cap.auto_frame_rate_min);
-		cJSON_AddNumberToObject(capability_json, "auto_frame_rate_max", self->_.d_cap.auto_frame_rate_max);
-	} else {
-		cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", cJSON_False);
-	}
-	
-	if (self->_.d_cap.pixel_format_available) {
-		cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_True);
-		array_json = cJSON_CreateArray();
-		for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
-			switch (self->_.d_cap.pixel_format_array[i]) {
-				case DETECTOR_PIXEL_FORMAT_MONO_8:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_8"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_10:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_10"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_10_PACKED"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_12:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_12"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_12_PACKED"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_14:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_14"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_14_PACKED"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_16:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_16"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_18:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_18"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_18_PACKED"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_24:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_24"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_24_PACKED"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_32:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_32"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_MONO_64:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_64"));
-				    break;
-				case DETECTOR_PIXEL_FORMAT_RGB_24:
-				    cJSON_AddItemToArray(array_json, cJSON_CreateString("RGB_24"));
-				    break;
-				default:
-				    break;
-			}
-		}
-		cJSON_AddItemToObject(capability_json, "pixel_format_array", array_json);
-	} else {
-		cJSON_AddBoolToObject(capability_json, "pixel_format_available", cJSON_False);
-	}
-	
-	if (self->_.d_cap.readout_rate_available) {
-		cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_True);
-		if (self->_.d_cap.readout_rate_array == NULL) {
-			cJSON_AddNumberToObject(capability_json, "readout_rate_min", self->_.d_cap.readout_rate_min);
-			cJSON_AddNumberToObject(capability_json, "readout_rate_max", self->_.d_cap.readout_rate_max);
-		} else {
-			array_json = cJSON_CreateArray();
-			for (i = 0; i < self->_.d_cap.n_readout_rate; i++) {
-				cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.readout_rate_array[i]));
-			}
-			cJSON_AddItemToObject(capability_json, "readout_rate_array", array_json);
-		}
-	} else {
-		cJSON_AddBoolToObject(capability_json, "readout_rate_available", cJSON_False);
-	}
-	if (self->_.d_cap.auto_readout_rate_available) {
-		cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_True);
-		cJSON_AddNumberToObject(capability_json, "auto_readout_rate_min", self->_.d_cap.auto_readout_rate_min);
-		cJSON_AddNumberToObject(capability_json, "auto_readout_rate_max", self->_.d_cap.auto_readout_rate_max);
-	} else {
-		cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", cJSON_False);
-	}
-	
-	if (self->_.d_cap.cooling_available) {
-		cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_True);
-		cJSON_AddNumberToObject(capability_json, "cooling_temperature_min", self->_.d_cap.cooling_temperature_min);
-		cJSON_AddNumberToObject(capability_json, "cooling_temperature_max", self->_.d_cap.cooling_temperature_max);
-			
-	} else {
-		cJSON_AddBoolToObject(capability_json, "cooling_available", cJSON_False);
-	}
-	if (self->_.d_cap.auto_cooling_available) {
-		cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_True);
-		cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_min", self->_.d_cap.auto_cooling_temperature_min);
-		cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_max", self->_.d_cap.auto_cooling_temperature_max);
-	} else {
-		cJSON_AddBoolToObject(capability_json, "auto_cooling_available", cJSON_False);
-	}
-	cJSON_AddItemToObject(root_json, "capability", capability_json);
+        cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_True);
+        if (self->_.d_cap.gain_array == NULL) {
+            cJSON_AddNumberToObject(capability_json, "gain_min", self->_.d_cap.gain_min);
+            cJSON_AddNumberToObject(capability_json, "gain_max", self->_.d_cap.gain_max);
+        } else {
+            array_json = cJSON_CreateArray();
+            for (i = 0; i < self->_.d_cap.n_gain; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.gain_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "gain_array", array_json);
+        }
+    } else {
+        cJSON_AddBoolToObject(capability_json, "gain_available", cJSON_False);
+    }
+        
+    if (self->_.d_cap.auto_gain_available) {
+        cJSON_AddBoolToObject(capability_json, "auto_gain_available", true);
+        cJSON_AddNumberToObject(capability_json, "auto_gain_min", self->_.d_cap.auto_gain_min);
+        cJSON_AddNumberToObject(capability_json, "auto_gain_max", self->_.d_cap.auto_gain_max);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "auto_gain_available", false);
+    }
     
-    string = cJSON_Print(root_json);
-	cJSON_Delete(root_json);
-    snprintf(buffer, size, "%s", string);
-    free(string);
+    if (self->_.d_cap.exposure_time_available) {
+        cJSON_AddBoolToObject(capability_json, "exposure_time_available", true);
+        if (self->_.d_cap.exposure_time_array == NULL) {
+            cJSON_AddNumberToObject(capability_json, "exposure_time_min", self->_.d_cap.exposure_time_min);
+            cJSON_AddNumberToObject(capability_json, "exposure_time_max", self->_.d_cap.exposure_time_max);
+        } else {
+            array_json = cJSON_CreateArray();
+            for (i = 0; i < self->_.d_cap.n_exposure_time; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.exposure_time_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "exposure_time_array", array_json);
+        }
+    } else {
+        cJSON_AddBoolToObject(capability_json, "exposure_time_available", false);
+    }
+
+    if (self->_.d_cap.auto_exposure_time_available) {
+        cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", true);
+        cJSON_AddNumberToObject(capability_json, "auto_exposure_time_min", self->_.d_cap.auto_exposure_time_min);
+        cJSON_AddNumberToObject(capability_json, "auto_exposure_time_max", self->_.d_cap.auto_exposure_time_max);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "auto_exposure_time_available", false);
+    }
+	
+    if (self->_.d_cap.frame_rate_available) {
+        cJSON_AddBoolToObject(capability_json, "frame_rate_available", true);
+        if (self->_.d_cap.frame_rate_array == NULL) {
+            cJSON_AddNumberToObject(capability_json, "frame_rate_min", self->_.d_cap.frame_rate_min);
+            cJSON_AddNumberToObject(capability_json, "frame_rate_max", self->_.d_cap.frame_rate_max);
+        } else {
+            array_json = cJSON_CreateArray();
+            for (i = 0; i < self->_.d_cap.n_frame_rate; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.frame_rate_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "frame_rate_array", array_json);
+        }
+    } else {
+        cJSON_AddBoolToObject(capability_json, "frame_rate_available", false);
+    }
+    
+    if (self->_.d_cap.auto_frame_rate_available) {
+        cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", true);
+        cJSON_AddNumberToObject(capability_json, "auto_frame_rate_min", self->_.d_cap.auto_frame_rate_min);
+        cJSON_AddNumberToObject(capability_json, "auto_frame_rate_max", self->_.d_cap.auto_frame_rate_max);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "auto_frame_rate_available", false);
+    }
+    
+    if (self->_.d_cap.pixel_format_available) {
+        cJSON_AddBoolToObject(capability_json, "pixel_format_available", true);
+        array_json = cJSON_CreateArray();
+        for (i = 0; i < self->_.d_cap.n_pixel_format; i++) {
+            switch (self->_.d_cap.pixel_format_array[i]) {
+                case DETECTOR_PIXEL_FORMAT_MONO_8:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_8"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_10:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_10"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_10_PACKED"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_12:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_12"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_12_PACKED"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_14:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_14"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_14_PACKED"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_16:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_16"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_18:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_18"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_18_PACKED"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_24:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_24"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_24_PACKED"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_32:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_32"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_MONO_64:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("MONO_64"));
+                    break;
+                case DETECTOR_PIXEL_FORMAT_RGB_24:
+                    cJSON_AddItemToArray(array_json, cJSON_CreateString("RGB_24"));
+                    break;
+                default:
+                    break;
+            }
+        }
+        cJSON_AddItemToObject(capability_json, "pixel_format_array", array_json);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "pixel_format_available", false);
+    }
+	
+    if (self->_.d_cap.readout_rate_available) {
+        cJSON_AddBoolToObject(capability_json, "readout_rate_available", true);
+        if (self->_.d_cap.readout_rate_array == NULL) {
+            cJSON_AddNumberToObject(capability_json, "readout_rate_min", self->_.d_cap.readout_rate_min);
+            cJSON_AddNumberToObject(capability_json, "readout_rate_max", self->_.d_cap.readout_rate_max);
+        } else {
+            array_json = cJSON_CreateArray();
+            for (i = 0; i < self->_.d_cap.n_readout_rate; i++) {
+                cJSON_AddItemToArray(array_json, cJSON_CreateNumber(self->_.d_cap.readout_rate_array[i]));
+            }
+            cJSON_AddItemToObject(capability_json, "readout_rate_array", array_json);
+        }
+    } else {
+        cJSON_AddBoolToObject(capability_json, "readout_rate_available", false);
+    }
+    
+    if (self->_.d_cap.auto_readout_rate_available) {
+        cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", true);
+        cJSON_AddNumberToObject(capability_json, "auto_readout_rate_min", self->_.d_cap.auto_readout_rate_min);
+        cJSON_AddNumberToObject(capability_json, "auto_readout_rate_max", self->_.d_cap.auto_readout_rate_max);
+        
+    } else {
+        cJSON_AddBoolToObject(capability_json, "auto_readout_rate_available", false);
+    }
+    
+    if (self->_.d_cap.cooling_available) {
+        cJSON_AddBoolToObject(capability_json, "cooling_available", true);
+        cJSON_AddNumberToObject(capability_json, "cooling_temperature_min", self->_.d_cap.cooling_temperature_min);
+        cJSON_AddNumberToObject(capability_json, "cooling_temperature_max", self->_.d_cap.cooling_temperature_max);
+        
+    } else {
+        cJSON_AddBoolToObject(capability_json, "cooling_available", false);
+    }
+    
+    if (self->_.d_cap.auto_cooling_available) {
+        cJSON_AddBoolToObject(capability_json, "auto_cooling_available", true);
+        cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_min", self->_.d_cap.auto_cooling_temperature_min);
+        cJSON_AddNumberToObject(capability_json, "auto_cooling_temperature_max", self->_.d_cap.auto_cooling_temperature_max);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "auto_cooling_available", true);
+    }
+	
+    cJSON_AddItemToObject(root_json, "capability", capability_json);
+    
+    cJSON_PrintPreallocated(root_json, buffer, (int) size, 1);
+    cJSON_Delete(root_json);
+    
+    return AAOS_OK;
 }
 
 static int
@@ -21902,25 +25544,36 @@ QHYCamera_info(void *_self, void *buffer, size_t size)
 }
 
 static int
-QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
+QHYCamera_status_json(struct QHYCamera *self, void *buffer, size_t size)
 {
     unsigned int state, options;
-    uint32_t image_width, image_height, x_offset, y_offset, x_binning, y_binning, x_overscan, y_overscan, capture_mode, trigger_mode;
+    uint32_t image_width, image_height, x_offset, y_offset, x_binning, y_binning, x_overscan, y_overscan, capture_mode, trigger_mode, pixel_format;
     double exposure_time, frame_rate, gain, readout_rate, cooling_temperature;
     bool auto_exposure_time_enable, auto_frame_rate_enable, auto_gain_enable, auto_readout_rate_enable, auto_cooling_enable;
-    long value;
-    cJSON *root_json;
-    char *string;
-    double (*C_GetQHYCCDParam_CurTempture)(void *);
+    double value;
+    cJSON *root_json, *qhy_json;
+    uint32_t (*C_GetQHYCCDNumberOfReadMode)(void *, uint32_t *);
+    uint32_t (*C_GetQHYCCDReadModeName)(void *, uint32_t, char *);
+    double (*C_GetQHYCCDParam_CoolerTemp)(void *);
+    uint32_t (*C_IsQHYCCDControlAvailable)(void *, int);
+    double (*C_GetQHYCCDParam)(void *, int);
+    uint32_t num_mode, qhy_ret;
+    char name[80];
 
-    C_GetQHYCCDParam_CurTempture = dlsym(self->dlh, "C_GetQHYCCDParam_CurTempture");
+    memset(name, '\0', 80);
+    
+    C_GetQHYCCDNumberOfReadMode = dlsym(self->dlh, "C_GetQHYCCDNumberOfReadMode");
+    C_GetQHYCCDReadModeName = dlsym(self->dlh, "C_GetQHYCCDReadModeName");
+    C_GetQHYCCDParam_CoolerTemp = dlsym(self->dlh, "C_GetQHYCCDParam_CoolerTemp");
+    C_IsQHYCCDControlAvailable = dlsym(self->dlh, "C_IsQHYCCDControlAvailable");
+    C_GetQHYCCDParam = dlsym(self->dlh, "C_GetQHYCCDParam");
     
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = self->_.d_state.state;
     options = self->_.d_state.options;
     Pthread_mutex_unlock(&self->_.d_state.mtx);
 
-    Pthread_rwlock_rdlock(self->_.d_param.rwlock);
+    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
     image_width = self->_.d_param.image_width;
     image_height = self->_.d_param.image_height;
     x_offset = self->_.d_param.x_offset;
@@ -21939,11 +25592,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
     readout_rate = self->_.d_param.readout_rate;
     auto_cooling_enable = self->_.d_param.auto_cooling_enable;
     capture_mode = self->_.d_param.capture_mode;
-    overscan_x = self->_.d_param.overscan_x;
-    overscan_y = self->_.d_param.overscan_y;
+    pixel_format = self->_.d_param.pixel_format;
     trigger_mode = self->_.d_param.trigger_mode;
-    Pthread_rwlock_unlock(self->_.d_param.rwlock);
-    
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
     
     root_json = cJSON_CreateObject();
     cJSON_AddStringToObject(root_json, "name", self->_.name);
@@ -21970,6 +25621,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
             break;
     }
     
+    if ((qhy_ret = C_GetQHYCCDNumberOfReadMode(self->camera_handle, &num_mode)) == 0 && (qhy_ret = C_GetQHYCCDReadModeName(self->camera_handle, num_mode - 1, name)) == 0) {
+        //cJSON_AddStringToObject(root_json, "read_mode", name);
+    }
     cJSON_AddNumberToObject(root_json, "image_width", (double) image_width);
     cJSON_AddNumberToObject(root_json, "image_height", (double) image_height);
     cJSON_AddNumberToObject(root_json, "x_offset", (double) x_offset);
@@ -21984,9 +25638,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
 
     if (self->_.d_cap.auto_exposure_time_available) {
         if (auto_exposure_time_enable) {
-            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_True);
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", true);
         } else {
-            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", cJSON_False);
+            cJSON_AddBoolToObject(root_json, "auto_exposure_time_enable", false);
             cJSON_AddNumberToObject(root_json, "exposure_time", exposure_time);
         }
     } else { 
@@ -21995,9 +25649,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
     
     if (self->_.d_cap.auto_frame_rate_available) {
         if (auto_frame_rate_enable) {
-            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_True);
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", true);
         } else {
-            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", cJSON_False);
+            cJSON_AddBoolToObject(root_json, "auto_frame_rate_enable", false);
             if (self->_.d_cap.frame_rate_available) {
                 cJSON_AddNumberToObject(root_json, "frame_rate", frame_rate);
             } else {
@@ -22014,9 +25668,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
 
     if (self->_.d_cap.auto_gain_available) {
         if (auto_gain_enable) {
-            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_True);
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", true);
         } else {
-            cJSON_AddBoolToObject(root_json, "auto_gain_enable", cJSON_False);
+            cJSON_AddBoolToObject(root_json, "auto_gain_enable", false);
             cJSON_AddNumberToObject(root_json, "gain", gain);
         }
     } else {
@@ -22025,9 +25679,9 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
 
     if (self->_.d_cap.auto_readout_rate_available) {
         if (auto_readout_rate_enable) {
-            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_True);
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", true);
         } else {
-            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", cJSON_False);
+            cJSON_AddBoolToObject(root_json, "auto_readout_rate_enable", false);
             cJSON_AddNumberToObject(root_json, "readout_rate", readout_rate);
         }
     } else {
@@ -22035,16 +25689,16 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
     }
     
     if (self->_.d_param.is_cooling_enable) {
-        cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_True);
+        cJSON_AddBoolToObject(root_json, "cooling_enabled", true);
     } else {
-        cJSON_AddBoolToObject(root_json, "cooling_enabled", cJSON_False);
+        cJSON_AddBoolToObject(root_json, "cooling_enabled", false);
     }
 
     if (self->_.d_cap.auto_cooling_available) {
         if (auto_cooling_enable) {
-            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", cJSON_True);
+            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", true);
         } else {
-            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", cJSON_False);
+            cJSON_AddBoolToObject(root_json, "auto_cooling_enabled", false);
         }
     }
 
@@ -22052,14 +25706,14 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
         cJSON_AddNumberToObject(root_json, "setting_temperature", self->_.d_param.temperature);
     }
     
-    cJSON_AddNumberToObject(root_json, "actual_temperature", C_GetQHYCCDParam_CurTempture(self->camera_handle));
+    cJSON_AddNumberToObject(root_json, "actual_temperature", C_GetQHYCCDParam_CoolerTemp(self->camera_handle));
     
     if (self->_.d_cap.capture_mode_available) {
         switch (capture_mode) {
             case DETECTOR_CAPTURE_MODE_SNAPSHOT:
                 cJSON_AddStringToObject(root_json, "capture_mode", "snapshot");
                 break;
-            case DETECTOR_CAPTURE_MODE_MUTLIFRAME:
+            case DETECTOR_CAPTURE_MODE_MULTIFRAME:
                 cJSON_AddStringToObject(root_json, "capture_mode", "multiframe");
                 break;
             case DETECTOR_CAPTURE_MODE_VIDEO:
@@ -22071,8 +25725,69 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
     } else {
         cJSON_AddStringToObject(root_json, "capture_mode", "default");
     }
-
-    if (self->_.d_cap.trigger_mode_available) {
+    
+    if (x_overscan > 0) {
+        cJSON_AddNumberToObject(root_json, "x_overscan", (double) x_overscan);
+    }
+    
+    if (y_overscan > 0) {
+        cJSON_AddNumberToObject(root_json, "y_overscan", (double) y_overscan);
+    }
+    
+    switch (pixel_format) {
+        case DETECTOR_PIXEL_FORMAT_MONO_8:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono8");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_10:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono10");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_10_PACKED:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono10_packed");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_12:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono12");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_12_PACKED:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono12_packed");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_14:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono14");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_14_PACKED:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono14_packed");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_16:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono16");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_18:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono18");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_18_PACKED:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono18_packed");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_24:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono24");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_24_PACKED:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono24_packed");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_32:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono32");
+            break;
+        case DETECTOR_PIXEL_FORMAT_MONO_64:
+            cJSON_AddStringToObject(root_json, "pixel_format", "mono64");
+            break;
+        case DETECTOR_PIXEL_FORMAT_RGB_24:
+            cJSON_AddStringToObject(root_json, "pixel_format", "rgb24");
+            break;
+        case DETECTOR_PIXEL_FORMAT_YUV422:
+            cJSON_AddStringToObject(root_json, "pixel_format", "yuv422");
+            break;
+        default:
+            break;
+    }
+    
+    if (self->_.d_cap.trigger_available) {
         switch (trigger_mode) {
             case DETECTOR_TRIGGER_MODE_DEFAULT:
                 cJSON_AddStringToObject(root_json, "trigger_mode", "deault");
@@ -22102,10 +25817,61 @@ QHYCamera_status_json(struct QHYCamera self, void *buffer, size_t size)
         cJSON_AddStringToObject(root_json, "trigger_mode", "default");
     }
     
-    string = cJSON_Print(root_json);
+    qhy_json = cJSON_CreateObject();
+    Pthread_mutex_lock(&self->mtx);
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 0)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "brightness", C_GetQHYCCDParam(self->camera_handle, 0));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 1)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "contrast", C_GetQHYCCDParam(self->camera_handle, 1));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 2)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "wbr", C_GetQHYCCDParam(self->camera_handle, 2));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 3)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "wbb", C_GetQHYCCDParam(self->camera_handle, 3));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 4)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "wbg", C_GetQHYCCDParam(self->camera_handle, 4));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 5)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "gamma", C_GetQHYCCDParam(self->camera_handle, 5));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 7)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "bias", C_GetQHYCCDParam(self->camera_handle, 7));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 9)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "speed", C_GetQHYCCDParam(self->camera_handle, 9));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 10)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "depth", C_GetQHYCCDParam(self->camera_handle, 10));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 11)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "channels", C_GetQHYCCDParam(self->camera_handle, 11));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 12)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "usb_traffic", C_GetQHYCCDParam(self->camera_handle, 12));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 13)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "denoise", C_GetQHYCCDParam(self->camera_handle, 13));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 15)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "pwm", C_GetQHYCCDParam(self->camera_handle, 15));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 41)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "ampv", C_GetQHYCCDParam(self->camera_handle, 41));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 62)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "humidity", C_GetQHYCCDParam(self->camera_handle, 62));
+    }
+    if ((qhy_ret = C_IsQHYCCDControlAvailable(self->camera_handle, 63)) == QHYCAMERA_SUCCESS) {
+        cJSON_AddNumberToObject(qhy_json, "pressure", C_GetQHYCCDParam(self->camera_handle, 63));
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    cJSON_AddItemToObject(root_json, "qhy", qhy_json);
+    
+    cJSON_PrintPreallocated(root_json, buffer, (int) size, 1);
     cJSON_Delete(root_json);
-    snprintf(buffer, size, "%s", string);
-    free(string);
 
     return AAOS_OK;
 }
@@ -22129,6 +25895,7 @@ struct QHYCameraExposureArg {
     unsigned int format; /* string format */
 };
 
+
 static void *
 QHYCamera_process_image_thr(void *arg)
 {
@@ -22150,10 +25917,12 @@ QHYCamera_process_image_thr(void *arg)
     struct timespec tp;
     struct tm tm_buf;
 
-    uint32_t (*C_GetQHYCCDParam_CurTempture)(void *, double *);
+    uint32_t qhy_ret;
+
+    double (*C_GetQHYCCDParam_CoolerTemp)(void *);
     double temperature;
 
-    C_GetQHYCCDParam_CurTempture = dlsym(detector->dlh, "C_GetQHYCCDParam_CurTempture");
+    C_GetQHYCCDParam_CoolerTemp = dlsym(detector->dlh, "C_GetQHYCCDParam_CoolerTemp");
 
     for (; ;) {
         data = threadsafe_queue_wait_and_pop(detector->_.d_proc.queue);
@@ -22166,7 +25935,7 @@ QHYCamera_process_image_thr(void *arg)
             }
         }
     }
-    
+
     n = data->n;
     width = data->width;
     height = data->height;
@@ -22188,12 +25957,20 @@ QHYCamera_process_image_thr(void *arg)
         case DETECTOR_PIXEL_FORMAT_MONO_16:
             bitpix = USHORT_IMG;
             datatype = TUSHORT;
+        case DETECTOR_PIXEL_FORMAT_MONO_32:
+            bitpix = ULONG_IMG;
+            datatype = TUINT;
+            break;
         default:
             break;
     }
     
     if (!(options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
-        detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, 1, 1, &tp);
+        if (detector->_.d_proc.name_convention && detector->_.d_proc.name_convention != __Detector_default_name_convention) {
+            detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, 1, 1, &tp, true);
+        } else {
+            __Detector_default_name_convention(detector, filename, FILENAMESIZE, 1, 1);
+        }
         if (detector->_.d_proc.tpl_fptr != NULL) {
             fits_create_file(&fptr, filename, &status);
             if (status != 0) {
@@ -22215,11 +25992,22 @@ QHYCamera_process_image_thr(void *arg)
 #endif
             }
         }
-        detector->_.d_proc.pre_acquisition(detector, filename, fptr, &data->tp);
+        if (detector->_.d_proc.pre_acquisition) {
+            detector->_.d_proc.pre_acquisition(detector, filename, fptr, &data->tp);
+        } else {
+            __Detector_default_pre_acquisition(detector, filename, fptr, &data->tp);
+        }
         detector->_.d_proc.img_fptr = fptr;
     }
+
     
     for (i = 0; i < n; i++) {
+        Pthread_mutex_lock(&detector->_.d_exp.mtx);
+        if (detector->_.d_exp.stop_flag) {
+            Pthread_mutex_unlock(&detector->_.d_exp.mtx);
+            break;
+        }
+        Pthread_mutex_unlock(&detector->_.d_exp.mtx);
         data = threadsafe_queue_wait_and_pop(detector->_.d_proc.queue);
         if (data == NULL) {
             break;
@@ -22229,7 +26017,11 @@ QHYCamera_process_image_thr(void *arg)
             break;
         }
         if (options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
-            detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, i + 1, n, &tp);
+            if (detector->_.d_proc.name_convention && detector->_.d_proc.name_convention != __Detector_default_name_convention) {
+                detector->_.d_proc.name_convention(detector, filename, FILENAMESIZE, i + 1, n, &tp, true);
+            } else {
+                __Detector_default_name_convention(detector, filename, FILENAMESIZE, i + 1, n);
+            }
             if (detector->_.d_proc.tpl_fptr != NULL) {
                 fits_create_file(&fptr, filename, &status);
                 if (status != 0) {
@@ -22251,10 +26043,13 @@ QHYCamera_process_image_thr(void *arg)
 #endif
                 }
             }
-            detector->_.d_proc.pre_acquisition(detector, filename, fptr, &data->tp);
+            if (detector->_.d_proc.pre_acquisition) {
+                detector->_.d_proc.pre_acquisition(detector, filename, fptr, &data->tp);
+            } else {
+                __Detector_default_pre_acquisition(detector, filename, fptr, &data->tp);
+            }
             detector->_.d_proc.img_fptr = fptr;
         }
-        
         
         fits_create_img(fptr, bitpix, naxis, naxes, &status);
         if (status != 0) {
@@ -22271,9 +26066,14 @@ QHYCamera_process_image_thr(void *arg)
         /*
          *
          */
-        if ((qhy_ret = C_GetQHYCCDParam_CurTempture(detector->camera_handle, &temperature)) != -1) {
-            fits_update_key_fixfbl(fptr, "CHIPTEMP", temperature, 2, NULL, &status);
-        }··
+        Pthread_mutex_lock(&detector->mtx);
+        temperature = C_GetQHYCCDParam_CoolerTemp(detector->camera_handle);
+        Pthread_mutex_unlock(&detector->mtx);
+        fits_update_key_fixdbl(fptr, "CHIPTEMP", temperature, 2, NULL, &status);
+        /*
+        if ((qhy_ret = C_GetQHYCCDParam_CoolerTemp(detector->camera_handle, &temperature)) != -1) {
+        }
+         */
         fits_update_key_fixdbl(fptr, "GAIN", detector->_.d_param.gain, 2, NULL, &status);
         fits_update_key_lng(fptr, "X_OFFSET", detector->_.d_param.x_offset, NULL, &status);
         fits_update_key_lng(fptr, "Y_OFFSET", detector->_.d_param.y_offset, NULL, &status);
@@ -22288,7 +26088,11 @@ QHYCamera_process_image_thr(void *arg)
         }
         
         if (options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION) {
-            detector->_.d_proc.post_acquisition(detector, filename, fptr, string, format, rpc);
+            if (detector->_.d_proc.post_acquisition) {
+                detector->_.d_proc.post_acquisition(detector, filename, fptr, string, 0, rpc);
+            } else {
+                __Detector_default_post_acquisition(detector, filename, fptr, string, 0, rpc);
+            }
             fits_close_file(fptr, &status);
             if (status != 0) {
 #ifdef DEBUG
@@ -22300,9 +26104,13 @@ QHYCamera_process_image_thr(void *arg)
         free(data->buffer);
         free(data);
     }
-    
+  
     if (!(options&DETECTOR_OPTION_NOTIFY_EACH_COMPLETION)) {
-        detector->_.d_proc.post_acquisition(detector, filename, fptr, string, format, rpc);
+        if (detector->_.d_proc.post_acquisition) {
+            detector->_.d_proc.post_acquisition(detector, filename, fptr, string, 0, rpc);
+        } else {
+            __Detector_default_post_acquisition(detector, filename, fptr, string, 0, rpc);
+        }
         fits_close_file(fptr, &status);
         if (status != 0) {
 #ifdef DEBUG
@@ -22311,14 +26119,15 @@ QHYCamera_process_image_thr(void *arg)
         }
         detector->_.d_proc.img_fptr = NULL;
     }
-    
+        
     return NULL;
 }
 
 int static
 QHYCamera_expose_video(struct QHYCamera *self, double exposure_time, uint32_t n_frame, va_list *app)
 {
-    uint32_t (*C_SetQHYCCDParam_Exposure)(void *, double);
+    struct QHYCameraExposureArg *arg;
+    uint32_t (*C_SetQHYCCDParam_ExposureTime)(void *, double);
     uint32_t (*C_BeginQHYCCDLive)(void *);
     uint32_t (*C_GetQHYCCDLiveFrame)(void *, uint32_t *, uint32_t *, uint32_t *, uint32_t *, uint8_t *);
     uint32_t (*C_GetQHYCCDMemLength)(void *);
@@ -22339,14 +26148,14 @@ QHYCamera_expose_video(struct QHYCamera *self, double exposure_time, uint32_t n_
     rpc = va_arg(*app, void *);
     string = va_arg(*app, char *);
 
-    C_SetQHYCCDParam_Exposure = dlsym(self->dhl, "C_SetQHYCCDParam_Exposure");
+    C_SetQHYCCDParam_ExposureTime = dlsym(self->dlh, "C_SetQHYCCDParam_ExposureTime");
     C_BeginQHYCCDLive = dlsym(self->dlh, "C_BeginQHYCCDLive");
     C_GetQHYCCDLiveFrame = dlsym(self->dlh, "C_GetQHYCCDLiveFrame");
     C_StopQHYCCDLive = dlsym(self->dlh, "C_StopQHYCCDLive");
     C_GetQHYCCDMemLength = dlsym(self->dlh, "C_GetQHYCCDMemLength");
 
     Pthread_mutex_lock(&self->_.d_state.mtx);
-    state = self->_.d_state.state;, 
+    state = self->_.d_state.state;
     options = self->_.d_state.options;
     if ((state&DETECTOR_STATE_MALFUNCTION) && !(options&DETECTOR_OPTION_IGNORE_DEVMAL)) {
         Pthread_mutex_unlock(&self->_.d_state.mtx);
@@ -22368,52 +26177,66 @@ QHYCamera_expose_video(struct QHYCamera *self, double exposure_time, uint32_t n_
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         return AAOS_EUNINIT;
     }
-    if ((data_length = C_GetQHYCCDMemLength(self->camera_handle)) == -1) {
+    Pthread_mutex_lock(&self->mtx);
+    if ((data_length = C_GetQHYCCDMemLength(self->camera_handle)) == QHYCAMERA_SUCCESS) {
 #ifdef DEBUG
         fprintf(stderr, "%s %s %d --- C_GetQHYCCDMemLength error\n", __FILE__, __func__, __LINE__ - 2);
 #endif
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         return AAOS_EDEVMAL;
     }
-    if ((qhy_ret = C_SetQHYCCDParam_Exposure(self->camera_handle, exposure_time * 1000000.)) == -1) {
+    if ((qhy_ret = C_SetQHYCCDParam_ExposureTime(self->camera_handle, exposure_time * 1000000.)) != QHYCAMERA_SUCCESS) {
 #ifdef DEBUG
         fprintf(stderr, "%s %s %d --- C_SetQHYCCDParam_Exposure error\n", __FILE__, __func__, __LINE__ - 2);
 #endif
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         return AAOS_EDEVMAL;
     }
     self->_.d_param.exposure_time = exposure_time;
-    if ((qhy_ret = C_BeginQHYCCDLive(self->camera_handle)) == -1) {
+    if ((qhy_ret = C_BeginQHYCCDLive(self->camera_handle)) != QHYCAMERA_SUCCESS) {
 #ifdef DEBUG
         fprintf(stderr, "%s %s %d --- C_BeginQHYCCDLive error\n", __FILE__, __func__, __LINE__ - 2);
 #endif
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_unlock(&self->_.d_state.mtx);
         return AAOS_EDEVMAL;
     }
+    Pthread_mutex_unlock(&self->mtx);
     state = DETECTOR_STATE_EXPOSING;
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    self->_.d_exp.rpc = rpc;
+    self->_.d_exp.request_frames = n_frame;
+    self->_.d_exp.success_frames = 0;
+    self->_.d_exp.count = 0;
+    self->_.d_exp.stop_flag = false;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
     self->_.d_state.state = state&self->_.d_state.state;
     arg = (struct QHYCameraExposureArg *) Malloc(sizeof(struct QHYCameraExposureArg));
     arg->detector = self;
     arg->rpc = rpc;
     arg->string = string;
     arg->format = format;
-    Pthread_create(&self->_.d_state.tid, NULL, QHYCamera_process_image_thr, NULL);
+    Pthread_create(&self->_.d_state.tid, NULL, QHYCamera_process_image_thr, arg);
     Pthread_mutex_unlock(&self->_.d_state.mtx);
 
     data = (struct DetectorDataFrame *) Malloc(sizeof(struct DetectorDataFrame));
-    Clock_gettime(CLOCK_REALETIME, &data->tp);
+    Clock_gettime(CLOCK_REALTIME, &data->tp);
     data->buffer = NULL;
     data->i = 0;
     data->n = n_frame;
     data->width = self->_.d_param.image_width;
     data->height = self->_.d_param.image_height;
     data->pixel_format = self->_.d_param.pixel_format;
-    threadsafe_queue_push(data);
+    threadsafe_queue_push(self->_.d_proc.queue, data);
 
     for (i = 0; i < n_frame; i++) {
         Pthread_mutex_lock(&self->_.d_exp.mtx);
         if (self->_.d_exp.stop_flag) {
+            Pthread_mutex_lock(&self->mtx);
             C_StopQHYCCDLive(self->camera_handle);
+            Pthread_mutex_unlock(&self->mtx);
             self->_.d_exp.stop_flag = false;
             Pthread_cond_broadcast(&self->_.d_exp.cond);
             Pthread_mutex_unlock(&self->_.d_exp.mtx);
@@ -22422,7 +26245,7 @@ QHYCamera_expose_video(struct QHYCamera *self, double exposure_time, uint32_t n_
         }
         Pthread_mutex_unlock(&self->_.d_exp.mtx);
         data = (struct DetectorDataFrame *) Malloc(sizeof(struct DetectorDataFrame));
-        Clock_gettime(CLOCK_REALETIME, &data->tp);
+        Clock_gettime(CLOCK_REALTIME, &data->tp);
         data->buffer = NULL;
         data->i = i;
         data->n = n_frame;
@@ -22430,23 +26253,17 @@ QHYCamera_expose_video(struct QHYCamera *self, double exposure_time, uint32_t n_
         data->height = self->_.d_param.image_height;
         data->pixel_format = self->_.d_param.pixel_format;
         data->buffer = Malloc(data_length);
-        /*
-        switch (data->pixel_format) {
-            case DETECTOR_PIXEL_FORMAT_MONO_8:
-                data->buffer = Malloc(sizeof(uint8_t) * data->width * data->height);
-                break;
-            case DETECTOR_PIXEL_FORMAT_MONO_16:
-                data->buffer = Malloc(sizeof(uint8_t) * data->width * data->height * 2);
-                break;
-            case DETECTOR_PIXEL_FORMAT_RGB_24:
-                data->buffer = Malloc(sizeof(uint8_t) * data->width * data->height * 3);
-                break;
-            default:
-                break;
+        
+        Nanosleep(exposure_time * 0.99);
+        Pthread_mutex_lock(&self->mtx);
+        while ((qhy_ret = C_GetQHYCCDLiveFrame(self->camera_handle, &width, &height, &bits_per_pixel, &channel, data->buffer)) != QHYCAMERA_SUCCESS) {
+            Nanosleep(exposure_time * 0.001);
         }
-        */
-        threadsafe_queue_push(data);
-        if ((qhy_ret = C_GetQHYCCDLiveFrame(self->camera_handle, &width, &height, &bits_per_pixel, &channel, self->buffer)) == -1) {
+        Pthread_mutex_unlock(&self->mtx);
+        if (qhy_ret != QHYCAMERA_SUCCESS) {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- C_GetQHYCCDLiveFrame error: %X\n", __FILE__, __func__, __LINE__ - 6, qhy_ret);
+#endif
             free(data->buffer);
             free(data);
             Pthread_mutex_lock(&self->_.d_exp.mtx);
@@ -22459,26 +26276,30 @@ QHYCamera_expose_video(struct QHYCamera *self, double exposure_time, uint32_t n_
             }
             Pthread_mutex_unlock(&self->_.d_exp.mtx);
             break;
-            /*
-            threadsafe_queue_push(NULL);
-            Pthread_join(self->_.d_state.tid, retval);
-            free(arg);
-            Pthread_mutex_lock(&self->_.d_state.mtx);
-            state = DETECTOR_STATE_IDLE;
-            self->_.d_state.state &= state;
-            Pthread_mutex_unlock(&self->_.d_state.mtx);
-            Pthread_cond_broadcast(&self->_.d_state.cond);
-            return AAOS_EDEVMAL;
-            */
         }
-        threadsafe_queue_push(data);
+        data->width = width;
+        data->height = height;
+        threadsafe_queue_push(self->_.d_proc.queue, data);
     }
-    if (!abort_flag) {
-        C_StopQHYCCDLive(self->camera_handle);
-    }
-    threadsafe_queue_push(NULL);
+    
+
+    threadsafe_queue_push(self->_.d_proc.queue, NULL);
     Pthread_join(self->_.d_state.tid, &retval);
+    
+    Pthread_mutex_lock(&self->_.d_exp.mtx);
+    if (self->_.d_exp.stop_flag) {
+        self->_.d_exp.stop_flag = false;
+        ret = AAOS_ECANCELED;
+        Pthread_cond_broadcast(&self->_.d_exp.cond);
+    }
+    Pthread_mutex_lock(&self->mtx);
+    C_StopQHYCCDLive(self->camera_handle);
+    Pthread_mutex_unlock(&self->mtx);
+    self->_.d_exp.rpc = NULL;
+    Pthread_mutex_unlock(&self->_.d_exp.mtx);
+    
     free(arg);
+    
     Pthread_mutex_lock(&self->_.d_state.mtx);
     state = DETECTOR_STATE_IDLE;
     self->_.d_state.state &= state;
@@ -22506,23 +26327,25 @@ QHYCamera_expose(void *_self, double exposure_time, uint32_t n_frame, va_list *a
 {
     struct QHYCamera *self = cast(QHYCamera(), _self);
 
-    int capture_mode;
+    uint32_t capture_mode;
 
-    capture_mode = self->capture_mode;
+    Pthread_rwlock_rdlock(&self->_.d_param.rwlock);
+    capture_mode = self->_.d_param.capture_mode;
+    Pthread_rwlock_unlock(&self->_.d_param.rwlock);
 
     switch (capture_mode) {
-    case DETECTOR_CAPTURE_MODE_SNAPSHOT:
-        /* code */
-        return QHYCamera_expose_snapshot(self, exposuretime, n_frame, app);
-        break;
-    case DETECTOR_CAPTURE_MODE_VIDEO:
-        return QHYCamera_expose_video(self, exposuretime, n_frame, app);
-        break;
-    case DETECTOR_CAPTURE_MODE_MULTIFRAME:
-        return QHYCamera_expose_multiframe(self, exposuretime, n_frame, app);
-        break;
-    default:
-        break;
+        case DETECTOR_CAPTURE_MODE_SNAPSHOT:
+            /* code */
+            return QHYCamera_expose_snapshot(self, exposure_time, n_frame, app);
+            break;
+        case DETECTOR_CAPTURE_MODE_VIDEO:
+            return QHYCamera_expose_video(self, exposure_time, n_frame, app);
+            break;
+        case DETECTOR_CAPTURE_MODE_MULTIFRAME:
+            return QHYCamera_expose_multiframe(self, exposure_time, n_frame, app);
+            break;
+        default:
+            break;
     }
 
     return AAOS_OK;
@@ -22546,12 +26369,12 @@ qhy_camera_virtual_table_initialize(void)
                                     __detector_expose, "expose", QHYCamera_expose,
                                     __detector_stop, "stop", QHYCamera_stop,
                                     __detector_abort, "abort", QHYCamera_abort,
-                                    //__detector_power_on, "power_on", ASICamera_power_on,
-                                    //__detector_power_off, "power_off", ASICamera_power_off,
+                                    __detector_power_on, "power_on", QHYCamera_power_on,
+                                    __detector_power_off, "power_off", QHYCamera_power_off,
                                     __detector_set_binning, "set_binning", QHYCamera_set_binning,
                                     __detector_get_binning, "get_binning", QHYCamera_get_binning,
-                                    __detector_set_capture_mode, "set_capture_mode", QHYCamera_set_capture_mode,
-                                    __detector_get_capture_mode, "get_capture_mode", QHYCamera_get_capture_mode,
+                                    //__detector_set_capture_mode, "set_capture_mode", QHYCamera_set_capture_mode,
+                                    //__detector_get_capture_mode, "get_capture_mode", QHYCamera_get_capture_mode,
                                     __detector_set_exposure_time, "set_exposure_time", QHYCamera_set_exposure_time,
                                     __detector_get_exposure_time, "get_exposure_time", QHYCamera_get_exposure_time,
                                     //__detector_set_frame_rate, "set_frame_rate", ASICamera_set_frame_rate,
@@ -22570,7 +26393,7 @@ qhy_camera_virtual_table_initialize(void)
                                     __detector_get_trigger_mode, "get_trigger_mode", QHYCamera_get_trigger_mode,
 
                                     __detector_raw, "raw", QHYCamera_raw,
-                                     //__detector_inspect, "inspect", USTCCamera_inspect,
+                                     //__detector_inspect, "inspect", QHYCamera_inspect,
                                     (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(qhy_camera_virtual_table_destroy);
@@ -22578,14 +26401,14 @@ qhy_camera_virtual_table_initialize(void)
 }
 
 static const void *
-asi_camera_virtual_table(void)
+qhy_camera_virtual_table(void)
 {
 #ifndef _USE_COMPILER_ATTRIBUTION_
     static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-    Pthread_once(&once_control, asi_camera_virtual_table_initialize);
+    Pthread_once(&once_control, qhy_camera_virtual_table_initialize);
 #endif
     
-    return _asi_camera_virtual_table;
+    return _qhy_camera_virtual_table;
 }
 
 #endif
@@ -23245,6 +27068,744 @@ error:
 }
 #endif
 
+#ifdef __USE_ARAVIS__CAMERA__
+
+#include <aravis-0.8/arv.h>
+#include <glib-2.0/glib.h>
+
+/*
+arv_camera_new, 1
+arv_camera_create_stream, 2
+arv_camera_get_device, 3
+arv_camera_get_vendor_name, 4
+arv_camera_get_model_name, 5
+arv_camera_get_device_serial_number, 6
+arv_camera_get_device_id, 7
+arv_camera_get_sensor_size, 8
+arv_camera_set_region, 9
+arv_camera_get_region, 10
+arv_camera_get_x_offset_bounds, 11
+arv_camera_get_x_offset_increment, 12
+arv_camera_get_y_offset_bounds, 13
+arv_camera_get_y_offset_increment, 14
+arv_camera_get_height_bounds, 15
+arv_camera_get_height_increment, 16
+arv_camera_get_width_bounds, 17
+arv_camera_get_width_increment, 18
+arv_camera_is_binning_available, 19
+arv_camera_set_binning, 20
+arv_camera_get_binning, 21
+arv_camera_get_x_binning_bounds, 22
+arv_camera_get_x_binning_increment, 23
+arv_camera_get_y_binning_bounds, 24
+arv_camera_get_y_binning_increment, 25
+arv_camera_set_pixel_format, 26
+arv_camera_get_pixel_format, 27
+arv_camera_set_pixel_format_from_string, 28
+arv_camera_get_pixel_format_as_string, 29
+arv_camera_dup_available_pixel_formats, 30
+arv_camera_dup_available_pixel_formats_as_display_names, 31
+arv_camera_dup_available_pixel_formats_as_strings, 32
+arv_camera_start_acquisition, 33
+arv_camera_stop_acquisition, 34
+arv_camera_abort_acquisition, 35
+arv_camera_set_acquisition_mode, 36
+arv_camera_get_acquisition_mode, 37
+arv_camera_set_frame_count, 38
+arv_camera_get_frame_count, 39
+arv_camera_get_frame_count_bounds, 40
+arv_camera_is_frame_rate_available, 41
+arv_camera_set_frame_rate, 42
+arv_camera_get_frame_rate, 43
+arv_camera_get_frame_bounds, 44
+arv_camera_set_trigger, 45
+arv_camera_set_trigger_source, 46
+arv_camera_get_trigger_source, 47
+arv_camera_dup_available_trigger_sources, 48
+arv_camera_dup_available_triggers, 49
+arv_camera_clear_triggers, 50
+arv_camera_is_software_trigger_supported, 51
+arv_camera_software_trigger, 52
+arv_camera_is_exposure_time_available, 53
+arv_camera_is_exposure_auto_available, 54
+arv_camera_set_exposure_time, 55
+arv_camera_get_exposure_time, 56
+arv_camera_get_exposure_time_bounds, 57
+arv_camera_set_exposure_time_auto, 58
+arv_camera_get_exposure_time_auto, 59
+arv_camera_set_exposure_mode, 60
+arv_camera_get_exposure_mode, 61
+arv_camera_is_gain_available, 62
+arv_camera_is_gain_auto_available, 63
+arv_camera_set_gain, 64
+arv_camera_get_gain, 65
+arv_camera_get_gain_bounds, 66
+arv_camera_set_gain_auto, 67
+arv_camera_get_gain_auto, 68
+arv_camera_is_black_level_available, 69
+arv_camera_get_black_level, 70
+arv_camera_set_black_level, 71
+arv_camera_get_black_level_bounds, 72
+arv_camera_is_black_level_auto_available, 73
+arv_camera_get_black_level_auto, 74
+arv_camera_set_black_level_auto, 75
+arv_camera_get_payload, 76
+arv_camera_is_feature_available, 77
+arv_camera_execute_command, 78
+arv_camera_is_enumeration_entry_available, 79
+arv_camera_dup_available_enumerations, 80
+arv_camera_dup_available_enumerations_as_strings, 81
+arv_camera_dup_available_enumerations_as_display_names, 82
+arv_camera_get_boolean, 83
+arv_camera_get_float, 84
+arv_camera_get_float_bounds, 85
+arv_camera_get_float_increment, 86
+arv_camera_get_integer, 87
+arv_camera_get_integer_bounds, 88
+arv_camera_get_integer_increment, 89
+arv_camera_get_string, 90
+arv_camera_set_boolean, 91
+arv_camera_set_float, 92
+arv_camera_set_integer, 93
+arv_camera_set_string, 94
+arv_camera_set_range_check_policy, 95
+arv_camera_set_register_cache_policy, 96
+arv_camera_is_gv_device, 97
+arv_camera_gv_get_n_stream_channels, 98
+arv_camera_gv_select_stream_channel, 99
+arv_camera_gv_get_current_stream_channel, 100
+arv_camera_gv_get_packet_delay, 101
+arv_camera_gv_set_packet_delay, 102
+arv_camera_gv_get_packet_size, 103
+arv_camera_gv_set_packet_size, 104
+arv_camera_gv_auto_packet_size, 105
+arv_camera_gv_set_packet_size_adjustment, 106
+arv_camera_gv_set_stream_options, 107
+arv_camera_is_uv_device, 108
+arv_camera_uv_set_usb_mode, 109
+arv_camera_uv_get_bandwidth, 110
+arv_camera_uv_get_bandwidth_bounds, 111
+arv_camera_uv_is_bandwidth_control_available, 112
+arv_camera_uv_set_bandwidth, 113
+arv_camera_are_chunks_available, 114
+arv_camera_get_chunk_mode, 115
+arv_camera_get_chunk_state, 116
+arv_camera_set_chunk_mode, 117
+arv_camera_set_chunk_state, 118
+arv_camera_set_chunks, 119
+arv_camera_create_chunk_parser, 120
+arv_acquisition_mode_to_string, 121
+arv_acquisition_mode_from_string, 122
+arv_exposure_mode_from_string, 123
+arv_exposure_mode_to_string, 124
+*/
+
+#define ARAVIS_TOTAL_KEYWORDS   124
+#define ARAVIS_MIN_WORD_LENGTH  14
+#define ARAVIS_MAX_WORD_LENGTH  55
+#define ARAVIS_MIN_HASH_VALUE   19
+#define ARAVIS_MAX_HASH_VALUE   336
+
+static unsigned int
+aravis_hash(register const char *str, register unsigned int len)
+{
+    static unsigned short asso_values[] =
+    {
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337,   0, 337,  15,   0,  62,
+         35,   0,  75,  15, 116,  35, 337, 337,   0,  90,
+          5,  90,  30, 337,  30,   0,   0, 107,  15,  47,
+        127,  51,  15, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337, 337, 337, 337, 337,
+        337, 337, 337, 337, 337, 337
+    };
+
+    register unsigned int hval = len;
+
+    switch (hval) {
+        default:
+            hval += asso_values[(unsigned char)str[24]];
+        /*FALLTHROUGH*/
+        case 24:
+        case 23:
+        case 22:
+        case 21:
+        case 20:
+        case 19:
+        case 18:
+        case 17:
+            hval += asso_values[(unsigned char)str[16]];
+        /*FALLTHROUGH*/
+        case 16:
+            hval += asso_values[(unsigned char)str[15]];
+        /*FALLTHROUGH*/
+        case 15:
+            hval += asso_values[(unsigned char)str[14]];
+        /*FALLTHROUGH*/
+        case 14:
+        case 13:
+        case 12:
+            hval += asso_values[(unsigned char)str[11]];
+            break;
+    }
+
+    return hval;
+}
+
+struct FunctionPair *
+aravis_in_word_set(register const char *str, register unsigned int len)
+{
+    static struct FunctionPair wordlist[] =
+    {
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""},
+        {"arv_camera_new", 1},
+        {""},
+        {"arv_camera_set_string", 94},
+        {""}, {""}, {""}, {""},
+        {"arv_camera_set_black_level", 71},
+        {""}, {""}, {""}, {""},
+        {"arv_camera_set_black_level_auto", 75},
+        {""}, {""}, {""}, {""},
+        {"arv_camera_get_string", 90},
+        {""}, {""}, {""}, {""},
+        {"arv_camera_get_black_level", 70},
+        {""}, {""},
+        {"arv_camera_gv_set_packet_size", 104},
+        {"arv_camera_gv_set_packet_delay", 102},
+        {"arv_camera_get_black_level_auto", 74},
+        {"arv_camera_gv_set_stream_options", 107},
+        {"arv_camera_get_black_level_bounds", 72},
+        {"arv_camera_set_gain", 64},
+        {"arv_camera_gv_select_stream_channel", 99},
+        {"arv_camera_set_region", 9},
+        {"arv_camera_set_trigger", 45},
+        {""},
+        {"arv_camera_set_gain_auto", 67},
+        {"arv_camera_gv_set_packet_size_adjustment", 106},
+        {"arv_camera_get_sensor_size", 8},
+        {"arv_camera_set_binning", 20},
+        {"arv_camera_start_acquisition", 33},
+        {"arv_camera_gv_get_packet_size", 103},
+        {"arv_camera_gv_get_packet_delay", 101},
+        {""},
+        {"arv_camera_set_integer", 93},
+        {""},
+        {"arv_camera_get_gain", 65},
+        {""},
+        {"arv_camera_get_region", 10},
+        {""}, {""},
+        {"arv_camera_get_gain_auto", 68},
+        {"arv_camera_gv_get_current_stream_channel", 100},
+        {"arv_camera_get_device", 3},
+        {"arv_camera_get_binning", 21},
+        {"arv_camera_abort_acquisition", 35},
+        {"arv_camera_get_device_id", 7},
+        {""}, {""},
+        {"arv_camera_get_integer", 87},
+        {""}, {""},
+        {"arv_camera_gv_get_n_stream_channels", 98},
+        {""},
+        {"arv_camera_get_payload", 76},
+        {""}, {""},
+        {"arv_camera_is_black_level_available", 69},
+        {""}, {""},
+        {"arv_camera_is_gv_device", 97},
+        {""},
+        {"arv_camera_is_black_level_auto_available", 73},
+        {""},
+        {"arv_camera_get_integer_increment", 89},
+        {""}, {""},
+        {"arv_camera_set_float", 92},
+        {"arv_camera_get_y_offset_bounds", 13},
+        {"arv_camera_get_y_binning_bounds", 24},
+        {"arv_camera_dup_available_triggers", 49},
+        {""},
+        {"arv_camera_get_y_binning_increment", 25},
+        {"arv_camera_create_stream", 2},
+        {"arv_camera_dup_available_enumerations", 80},
+        {"arv_camera_dup_available_pixel_formats", 30 },
+        {"arv_camera_software_trigger", 52},
+        {"arv_camera_dup_available_trigger_sources", 48},
+        {"arv_camera_get_gain_bounds", 66},
+        {"arv_camera_stop_acquisition", 34},
+        {""}, {""},
+        {"arv_camera_get_float", 84},
+        {""},
+        {"arv_camera_set_boolean", 91},
+        {"arv_camera_dup_available_enumerations_as_strings", 81},
+        {"arv_camera_dup_available_pixel_formats_as_strings", 32},
+        {"arv_camera_get_device_serial_number", 6},
+        {""}, {""}, {""},
+        {"arv_camera_dup_available_enumerations_as_display_names", 82},
+        {"arv_camera_dup_available_pixel_formats_as_display_names", 31},
+        {"arv_camera_is_binning_available", 19},
+        {"arv_camera_get_float_bounds", 85},
+        {""}, {""},
+        {"arv_acquisition_mode_to_string", 121},
+        {""},
+        {"arv_camera_get_boolean", 83},
+        {"arv_camera_set_register_cache_policy", 96},
+        {"arv_camera_get_width_bounds", 17},
+        {"arv_camera_set_frame_rate", 42},
+        {""},
+        {"arv_camera_clear_triggers", 50},
+        {""},
+        {"arv_camera_get_y_offset_increment", 14},
+        {""},
+        {"arv_camera_set_frame_count", 38},
+        {"arv_camera_create_chunk_parser", 120},
+        {""}, {""},
+        {"arv_camera_set_range_check_policy", 95},
+        {""}, {""},
+        {"arv_camera_is_gain_available", 62},
+        {""},
+        {"arv_camera_get_frame_rate", 43},
+        {"arv_camera_get_vendor_name", 4},
+        {""},
+        {"arv_camera_is_gain_auto_available", 63},
+        {"arv_camera_set_trigger_source", 46},
+        {"arv_camera_get_float_increment", 86},
+        {"arv_camera_get_frame_count", 39},
+        {"arv_camera_get_frame_bounds", 44},
+        {""},
+        {"arv_exposure_mode_from_string", 123},
+        {"arv_camera_set_exposure_time", 55},
+        {""},
+        {"arv_camera_get_width_increment", 18},
+        {"arv_camera_get_frame_count_bounds", 40},
+        {""},
+        {"arv_camera_set_exposure_time_auto", 58},
+        {""}, {""}, {""},
+        {"arv_camera_get_trigger_source", 47},
+        {""}, {""},
+        {"arv_camera_gv_auto_packet_size", 105},
+        {"arv_camera_uv_set_usb_mode", 109},
+        {"arv_camera_uv_set_bandwidth", 113},
+        {"arv_camera_get_exposure_time", 56},
+        {"arv_camera_is_feature_available", 77},
+        {"arv_camera_get_x_offset_bounds", 11},
+        {"arv_camera_get_x_binning_bounds", 22},
+        {"arv_camera_get_integer_bounds", 88},
+        {"arv_camera_get_exposure_time_auto", 59},
+        {"arv_camera_get_x_binning_increment", 23},
+        {"arv_camera_get_exposure_time_bounds", 57},
+        {""}, {""},
+        {"arv_camera_is_uv_device", 108},
+        {""},
+        {"arv_camera_set_pixel_format", 26},
+        {""},
+        {"arv_camera_uv_get_bandwidth", 110},
+        {""},
+        {"arv_camera_uv_is_bandwidth_control_available", 112},
+        {"arv_exposure_mode_to_string", 124},
+        {""},
+        {"arv_camera_is_frame_rate_available", 41},
+        {""},
+        {"arv_camera_uv_get_bandwidth_bounds", 111},
+        {""},
+        {"arv_camera_is_enumeration_entry_available", 79},
+        {"arv_camera_set_pixel_format_from_string", 28},
+        {""}, {""},
+        {"arv_camera_get_pixel_format", 27},
+        {"arv_camera_set_acquisition_mode", 36},
+        {"arv_camera_set_chunks", 119},
+        {"arv_camera_execute_command", 78},
+        {""}, {""},
+        {"arv_camera_set_chunk_mode", 117},
+        {"arv_camera_set_chunk_state", 118},
+        {""}, {""},
+        {"arv_camera_get_pixel_format_as_string", 29},
+        {""}, {""},
+        {"arv_camera_get_x_offset_increment", 12},
+        {""}, {""},
+        {"arv_camera_get_acquisition_mode", 37},
+        {""}, {""}, {""},
+        {"arv_acquisition_mode_from_string", 122},
+        {"arv_camera_get_chunk_mode", 115},
+        {"arv_camera_get_chunk_state", 116},
+        {"arv_camera_get_model_name", 5},
+        {""}, {""}, {""},
+        {"arv_camera_get_height_increment", 16},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""},
+        {"arv_camera_are_chunks_available", 114},
+        {""}, {""}, {""}, {""}, {""},
+        {"arv_camera_set_exposure_mode", 60},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""},
+        {"arv_camera_get_exposure_mode", 61},
+        {""}, {""}, {""},
+        {"arv_camera_is_exposure_time_available", 53},
+        {""},
+        {"arv_camera_get_height_bounds", 15},
+        {""}, {""}, {""},
+        {"arv_camera_is_software_trigger_supported", 51},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""}, {""},
+        {""}, {""},
+        {"arv_camera_is_exposure_auto_available", 54}
+    };
+
+    if (len <= ARAVIS_MAX_WORD_LENGTH && len >= ARAVIS_MIN_WORD_LENGTH) {
+        unsigned int key = aravis_hash(str, len);
+        if (key <= ARAVIS_MAX_HASH_VALUE) {
+            register const char *s = wordlist[key].name;
+            if (*str == *s && !strcmp (str + 1, s + 1))
+                return &wordlist[key];
+        }
+    }
+    
+    return 0;
+}
+
+static const void *aravis_camera_virtual_table(void);
+
+static void *
+AravisCamera_ctor(void *_self, va_list *app)
+{
+    struct AravisCamera *self = super_ctor(AravisCamera(), _self, app);
+    
+    self->_.d_state.state = DETECTOR_STATE_UNINITIALIZED;
+    const char *so_path = va_arg(*app, const char *);
+    
+    self->so_path = (char *) Malloc(strlen(so_path) + 1);
+    snprintf(self->so_path, strlen(so_path) + 1, "%s", so_path);
+    
+    Pthread_mutex_init(&self->mtx, NULL);
+    Pthread_cond_init(&self->cond, NULL);
+    
+    //self->_.d_proc.name_convention = GenICam_name_convention;
+    //self->_.d_proc.pre_acquisition = GenICam_pre_acquisition;
+    //self->_.d_proc.queue = new(ThreadsafeQueue(), GenICamDataFrame_cleanup);
+    
+    //self->_._vtab= aravis_camera_virtual_table();
+    
+    return (void *) self;
+}
+
+static int
+AravisCamera_raw(void *_self, void *write_buffer, size_t write_buffer_size, size_t *write_size, void *read_buffer, size_t read_buffer_size, size_t *read_size)
+{
+    struct AravisCamera *self = cast(AravisCamera(), _self);
+    
+    struct FunctionPair *pair = NULL;
+    int ret = AAOS_OK, retval;
+    char fname[COMMANDSIZE];
+    const char *string = (const char *) write_buffer;
+    unsigned int index;
+    
+    
+    if ((retval = sscanf(string, "%s", fname)) != 1) {
+        return AAOS_EBADCMD;
+    }
+    
+    if ((pair = aravis_in_word_set(fname, (unsigned int) strlen(fname))) == NULL) {
+        return AAOS_EBADCMD;
+    }
+    
+    index = pair->index;
+    
+    switch (index) {
+            /*
+        case 1:
+        {
+            void **result = (void **) read_buffer;
+            char name[COMMANDSIZE];
+            (ArvCamera *)(*func)(const char *, GError *) = dlsym(self->dlh, "arv_camera_new");
+            ArvCamera *camera;
+            GError *error = NULL;
+            
+            string += strlen(fname);
+            if ((retval = sscanf(string, "%s", name)) != 1) {
+                return AAOS_EBADCMD;
+            }
+            
+            Pthread_mutex_lock(&self->mtx);
+            camera = func(name, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            *result = (void *) camera;
+            if (read_size != NULL) {
+                *read_size = sizeof(void *);
+            }
+        }
+            break;
+        case 2:
+        {
+            void **result = (void **) read_buffer;
+            
+        }
+            break;
+             */
+        case 4:
+        {
+            (const char *) (*func)(ArvCamera *, GError **) = dlsym(self->dlh, "arv_camera_get_vendor_name");
+            GError *error = NULL;
+            const char *name = NULL;
+            cJSON *root_json = NULL;
+            Pthread_mutex_lock(&self->mtx);
+            name = func(self->camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "vendor_name", name);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+        case 5:
+        {
+            (const char *) (*func)(ArvCamera *, GError **) = dlsym(self->dlh, "arv_camera_get_model_name");
+            GError *error = NULL;
+            const char *name = NULL;
+            cJSON *root_json = NULL;
+            Pthread_mutex_lock(&self->mtx);
+            name = func(self->camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "model_name", name);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+        case 6:
+        {
+            (const char *) (*func)(ArvCamera *, GError **) = dlsym(self->dlh, "arv_camera_get_device_serial_number");
+            GError *error = NULL;
+            const char *name = NULL;
+            cJSON *root_json = NULL;
+            Pthread_mutex_lock(&self->mtx);
+            name = func(self->camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "serial_number", name);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+        case 7:
+        {
+            (const char *) (*func)(ArvCamera *, GError **) = dlsym(self->dlh, "arv_camera_get_device_id");
+            GError *error = NULL;
+            const char *name = NULL;
+            cJSON *root_json = NULL;
+            Pthread_mutex_lock(&self->mtx);
+            name = func(self->camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(root_json, "device_id", name);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+        case 8:
+        {
+            (void) (*func)(ArvCamera *, gint *, gint *, GError **) = dlsym(self->dlh, "arv_camera_get_sensor_size");
+            GError *error = NULL;
+            gint width, height;
+            cJSON *root_json = NULL;
+            Pthread_mutex_lock(&self->mtx);
+            func(self->camera, &width, &height, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "width", (double) width);
+            cJSON_AddNumberToObject(root_json, "height", (double) height);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+        case 9:
+        {
+            (void) (*func)(ArvCamera *, gint, gint, gint, gint, GError **) = dlsym(self->dlh, "arv_camera_set_region");
+            GError *error = NULL;
+            gint x, y, width, height;
+            string += strlen(fname);
+            if ((retval = sscanf(string, "%d %d %d %d", &x, &y, &width, &height)) != 4) {
+                return AAOS_EBADCMD;
+            }
+            Pthread_mutex_lock(&self->mtx);
+            func(self->camera, x, y, width, height, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+        }
+            break;
+        case 10:
+        {
+            (void) (*func)(ArvCamera *, gint *, gint *, gint *, gint *, GError **) = dlsym(self->dlh, "arv_camera_get_region");
+            GError *error = NULL;
+            gint x, y, width, height;
+            cJSON *root_json = NULL;
+            
+            Pthread_mutex_lock(&self->mtx);
+            func(self->camera, &x, &y, &width, &height, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "x_offset", (double) x);
+            cJSON_AddNumberToObject(root_json, "y_offset", (double) y);
+            cJSON_AddNumberToObject(root_json, "image_width", (double) width);
+            cJSON_AddNumberToObject(root_json, "image_height", (double) height);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+        case 11:
+        {
+            (void) (*func)(ArvCamera *, gint *, gint *, GError **) = dlsym(self->dlh, "arv_camera_get_x_offset_bounds");
+            GError *error = NULL;
+            gint min_, max_;
+            cJSON *root_json = NULL;
+            
+            Pthread_mutex_lock(&self->mtx);
+            func(self->camera, &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "x_offset_min", (double) min_);
+            cJSON_AddNumberToObject(root_json, "x_offset_max", (double) max_);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+        case 12:
+        {
+            (gint) (*func)(ArvCamera *, GError **) = dlsym(self->dlh, "arv_camera_get_x_offset_increment");
+            GError *error = NULL;
+            gint increment;
+            cJSON *root_json = NULL;
+            
+            Pthread_mutex_lock(&self->mtx);
+            increment = func(self->camera, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "x_offset_increment", (double) increment);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+            }
+        }
+            break;
+		case 13:
+		{
+			(void) (*func)(ArvCamera *, gint *, gint *, GError **) = dlsym(self->dlh, "arv_camera_get_y_offset_bounds");
+            GError *error = NULL;
+            gint min_, max_;
+            cJSON *root_json = NULL;
+            
+            Pthread_mutex_lock(&self->mtx);
+            func(self->camera, &min_, &max_, &error);
+            Pthread_mutex_unlock(&self->mtx);
+            if (error != NULL) {
+                g_clear_error(&error);
+                return AAOS_ERROR;
+            }
+            root_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(root_json, "y_offset_min", (double) min_);
+            cJSON_AddNumberToObject(root_json, "y_offset_max", (double) max_);
+            cJSON_PrintPreallocated(root_json, read_buffer, read_buffer_size, 1);
+            cJSON_Delete(root_json);
+            if (read_size != NULL) {
+                *read_size = strlen(read_buffer) + 1;
+		}
+			break;
+		case 14:
+		{
+			
+		}
+            
+        default:
+            return AAOS_EINVAL;
+            break;
+    }
+    
+    return 0;
+}
+
+
+#endif
 
 
 #ifdef _USE_COMPILER_ATTRIBUTION_

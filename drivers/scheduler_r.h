@@ -53,7 +53,7 @@ struct __Scheduler {
     uint64_t max_telescope_id;
     uint64_t max_task_id;
     pthread_mutex_t cnt_mtx;
-
+	
     size_t max_task_in_block;
 };
 

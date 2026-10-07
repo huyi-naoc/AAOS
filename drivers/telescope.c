@@ -383,11 +383,15 @@ TelescopeParameter_init(struct TelescopeParameter *t_param)
     Pthread_rwlock_init(&t_param->detector_rwlock, NULL);
     Pthread_rwlock_init(&t_param->filter_rwlock, NULL);
     Pthread_rwlock_init(&t_param->focus_rwlock, NULL);
+    
+    Pthread_rwlock_init(&t_param->mount_type_rwlock, NULL);
 }
 
 static void
 TelescopeParameter_destroy(struct TelescopeParameter *t_param)
 {
+    Pthread_rwlock_destroy(&t_param->mount_type_rwlock);
+    
     Pthread_rwlock_destroy(&t_param->focus_rwlock);
     Pthread_rwlock_destroy(&t_param->filter_rwlock);
     Pthread_rwlock_destroy(&t_param->detector_rwlock);
@@ -1222,6 +1226,58 @@ __Telescope_wait(void *_self, double timeout)
     } else {
         return AAOS_ERROR;
     }
+}
+
+int
+__telescope_get_mount_type(void *_self, unsigned int *mount_type)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->get_mount_type.method) {
+        return ((int (*)(void *, unsigned int *)) class->get_mount_type.method)(_self, mount_type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_get_mount_type, "get_mount_type", _self, mount_type);
+        return result;
+    }
+}
+
+static int
+__Telescope_get_mount_type(void *_self, unsigned int *mount_type)
+{
+    struct __Telescope *self = cast(__Telescope(), _self);
+    
+    Pthread_rwlock_rdlock(&self->t_param.mount_type_rwlock);
+    *mount_type = self->t_param.mount_type;
+    Pthread_rwlock_unlock(&self->t_param.mount_type_rwlock);
+    
+    return AAOS_OK;
+}
+
+int
+__telescope_set_mount_type(void *_self, unsigned int mount_type)
+{
+    const struct __TelescopeClass *class = (const struct __TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, __TelescopeClass()) && class->set_mount_type.method) {
+        return ((int (*)(void *, unsigned int)) class->set_mount_type.method)(_self, mount_type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) __telescope_set_mount_type, "set_mount_type", _self, mount_type);
+        return result;
+    }
+}
+
+static int
+__Telescope_set_mount_type(void *_self, unsigned int mount_type)
+{
+    struct __Telescope *self = cast(__Telescope(), _self);
+    
+    Pthread_rwlock_wrlock(&self->t_param.mount_type_rwlock);
+    self->t_param.mount_type = mount_type;
+    Pthread_rwlock_unlock(&self->t_param.mount_type_rwlock);
+    
+    return AAOS_OK;
 }
 
 /*
@@ -2091,6 +2147,8 @@ __Telescope_ctor(void *_self, va_list *app)
         }
     }
     
+    self->t_param.mount_type = TELESCOPE_MOUNT_TYPE_EQUATORIAL;
+    
     TelescopeState_init(&self->t_state);
     TelescopeParameter_init(&self->t_param);
     
@@ -2422,6 +2480,22 @@ __TelescopeClass_ctor(void *_self, va_list *app)
             self->get_focus_length.method = method;
             continue;
         }
+        if (selector == (Method) __telescope_get_mount_type) {
+            if (tag) {
+                self->get_mount_type.tag = tag;
+                self->get_mount_type.selector = selector;
+            }
+            self->get_mount_type.method = method;
+            continue;
+        }
+        if (selector == (Method) __telescope_set_mount_type) {
+            if (tag) {
+                self->set_mount_type.tag = tag;
+                self->set_mount_type.selector = selector;
+            }
+            self->set_mount_type.method = method;
+            continue;
+        }
         if (selector == (Method) __telescope_info) {
             if (tag) {
                 self->info.tag = tag;
@@ -2530,6 +2604,8 @@ __Telescope_initialize(void)
                        __telescope_enable_derotator, "enable_derotator", __Telescope_enable_derotator,
                        __telescope_disable_derotator, "disable_derotator", __Telescope_disable_derotator,
                        __telescope_get_focus_length, "get_focus_length", __Telescope_get_focus_length,
+                       __telescope_get_mount_type, "get_mount_type", __Telescope_get_mount_type,
+                       __telescope_set_mount_type, "set_mount_type", __Telescope_set_mount_type,
                        __telescope_get, "get", __Telescope_get,
                        __telescope_set, "set", __Telescope_set,
                        
@@ -6486,7 +6562,7 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
     Clock_gettime(CLOCK_REALTIME, &tp);
     proto.field2 = (uint64_t) tp.tv_sec;
     switch (command) {
-        case 0x00010000: /* slew */
+        case 0x00010000: /* slew ra dec*/
         {
             double ra, dec;
             unsigned char *s = proto.parameter;
@@ -6502,6 +6578,25 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
             memcpy(s, &ra, sizeof(double));
             s += sizeof(double);
             memcpy(s, &dec, sizeof(double));
+            proto.command = command;
+        }
+            break;
+        case 0x00010002:
+        {
+            double az, alt;
+            unsigned char *s = proto.parameter;
+            if ((ret = fscanf(fp, "%lf %lf", &az, &alt)) < 2) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            if (az < 0. || az >= 360. || alt > 90. || alt < 0.) {
+                fclose(fp);
+                return AAOS_EINVAL;
+            }
+            proto.field3 = sizeof(struct SYSU80Protocol);
+            memcpy(s, &az, sizeof(double));
+            s += sizeof(double);
+            memcpy(s, &alt, sizeof(double));
             proto.command = command;
         }
             break;
@@ -6530,15 +6625,31 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
         {
             unsigned char *s = proto.parameter;
             uint16_t id; /* 0:J, 1:K */
-            float offset;
-            if ((ret = fscanf(fp, "%hu %f", &id, &offset)) < 2) {
+            double offset;
+            if ((ret = fscanf(fp, "%hu %lf", &id, &offset)) < 2) {
                 fclose(fp);
                 return AAOS_EBADCMD;
             }
             proto.field3 = sizeof(struct SYSU80Protocol);
             memcpy(s, &id, sizeof(uint16_t));
             s += sizeof(uint16_t);
-            memcpy(s, &offset, sizeof(float));
+            memcpy(s, &offset, sizeof(double));
+            proto.command = command;
+        }
+            break;
+        case 0x00020002: /* derotator position */
+        {
+            unsigned char *s = proto.parameter;
+            uint16_t id; /* 0:J, 1:K */
+            double position;
+            if ((ret = fscanf(fp, "%hu %lf", &id, &position)) < 2) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            proto.field3 = sizeof(struct SYSU80Protocol);
+            memcpy(s, &id, sizeof(uint16_t));
+            s += sizeof(uint16_t);
+            memcpy(s, &position, sizeof(double));
             proto.command = command;
         }
             break;
@@ -6562,6 +6673,20 @@ SYSU80_raw(void *_self, const void *raw_command, size_t size, size_t *write_size
         {
             unsigned char *s = proto.parameter;
             uint16_t op; /* 0:close, 1:open */
+            
+            if ((ret = fscanf(fp, "%hu", &op)) < 1) {
+                fclose(fp);
+                return AAOS_EBADCMD;
+            }
+            proto.field3 = sizeof(struct SYSU80Protocol);
+            memcpy(s, &op, sizeof(uint16_t));
+            proto.command = command;
+        }
+            break;
+        case 0x00040000: /* open dome */
+        {
+            unsigned char *s = proto.parameter;
+            uint16_t op; /* 0:stop, 1:fully open, 2: fully close, 3:left open, 4:left close, 5:right open, 6:right close */
             
             if ((ret = fscanf(fp, "%hu", &op)) < 1) {
                 fclose(fp);
@@ -6676,14 +6801,72 @@ SYSU80_inspect(void *_self)
 }
 
 static int
+SYSU80_info_json(struct SYSU80 *self, void *res, size_t res_size, size_t *res_len)
+{
+    cJSON *root_json, *capability_json;
+    
+    root_json = cJSON_CreateObject();
+    
+    if (self->_.name != NULL) {
+        cJSON_AddStringToObject(root_json, "name", self->_.name);
+    }
+    
+    if (self->_.description != NULL) {
+        cJSON_AddStringToObject(root_json, "description", self->_.description);
+    }
+    
+    capability_json = cJSON_CreateObject();
+    
+    if (self->_.t_cap.slew_available) {
+        cJSON_AddBoolToObject(capability_json, "slew_available", true);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "slew_available", false);
+    }
+    
+    if (self->_.t_cap.focus_available) {
+        cJSON_AddBoolToObject(capability_json, "focus_available", true);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "focus_available", false);
+    }
+    
+    if (self->_.t_cap.switch_instrument_available) {
+        cJSON_AddBoolToObject(capability_json, "switch_instrument_available", true);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "switch_instrument_available", false);
+    }
+    
+    if (self->_.t_cap.switch_detector_available) {
+        cJSON_AddBoolToObject(capability_json, "switch_detector_available", true);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "switch_detector_available", false);
+    }
+    
+    if (self->_.t_cap.switch_filter_available) {
+        cJSON_AddBoolToObject(capability_json, "switch_filter_available", true);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "switch_filter_available", false);
+    }
+    
+    if (self->_.t_cap.derotator_available) {
+        cJSON_AddBoolToObject(capability_json, "derotator_available", true);
+    } else {
+        cJSON_AddBoolToObject(capability_json, "derotator_available", false);
+    }
+    
+    
+    return AAOS_OK;
+}
+
+static int
 SYSU80_status_json(struct SYSU80 *self, void *res, size_t res_size, size_t *res_len)
 {
     char command[COMMANDSIZE], buf[BUFSIZE];
     int ret;
-    cJSON *root_json, *servo_json, *j_derotator_json, *k_derotator_json, *focus_json, *lid_json;
+    cJSON *root_json, *servo_json, *j_derotator_json, *k_derotator_json, *focus_json, *lid_json, *ambient_json, *dome_json;
     root_json = cJSON_CreateObject();
-    uint8_t state, status, moving;
+    uint8_t state, status, moving, left, right;
     double az, alt, az_err, alt_err, pos, pos_err, bias;
+    float temp, rh;
     unsigned int state_, flag;
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
@@ -6816,6 +6999,24 @@ SYSU80_status_json(struct SYSU80 *self, void *res, size_t res_size, size_t *res_
     moving = *s;
     cJSON_AddNumberToObject(lid_json, "moving", moving);
     
+    s += 14;
+    memcpy(&temp, s, sizeof(float));
+    s += sizeof(float);
+    memcpy(&rh, s, sizeof(float));
+    ambient_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(root_json, "ambient", ambient_json);
+    cJSON_AddNumberToObject(ambient_json, "temperature", temp);
+    cJSON_AddNumberToObject(ambient_json, "humidity", rh);
+    
+    s += sizeof(float);
+    left = *s;
+    s++;
+    right = *s;
+    dome_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(root_json, "dome", dome_json);
+    cJSON_AddNumberToObject(ambient_json, "left", left);
+    cJSON_AddNumberToObject(ambient_json, "right", right);
+    
     cJSON_PrintPreallocated(root_json, (char *) res, (int) res_size, 1);
     cJSON_Delete(root_json);
     
@@ -6920,10 +7121,8 @@ SYSU80_wait_slew(struct SYSU80 *self)
 }
 
 static int
-SYSU80_slew(void *_self, double ra, double dec)
+SYSU80_slew_radec(struct SYSU80 *self, double ra, double dec)
 {
-    struct SYSU80 *self = cast(SYSU80(), _self);
-    
     char command[COMMANDSIZE], buf[BUFSIZE];
     int ret;
     unsigned int state, flag;
@@ -6966,6 +7165,67 @@ end:
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     
     return ret;
+}
+
+static int
+SYSU80_slew_azalt(struct SYSU80 *self, double az, double alt)
+{
+    int ret = AAOS_OK;
+    char command[COMMANDSIZE], buf[BUFSIZE];
+    
+    unsigned int state, flag;
+    
+    if (az > 360. || az < 0 || alt < 0. || alt > 85.) {
+        return AAOS_EINVAL;
+    }
+    
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
+    flag = self->_.t_state.state & TELESCOPE_STATE_MALFUNCTION;
+    self->_.t_param.ra_to = az;
+    self->_.t_param.dec_to = alt;
+    if (flag) {
+        Pthread_mutex_unlock(&self->_.t_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+    
+    snprintf(command, COMMANDSIZE, "0x00010002 %lf %lf", az, alt);
+    
+    if ((ret = SYSU80_raw(self, command, strlen(command) + 1, NULL, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        goto end;
+    }
+    
+    ret = SYSU80_wait_slew(self);
+
+end:
+    Pthread_mutex_lock(&self->_.t_state.mtx);
+    if (ret == AAOS_OK || ret == AAOS_ETIMEDOUT) {
+        self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
+    } else {
+        self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
+    }
+    Pthread_mutex_unlock(&self->_.t_state.mtx);
+
+    return ret;
+}
+
+static int
+SYSU80_slew(void *_self, double x, double y)
+{
+    struct SYSU80 *self = cast(SYSU80(), _self);
+    
+    unsigned int mount_type;
+    
+    Pthread_rwlock_rdlock(&self->_.t_param.mount_type_rwlock);
+    mount_type = self->_.t_param.mount_type;
+    Pthread_rwlock_unlock(&self->_.t_param.mount_type_rwlock);
+    
+    if (mount_type == TELESCOPE_MOUNT_TYPE_HORIZONTAL) {
+        return SYSU80_slew_azalt(self, x, y);
+    } else {
+        return SYSU80_slew_radec(self, x, y);
+    }
 }
 
 static int
@@ -7551,6 +7811,7 @@ static int
 APMount_get_current_postion_r(struct APMount *self, double *ra, double *dec, double *az, double *alt)
 {
     char command[COMMANDSIZE], buf[BUFSIZE];
+    char *s, *s2, *token;
     size_t size;
     int ret;
     
@@ -7558,8 +7819,47 @@ APMount_get_current_postion_r(struct APMount *self, double *ra, double *dec, dou
         return AAOS_EINVAL;
     }
     
+    Nanosleep(0.01);   
+    snprintf(command, COMMANDSIZE, ":GR#:GD#:GZ#:GA#");
+    Pthread_mutex_lock(&self->mtx);
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, &size)) != AAOS_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- serial_raw error: %d.\n", __FILE__, __func__, __LINE__ - 2, ret);
+#endif
+        Pthread_mutex_unlock(&self->mtx);
+        return AAOS_EDEVMAL;
+    }
+    Pthread_mutex_unlock(&self->mtx);
+    s = (char *) Malloc(strlen(buf) + 1);
+    snprintf(s, strlen(buf) + 1, "%s", buf);
+    s2 = s;
+    if ((token = strsep(&s2, "#")) != NULL) {
+        // R.A.
+        *ra = hms2deg(token);
+    } else {
+        goto error;
+    } 
+    if ((token = strsep(&s2, "#")) != NULL) {
+        // DEC
+        *dec = dms2deg(token);
+    } else {
+        goto error;
+    }
+    if ((token = strsep(&s2, "#")) != NULL) {
+        // Azumith
+        *az = dms2deg(token);
+    } else {
+        goto error;
+    }
+    if ((token = strsep(&s2, "#")) != NULL) {
+        *alt = dms2deg(token);
+        // Altitude
+    } else {
+        goto error;
+    }
+    /*
     snprintf(command, COMMANDSIZE, ":GR#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, &size) != AAOS_OK)) {
         return AAOS_EDEVMAL;
     }
     if (buf[size - 1] == '#') {
@@ -7568,7 +7868,7 @@ APMount_get_current_postion_r(struct APMount *self, double *ra, double *dec, dou
     *ra = hms2deg(buf);
     
     snprintf(command, COMMANDSIZE, ":GD#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, &size) != AAOS_OK)) {
         return AAOS_EDEVMAL;
     }
     if (buf[size - 1] == '#') {
@@ -7577,7 +7877,7 @@ APMount_get_current_postion_r(struct APMount *self, double *ra, double *dec, dou
     *dec = dms2deg(buf);
     
     snprintf(command, COMMANDSIZE, ":GZ#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, &size) != AAOS_OK)) {
         return AAOS_EDEVMAL;
     }
     if (buf[size - 1] == '#') {
@@ -7586,18 +7886,18 @@ APMount_get_current_postion_r(struct APMount *self, double *ra, double *dec, dou
     *az = dms2deg(buf);
     
     snprintf(command, COMMANDSIZE, ":GA#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, &size) != AAOS_OK)) {
         return AAOS_EDEVMAL;
     }
     if (buf[size - 1] == '#') {
         buf[size - 1] = '\0';
     }
     *alt = dms2deg(buf);
-    
+    */
+error:
+    free(s);
     return AAOS_OK;
 }
-
-
 
 static int
 APMount_get_current_postion(struct APMount *self)
@@ -7607,7 +7907,7 @@ APMount_get_current_postion(struct APMount *self)
     int ret;
     
     snprintf(command, COMMANDSIZE, ":GR#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, &size)) != AAOS_OK) {
         return AAOS_EDEVMAL;
     }
     if (buf[size - 1] == '#') {
@@ -7615,9 +7915,12 @@ APMount_get_current_postion(struct APMount *self)
     }
     self->_.t_param.ra = hms2deg(buf);
     snprintf(command, COMMANDSIZE, ":GD#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, &size) != AAOS_OK)) {
+    Pthread_mutex_lock(&self->mtx);
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, &size)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
         return AAOS_EDEVMAL;
     }
+    Pthread_mutex_unlock(&self->mtx);
     if (buf[size - 1] == '#') {
         buf[size - 1] = '\0';
     }
@@ -7635,14 +7938,14 @@ APMount_really_parked(struct APMount *self)
     int ret;
 
     snprintf(command, COMMANDSIZE, ":GR#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), old_ra, COMMANDSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, old_ra, COMMANDSIZE, &size)) != AAOS_OK) {
         return AAOS_EDEVMAL;
     }
     if (old_ra[size - 1] == '#') {
         old_ra[size - 1] = '\0';
     }
     snprintf(command, COMMANDSIZE, ":GZ#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), old_az, COMMANDSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, old_az, COMMANDSIZE, &size)) != AAOS_OK) {
         return AAOS_EDEVMAL;
     }
     if (old_az[size - 1] == '#') {
@@ -7650,14 +7953,14 @@ APMount_really_parked(struct APMount *self)
     }
     Nanosleep(APMOUNT_CHECK_PARK_INTERVAL);
     snprintf(command, COMMANDSIZE, ":GR#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), ra, COMMANDSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, ra, COMMANDSIZE, &size)) != AAOS_OK) {
         return AAOS_EDEVMAL;
     }
     if (ra[size - 1] == '#') {
         ra[size - 1] = '\0';
     }
     snprintf(command, COMMANDSIZE, ":GZ#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), az, COMMANDSIZE, &size) != AAOS_OK)) {
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, az, COMMANDSIZE, &size)) != AAOS_OK) {
         return AAOS_EDEVMAL;
     }
     if (az[size - 1] == '#') {
@@ -7674,10 +7977,17 @@ APMount_really_parked(struct APMount *self)
     size_t size;
     int ret;
     
-    snprintf(command, COMMANDSIZE, ":GZ#");
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), status, STATUSSIZE, &size) != AAOS_OK)) {
+    Nanosleep(0.01);
+    snprintf(command, COMMANDSIZE, ":GOS#");
+    Pthread_mutex_lock(&self->mtx);
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, status, STATUSSIZE, &size)) != AAOS_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- serial_raw error: %d.\n", __FILE__, __func__, __LINE__ - 2, ret);
+#endif
+        Pthread_mutex_unlock(&self->mtx);
         return AAOS_EDEVMAL;
     }
+    Pthread_mutex_unlock(&self->mtx);
     if (status[0] == 'P') {
         return AAOS_OK;
     }
@@ -7996,17 +8306,20 @@ APMount_init(void *_self)
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
+            
     switch (state) {
         case TELESCOPE_STATE_UNINITIALIZED:
-            
             if (APMount_really_parked(self) != AAOS_OK) {
                 int i;
                 for (i = 0; i < APMOUNT_MAX_TRY_PARK; i++) {
                     snprintf(command, COMMANDSIZE, ":KA#");
-                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+                    Pthread_mutex_lock(&self->mtx);
+                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                        Pthread_mutex_unlock(&self->mtx);
                         Pthread_mutex_unlock(&self->_.t_state.mtx);
                         return AAOS_EDEVMAL;
                     }
+                    Pthread_mutex_unlock(&self->mtx);
                     if (APMount_really_parked(self) == AAOS_OK) {
                         break;
                     }
@@ -8017,28 +8330,47 @@ APMount_init(void *_self)
                 }
             }
             snprintf(command, COMMANDSIZE, "#");
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             snprintf(command, COMMANDSIZE, ":U#");
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             time(&current_time);
             current_time -= 3600 * self->_.gmt_offset;
             gmtime_r(&current_time, &tp);
             strftime(command, COMMANDSIZE, ":SL %H:%M:%S#", &tp);
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Nanosleep(0.01);
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- set mount time: %s.\n", __FILE__, __func__, __LINE__ - 5, command);
+#endif
             strftime(command, COMMANDSIZE, ":SC %m/%d/%y#", &tp);
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- set mount date: %s.\n", __FILE__, __func__, __LINE__ - 5, command);
+#endif
             double lon = self->_.location_lon;
             if (lon > 180. || lon < -180.) {
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -8050,36 +8382,55 @@ APMount_init(void *_self)
                 lon *= -1;
             }
             lon_deg2dms(lon, command, COMMANDSIZE, ":Sg %D*%M:%S#");
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- set mount logitude: %s.\n", __FILE__, __func__, __LINE__ - 5, command);
+#endif
             lat_deg2dms(self->_.location_lat, command, COMMANDSIZE, ":St %D*%M:%S#");
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
-            
+            Pthread_mutex_unlock(&self->mtx);
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- set mount latitude: %s.\n", __FILE__, __func__, __LINE__ - 5, command);
+#endif
             if (self->_.gmt_offset > 0.) {
                 snprintf(command, COMMANDSIZE, ":SG %02d:00:00#", (int) floor(self->_.gmt_offset));
             } else {
                 snprintf(command, COMMANDSIZE, ":SG -%02d:00:00#", (int) floor(fabs(self->_.gmt_offset)));
             }
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
-            
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- set mount timezone: %s.\n", __FILE__, __func__, __LINE__ - 5, command);
+#endif
             snprintf(command, COMMANDSIZE, ":PO#");
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             snprintf(command, COMMANDSIZE, ":Q#");
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK){
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_OK;
@@ -8129,9 +8480,13 @@ APMount_stop(void *_self)
         case TELESCOPE_STATE_SLEWING:
         case TELESCOPE_STATE_TRACKING_WAIT:
             Pthread_cancel(self->_.tid);
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
+                Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             Pthread_cond_broadcast(&self->_.t_state.cond);
@@ -8268,10 +8623,13 @@ APMount_move(void *_self, unsigned int direction, double duration)
             break;
     }
     
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+    Pthread_mutex_lock(&self->mtx);
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
+    Pthread_mutex_unlock(&self->mtx);
 
     self->_.t_param.last_move_begin_time = get_current_time();
     self->_.t_param.move_duration = duration;
@@ -8305,10 +8663,13 @@ APMount_move(void *_self, unsigned int direction, double duration)
                 return AAOS_EINVAL;
                 break;
         }
-        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+        Pthread_mutex_lock(&self->mtx);
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            Pthread_mutex_unlock(&self->mtx);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_EDEVMAL;
         }
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         Pthread_cond_broadcast(&self->_.t_state.cond);
         self->_.t_param.last_track_begin_time = get_current_time();
@@ -8332,6 +8693,7 @@ APMount_move(void *_self, unsigned int direction, double duration)
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
+    
     return AAOS_ERROR;
 }
 
@@ -8404,11 +8766,13 @@ APMount_try_move(void *_self, unsigned int direction, double duration)
         default:
             break;
     }
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+    Pthread_mutex_lock(&self->mtx);
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
-    
+    Pthread_mutex_unlock(&self->mtx);
     self->_.t_param.last_move_begin_time = get_current_time();
     self->_.t_param.move_duration = duration;
     Pthread_create(&tid, NULL, APMount_do_move, self);
@@ -8441,10 +8805,13 @@ APMount_try_move(void *_self, unsigned int direction, double duration)
                 return AAOS_EINVAL;
                 break;
         }
-        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+        Pthread_mutex_lock(&self->mtx);
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            Pthread_mutex_unlock(&self->mtx);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_EDEVMAL;
         }
+        Pthread_mutex_unlock(&self->mtx);
         self->_.t_param.last_track_begin_time = get_current_time();
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         Pthread_cond_broadcast(&self->_.t_state.cond);
@@ -8573,10 +8940,13 @@ APMount_timed_move(void *_self, unsigned int direction, double duration, double 
         default:
             break;
     }
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+    Pthread_mutex_lock(&self->mtx);
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
+    Pthread_mutex_unlock(&self->mtx);
     
     self->_.t_state.state = TELESCOPE_STATE_MOVING | flag;
     self->_.t_param.last_move_begin_time = get_current_time();
@@ -8610,10 +8980,13 @@ APMount_timed_move(void *_self, unsigned int direction, double duration, double 
                 return AAOS_EINVAL;
                 break;
         }
-        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+        Pthread_mutex_lock(&self->mtx);
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            Pthread_mutex_unlock(&self->mtx);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_EDEVMAL;
         }
+        Pthread_mutex_unlock(&self->mtx);
         self->_.t_param.last_track_begin_time = get_current_time();
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         Pthread_cond_broadcast(&self->_.t_state.cond);
@@ -8693,13 +9066,25 @@ APMount_do_slew(void *arg)
     size_t size;
     snprintf(command, COMMANDSIZE, ":GOS#");
     for (count = 0; count < APMOUNT_MAX_POLL_COUNT; count++) {
-        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), status, STATUSSIZE, &size) != AAOS_OK)) {
-            return (void *) AAOS_EDEVMAL;
+        Pthread_mutex_lock(&self->mtx);
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, status, STATUSSIZE, &size)) != AAOS_OK) {
+            Nanosleep(0.05);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, status, STATUSSIZE, &size)) != AAOS_OK) {
+                Nanosleep(0.05);
+                if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, status, STATUSSIZE, &size)) != AAOS_OK) {
+#ifdef DEBUG
+                    fprintf(stderr, "%s %s %d --- serial_raw error: %d.\n", __FILE__, __func__, __LINE__ - 2, ret);
+#endif
+                    Pthread_mutex_unlock(&self->mtx);
+                    return (void *) AAOS_EDEVMAL;
+                }
+            }
         }
+        Pthread_mutex_unlock(&self->mtx);
         if (status[3] == 'S') {
-            return NULL;
-        } else {
             Nanosleep(APMOUNT_POLL_INTERVAL);
+        } else {
+            return NULL;
         }
     }
 #endif
@@ -8715,6 +9100,18 @@ APMount_slew(void *_self, double ra, double dec)
     int ret;
     char command[COMMANDSIZE], buf[BUFSIZE];
     pthread_t tid;
+    
+    double az, alt, jd;
+    struct timespec tp;
+    
+    Clock_gettime(CLOCK_REALTIME, &tp);
+    jd = jd_tp(&tp);
+    
+    radec2altaz(jd, ra, dec, self->_.location_lon, self->_.location_lat, self->_.location_ele, -1, -300, &alt, &az, NULL);
+
+    if (alt < 10.) {
+        return AAOS_EINVAL;
+    }
     
     Pthread_mutex_lock(&self->_.t_state.mtx);
     unsigned int state = self->_.t_state.state & (~TELESCOPE_STATE_MALFUNCTION);
@@ -8796,11 +9193,15 @@ APMount_slew(void *_self, double ra, double dec)
         snprintf(s, nleft, ":MS#");
         self->_.t_param.ra_to = ra;
         self->_.t_param.dec_to = dec;
-        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+        Pthread_mutex_lock(&self->mtx);
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            Pthread_mutex_unlock(&self->mtx);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_EDEVMAL;
         }
+        Pthread_mutex_unlock(&self->mtx);
     }
+    
     self->_.t_state.state = TELESCOPE_STATE_SLEWING | flag;
     self->_.t_param.last_slew_begin_time = get_current_time();
     Pthread_create(&tid, NULL, APMount_do_slew, self);
@@ -8839,6 +9240,7 @@ APMount_slew(void *_self, double ra, double dec)
     self->_.t_param.last_track_begin_time = get_current_time();
     Pthread_mutex_unlock(&self->_.t_state.mtx);
     Pthread_cond_broadcast(&self->_.t_state.cond);
+    
     return AAOS_ERROR;
 }
 
@@ -8903,10 +9305,13 @@ APMount_try_slew(void *_self, double ra, double dec)
         snprintf(s, nleft, ":MS#");
         self->_.t_param.ra_to = ra;
         self->_.t_param.dec_to = dec;
-        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+        Pthread_mutex_lock(&self->mtx);
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            Pthread_mutex_unlock(&self->mtx);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_EDEVMAL;
         }
+        Pthread_mutex_unlock(&self->mtx);
     }
     self->_.t_state.state = TELESCOPE_STATE_SLEWING | flag;
     self->_.t_param.last_slew_begin_time = get_current_time();
@@ -9045,10 +9450,13 @@ APMount_timed_slew(void *_self, double ra, double dec, double timeout)
         snprintf(s, nleft, ":MS#");
         self->_.t_param.ra_to = ra;
         self->_.t_param.dec_to = dec;
-        if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+        Pthread_mutex_lock(&self->mtx);
+        if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+            Pthread_mutex_unlock(&self->mtx);
             Pthread_mutex_unlock(&self->_.t_state.mtx);
             return AAOS_EDEVMAL;
         }
+        Pthread_mutex_unlock(&self->mtx);
     }
     self->_.t_state.state = TELESCOPE_STATE_SLEWING | flag;
     self->_.t_param.last_slew_begin_time = get_current_time();
@@ -9105,11 +9513,14 @@ APMount_park(void *_self)
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
-    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+    Pthread_mutex_lock(&self->mtx);
+    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+        Pthread_mutex_unlock(&self->mtx);
         self->_.t_state.state = TELESCOPE_STATE_PARKED | flag;
         Pthread_mutex_unlock(&self->_.t_state.mtx);
         return AAOS_EDEVMAL;
     }
+    Pthread_mutex_unlock(&self->mtx);
     self->_.t_param.last_park_begin_time = get_current_time();
     switch (state) {
         case TELESCOPE_STATE_TRACKING:
@@ -9168,21 +9579,30 @@ APMount_park_off(void *_self)
             current_time -= 3600 * self->_.gmt_offset;
             gmtime_r(&current_time, &tp);
             strftime(command, COMMANDSIZE, ":SL %H:%M:%S#", &tp);
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             
             strftime(command, COMMANDSIZE, ":SC %m/%d/%y#", &tp);
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             snprintf(command, COMMANDSIZE, ":PO#");
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             self->_.t_state.state = TELESCOPE_STATE_TRACKING | flag;
             break;
         default:
@@ -9257,20 +9677,26 @@ APMount_set_move_speed(void *_self, double move_speed)
                     break;
                 default:
                     ret = AAOS_OK;
-                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+                    Pthread_mutex_lock(&self->mtx);
+                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                        Pthread_mutex_unlock(&self->mtx);
                         Pthread_mutex_unlock(&self->_.t_state.mtx);
                         return AAOS_EDEVMAL;
                     }
+                    Pthread_mutex_unlock(&self->mtx);
                     self->_.t_param.move_speed = move_speed;
                     break;
             }
             break;
         default:
             ret = AAOS_OK;
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             self->_.t_param.move_speed = move_speed;
             break;
     }
@@ -9368,10 +9794,13 @@ APMount_set_slew_speed(void *_self, double slew_speed_x, double slew_speed_y)
                     break;
                 default:
                     ret = AAOS_OK;
-                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+                    Pthread_mutex_lock(&self->mtx);
+                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                        Pthread_mutex_unlock(&self->mtx);
                         Pthread_mutex_unlock(&self->_.t_state.mtx);
                         return AAOS_EDEVMAL;
                     }
+                    Pthread_mutex_unlock(&self->mtx);
                     self->_.t_param.slew_speed_x = slew_speed_x;
                     self->_.t_param.slew_speed_y = slew_speed_y;
                     break;
@@ -9379,10 +9808,13 @@ APMount_set_slew_speed(void *_self, double slew_speed_x, double slew_speed_y)
             break;
         default:
             ret = AAOS_OK;
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             self->_.t_param.slew_speed_x = slew_speed_x;
             self->_.t_param.slew_speed_y = slew_speed_y;
             break;
@@ -9481,26 +9913,36 @@ APMount_set_track_rate(void *_self, double track_rate_x, double track_rate_y)
                     break;
                 default:
                     ret = AAOS_OK;
-                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+                    Pthread_mutex_lock(&self->mtx);
+                    if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                        Pthread_mutex_unlock(&self->mtx);
                         Pthread_mutex_unlock(&self->_.t_state.mtx);
                         return AAOS_EDEVMAL;
                     }
+                    Pthread_mutex_unlock(&self->mtx);
                     self->_.t_param.track_rate_x = track_rate_x;
+                    self->_.t_param.track_rate_y = track_rate_y;
                     break;
             }
             break;
         default:
             ret = AAOS_OK;
-            if ((ret = serial_raw(self->serial_rpc, command, strlen(command), buf, BUFSIZE, NULL) != AAOS_OK)) {
+            Pthread_mutex_lock(&self->mtx);
+            if ((ret = serial_raw(self->serial_rpc, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+                Pthread_mutex_unlock(&self->mtx);
                 Pthread_mutex_unlock(&self->_.t_state.mtx);
                 return AAOS_EDEVMAL;
             }
+            Pthread_mutex_unlock(&self->mtx);
             if (fabs(track_rate_x - TELESCOPE_TRACK_RATE_LUNAR) <= 0.001) {
                 self->_.t_param.track_rate_x = track_rate_x;
+                self->_.t_param.track_rate_y = track_rate_y;
             } else if (fabs(track_rate_x - TELESCOPE_TRACK_RATE_SOLAR) <= 0.001) {
                 self->_.t_param.track_rate_x = track_rate_x;
+                self->_.t_param.track_rate_y = track_rate_y;
             } else if (fabs(track_rate_x - TELESCOPE_TRACK_RATE_SIDEREAL) <= 0.001) {
                 self->_.t_param.track_rate_x = track_rate_x;
+                self->_.t_param.track_rate_y = track_rate_y;
             } else {
                 self->_.t_param.track_rate_x = track_rate_x * SIDEREAL_TRACKING_SPEED;
                 self->_.t_param.track_rate_y = track_rate_y * SIDEREAL_TRACKING_SPEED;
@@ -9537,7 +9979,6 @@ APMount_get_track_rate(void *_self, double *track_rate_x, double *track_rate_y)
             ret = AAOS_OK;
             *track_rate_x = self->_.t_param.track_rate_x;
             *track_rate_y = self->_.t_param.track_rate_y;
-            
             break;
     }
     Pthread_mutex_unlock(&self->_.t_state.mtx);
@@ -9551,14 +9992,21 @@ APMount_raw(void *_self, const void *raw_command, size_t size, size_t *write_siz
     struct APMount *self = cast(APMount(), _self);
     int ret;
     
+    Pthread_mutex_lock(&self->mtx);
     if ((ret = serial_raw(self->serial_rpc, raw_command, size, results, results_size, return_size)) == AAOS_OK) {
         if (write_size != NULL) {
             *write_size = strlen(raw_command);
         }
     }
+#ifdef DEBUG
+    else {
+        fprintf(stderr, "%s %s %d --- serial_raw error: %d.\n", __FILE__, __func__, __LINE__ - 7, ret);
+    }
+#endif
+    Pthread_mutex_unlock(&self->mtx);
+    
     return ret;
 }
-
 
 static int
 APMount_info_json(struct APMount *self, char *info_buffer, size_t info_buffer_size)
@@ -9705,6 +10153,7 @@ APMount_inspect(void *_self)
             ret = AAOS_EPWROFF;
             break;
         default:
+            Pthread_mutex_lock(&self->mtx);
             if (self->serial_rpc != NULL) {
                 if (serial_get_index_by_name(self->serial_rpc, self->serial_name) != AAOS_OK) {
                     if (serial_get_index_by_name(self->serial_rpc, self->serial_name2) != AAOS_OK) {
@@ -9765,6 +10214,7 @@ APMount_inspect(void *_self)
                 }
                 delete(client);
             }
+            Pthread_mutex_unlock(&self->mtx);
             break;
     }
     if (flag && ret == AAOS_OK) {
@@ -9811,22 +10261,31 @@ APMount_ctor(void *_self, va_list *app)
 
     int ret;
     void *client = new(SerialClient(), self->serial_server_address, self->serial_server_port);
-    
+   
     if ((ret = rpc_client_connect(client, &self->serial_rpc)) != AAOS_OK) {
+#ifdef DEBUG
+        fprintf(stderr, "%s %s %d --- connect to serial server error: %d.\n", __FILE__, __func__, __LINE__ - 2, ret);
+#endif
         self->_.t_state.state |= TELESCOPE_STATE_MALFUNCTION;
         goto error;
     }
-    
+
     if ((ret = serial_get_index_by_name(self->serial_rpc, self->serial_name)) != AAOS_OK) {
         if (self->serial_name2 != NULL) {
             if ((ret = serial_get_index_by_name(self->serial_rpc, self->serial_name2)) != AAOS_OK) {
+#ifdef DEBUG
+                fprintf(stderr, "%s %s %d --- serial port `%s` error: %d.\n", __FILE__, __func__, __LINE__ - 2, self->serial_name2, ret);
+#endif
                 goto error;
             }
         } else {
+#ifdef DEBUG
+            fprintf(stderr, "%s %s %d --- serial port `%s` error: %d.\n", __FILE__, __func__, __LINE__ - 2, self->serial_name, ret);
+#endif
             goto error;
         }
     }
-    
+    self->_.t_state.state |= TELESCOPE_STATE_UNINITIALIZED;
 error:
     delete(client);
     
@@ -9835,6 +10294,8 @@ error:
     
     self->_.t_param.move_speed = 600. * SIDEREAL_TRACKING_SPEED;
     self->_.t_param.slew_speed_x = 1200. * SIDEREAL_TRACKING_SPEED;
+    self->_.t_param.slew_speed_x = 1200. * SIDEREAL_TRACKING_SPEED;
+    Pthread_mutex_init(&self->mtx, NULL);
     self->_._vtab = ap_mount_virtual_table();
     
     return (void *) self;
@@ -9846,6 +10307,7 @@ APMount_dtor(void *_self)
 {
     struct APMount *self = cast(APMount(), _self);
     
+    Pthread_mutex_destroy(&self->mtx);
     delete(self->serial_rpc);
     free(self->serial_name2);
     free(self->serial_name);
@@ -9862,6 +10324,7 @@ APMountClass_ctor(void *_self, va_list *app)
     
     self->_.raw.method = (Method) 0;
     self->_.inspect.method = (Method) 0;
+    self->_.move.method = (Method) 0;
     
     return self;
 }

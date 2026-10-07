@@ -31,6 +31,7 @@ struct Sensor {
     void *device;       /* Device */
     size_t n_field;
     char *fields;
+	char *units;
 };
 
 struct SensorClass {
@@ -46,6 +47,7 @@ struct SensorClass {
     struct Method get_name;
     struct Method format_put;
     struct Method get_field;
+	struct Method get_fields;
 };
 
 struct SensorVirtualTable {
@@ -181,6 +183,7 @@ struct __AWS {
     char *delimiter;
     char *newline;
     void **sensors;
+	unsigned int format;
     pthread_mutex_t mtx;
     pthread_cond_t cond;
     int state;

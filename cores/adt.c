@@ -19,10 +19,10 @@ ThreadsafeQueue_empty(void *_self)
     
     struct node *tail;
     bool ret;
-    
+
     Pthread_mutex_lock(&self->tail_mutex);
     tail = self->tail;
-    ret = tail == self->head?true:false;
+    ret = (tail==self->head)?true:false;
     Pthread_mutex_unlock(&self->tail_mutex);
     
     return ret;
@@ -33,9 +33,8 @@ threadsafe_queue_empty(void *_self)
 {
     const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
     
-    
     if (isOf(class, ThreadsafeQueueClass()) && class->empty.method) {
-        return ((int (*)(void *)) class->empty.method)(_self);
+        return ((bool (*)(void *)) class->empty.method)(_self);
     } else {
         bool result;
         forward(_self, &result, (Method) threadsafe_queue_empty, "empty", _self);
@@ -60,7 +59,7 @@ ThreadsafeQueue_push(void *_self, void *data)
     self->tail = new_tail;
     Pthread_mutex_unlock(&self->tail_mutex);
     
-    Pthread_cond_signal(&self->data_cond);
+    Pthread_cond_broadcast(&self->data_cond);
 
     return true;
 }
@@ -70,9 +69,8 @@ threadsafe_queue_push(void *_self, void *data)
 {
     const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
     
-    
     if (isOf(class, ThreadsafeQueueClass()) && class->push.method) {
-        return ((int (*)(void *, void *)) class->push.method)(_self, data);
+        return ((bool (*)(void *, void *)) class->push.method)(_self, data);
     } else {
         bool result;
         forward(_self, &result, (Method) threadsafe_queue_push, "push", _self, data);
@@ -105,7 +103,7 @@ threadsafe_queue_try_pop(void *_self)
     const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
     
     
-    if (isOf(class, ThreadsafeQueueClass()) && class->empty.method) {
+    if (isOf(class, ThreadsafeQueueClass()) && class->try_pop.method) {
         return ((void * (*)(void *)) class->try_pop.method)(_self);
     } else {
         void *result;
@@ -118,6 +116,7 @@ static void *
 ThreadsafeQueue_wait_and_pop(void *_self)
 {
     struct ThreadsafeQueue *self = cast(ThreadsafeQueue(), _self);
+    
     struct node *old_head;
     void *data;
     
@@ -130,8 +129,7 @@ ThreadsafeQueue_wait_and_pop(void *_self)
     data = old_head->data;
     free(old_head);
     Pthread_mutex_unlock(&self->head_mutex);
-    
-    
+
     return data;
 }
 
@@ -141,7 +139,7 @@ threadsafe_queue_wait_and_pop(void *_self)
     const struct ThreadsafeQueueClass *class = (const struct ThreadsafeQueueClass *) classOf(_self);
     
     
-    if (isOf(class, ThreadsafeQueueClass()) && class->empty.method) {
+    if (isOf(class, ThreadsafeQueueClass()) && class->wait_and_pop.method) {
         return ((void * (*)(void *)) class->wait_and_pop.method)(_self);
     } else {
         void *result;

@@ -72,7 +72,13 @@ Commands:\n\
 
 
 unsigned int unit = 1;
-static const char *header;
+static char *header;
+
+static void
+header_cleanup(void)
+{
+    free(header);
+}
 
 static void
 error_handler(int e)
@@ -136,7 +142,9 @@ main(int argc, char *argv[])
         snprintf(address, ADDRSIZE, "localhost");
         snprintf(port, PORTSIZE, DET_RPC_PORT);
     }
-        
+    
+    atexit(header_cleanup);
+    
     while ((ch = getopt_long(argc, argv, "d:hi:n:u:v", longopts, NULL)) != -1) {
         switch (ch) {
             case 'h':
@@ -155,7 +163,22 @@ main(int argc, char *argv[])
                 parse_addr_port(optarg, address, ADDRSIZE, port, PORTSIZE, "localhost", DET_RPC_PORT);
                 break;
             case 'H':
-                header = optarg;
+                //header = optarg;
+                if (Access(optarg, F_OK) == 0) {
+                    FILE *fp_in, *fp_out;
+                    char line[BUFSIZE];
+                    fp_in = fopen(optarg, "r");
+                    header = (char *) Malloc(BUFSIZE * 1024);
+                    fp_out = fmemopen(header, BUFSIZE, "w");
+                    while (fgets(line, BUFSIZE, fp_in)) {
+                        fputs(line, fp_out);
+                    }
+                    fclose(fp_out);
+                    fclose(fp_in);
+                } else {
+                    header = (char *) Malloc(strlen(optarg) + 1);
+                    snprintf(header, strlen(optarg) + 1, "%s", optarg);
+                }
                 break;
             case 'u':
                 if (strcmp(optarg, "s") == 0) {
@@ -201,7 +224,14 @@ main(int argc, char *argv[])
     }
     
     if (name != NULL) {
-        ret = detector_get_index_by_name(detector, name);
+        if ((ret = detector_get_index_by_name(detector, name)) != AAOS_OK) {
+            delete(detector);
+            delete(client);
+            fprintf(stderr, "Detector `%s` is not found.\n", name);
+            fprintf(stderr, "Exit...\n");
+            exit(EXIT_FAILURE);
+        }
+        
     } else {
         uint16_t idx = index;
         protobuf_set(detector, PACKET_INDEX, idx);
@@ -816,7 +846,7 @@ main(int argc, char *argv[])
                 width = atoi(argv[4]);
                 height = atoi(argv[5]);
                 if ((ret = detector_set_region(detector, x, y, width, height)) == AAOS_OK) {
-                    fprintf(stderr, "set readout rate success.\n");
+                    fprintf(stderr, "set region success.\n");
                 } else {
                     error_handler(ret);
                 }

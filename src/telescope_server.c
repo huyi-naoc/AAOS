@@ -188,23 +188,29 @@ read_configuration(void)
                 }
             } else if (strcmp(type, "APMOUNT") == 0){
                 config_setting_t *ap_mount_setting;
-                const char *serial_port = "5002";
-                const char *serial_address = "localhost";
-                const char *serial_name = NULL;
+                const char *serial_port,  *serial_address, *serial_name, *serial_name2;
                 int mount_type = TELESCOPE_EQUATORIAL;
                 if ((ap_mount_setting = config_setting_lookup(telescope_setting, "ap_mount")) != NULL) {
                     const char *mount_type_string;
-                    config_setting_lookup_string(ap_mount_setting, "serial_address", &serial_address);
-                    config_setting_lookup_string(ap_mount_setting, "serial_port", &serial_port);
+                    if (config_setting_lookup_string(ap_mount_setting, "serial_address", &serial_address) == CONFIG_FALSE) {
+                        serial_address = "localhost";
+                    }
+                    if (config_setting_lookup_string(ap_mount_setting, "serial_port", &serial_port) == CONFIG_FALSE) {
+                        serial_port = "12000";
+                    }
                     config_setting_lookup_string(ap_mount_setting, "serial_name", &serial_name);
-                    config_setting_lookup_string(ap_mount_setting, "mount_type", &mount_type_string);
-                    if (strcmp(mount_type_string, "EQUATORIAL") == 0) {
-                        mount_type = TELESCOPE_EQUATORIAL;
-                    } else if (strcmp(mount_type_string, "HORIZONTAL") == 0) {
-                        mount_type = TELESCOPE_HORIZONTAL;
+                    if (config_setting_lookup_string(ap_mount_setting, "serial_name", &serial_name2) == CONFIG_FALSE) {
+                        serial_name2 = NULL;
+                    }
+                    if (config_setting_lookup_string(ap_mount_setting, "mount_type", &mount_type_string) == CONFIG_TRUE) {
+                        if (strcmp(mount_type_string, "EQUATORIAL") == 0) {
+                            mount_type = TELESCOPE_EQUATORIAL;
+                        } else if (strcmp(mount_type_string, "HORIZONTAL") == 0) {
+                            mount_type = TELESCOPE_HORIZONTAL;
+                        }
                     }
                 }
-                telescopes[i] = new(APMount(), name, "description", description, "longitude", lon, "latitude", lat, "gmt_offset", gmt_offset, '\0', mount_type, serial_address, serial_port, serial_name);
+                telescopes[i] = new(APMount(), name, "description", description, "longitude", lon, "latitude", lat, "gmt_offset", gmt_offset, '\0', mount_type, serial_address, serial_port, serial_name, serial_name2);
             } else if (strcmp(type, "SYSU80") == 0) {
                 config_setting_t *sysu80_setting, *instrument_setting;
                 size_t j, n_instrument = 0;
@@ -240,7 +246,7 @@ read_configuration(void)
                 const char *mount_address = NULL, *mount_port = NULL, *aux_address = NULL, *aux_port = NULL, *spectra_address = NULL, *spectra_port = NULL;
                 double home_ra = 37.95, home_dec = 89.26;
                 double slew_polling_interval = 2., focus_polling_interval = 1., derotator_polling_interval = 1., cover_polling_interval = 1.;
-                unsigned int max_slew_polling_times = 200, max_focus_polling_times = 20, max_cover_polling_times = 20, max_derotator_polling_times = 20.;
+                int max_slew_polling_times = 200, max_focus_polling_times = 20, max_cover_polling_times = 20, max_derotator_polling_times = 20.;
                 double focus_threshold = 1.2;
                 
                 if ((aic_mount_setting = config_setting_lookup(telescope_setting, "aic_mount")) != NULL) {

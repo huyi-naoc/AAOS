@@ -43,6 +43,9 @@ extern const void *__DomeVirtualTable(void);
 extern const void *VirtualDome(void);
 extern const void *VirtualDomeClass(void);
 
+extern const void *SYSU80Dome(void);
+extern const void *SYSU80DomeClass(void);
+
 #ifdef __cplusplus
 }
 #endif

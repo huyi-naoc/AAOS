@@ -687,7 +687,7 @@ AAGSwitch_destroy(void)
 static void
 AAGSwitch_initialize(void)
 {
-    _AAGSwitch = new(AAGSwitchClass(), "AAGSwitch", AAGSwitch(), sizeof(struct AAGSwitch),
+    _AAGSwitch = new(AAGSwitchClass(), "AAGSwitch", Switch(), sizeof(struct AAGSwitch),
                      ctor, "ctor", AAGSwitch_ctor,
                      dtor, "dtor", AAGSwitch_dtor,
                      (void *) 0);
@@ -749,6 +749,9 @@ AAGSwitch_turn_on(void *_self)
     if (ret1 == AAOS_OK || ret2 == AAOS_OK) {
         ret = AAOS_OK;
     } else {
+#ifdef DEBUG
+        fprintf(stderr, "AAGPDU error.\n");
+#endif
         ret = ret2;
     }
     Pthread_mutex_unlock(&pdu->mtx);
@@ -1129,10 +1132,10 @@ __pdu_status(void *_self, unsigned char *status, size_t size)
     const struct __PDUClass *class = (const struct __PDUClass *) classOf(_self);
     
     if (isOf(class, __PDUClass()) && class->status.method) {
-        return ((int (*)(const void *)) class->status.method)(_self);
+        return ((int (*)(const void *, unsigned char *,  size_t)) class->status.method)(_self, status, size);
     } else {
         int result;
-        forward(_self, &result, (Method) __pdu_status, "status", _self);
+        forward(_self, &result, (Method) __pdu_status, "status", _self, status, size);
         return result;
     }
 }
@@ -1143,7 +1146,7 @@ __PDU_status(const void *_self, unsigned char *status, size_t size)
     const struct __PDU *self = cast(__PDU(), _self);
     size_t i, n = min(self->n_swicth, size);
     int ret;
-    
+ 
     for (i = 0; i < n; i++) {
         ret = switch_status(self->swicthes[i], status + i);
         if (ret != AAOS_OK) {
@@ -1654,7 +1657,7 @@ __PDU_ctor(void *_self, va_list *app)
     
     const char *s, *key, *value;
     size_t n_switch;
-    
+
     s = va_arg(*app, const char *);
     if (s) {
         self->name = (char *) Malloc(strlen(s) + 1);
@@ -1944,7 +1947,7 @@ AAGPDU_ctor(void *_self, va_list *app)
     
     self->_._vtab= aag_pdu_virtual_table();
     self->_._._vtab = aag_pdu_device_virtual_table();
-    
+ 
     const char *s;
     s = va_arg(*app, const char *);
     if ((self->serial_address = (char *) Malloc(strlen(s) + 1)) == NULL) {
@@ -1977,6 +1980,7 @@ AAGPDU_ctor(void *_self, va_list *app)
     }
     snprintf(self->inspect2, strlen(s) + 1, "%s", s);
     
+
     void *client;
     client = new(SerialClient(), self->serial_address, self->serial_port);
     rpc_client_connect(client, &self->serial);
@@ -2081,7 +2085,7 @@ AAGPDU_destroy(void)
 static void
 AAGPDU_initialize(void)
 {
-    _AAGPDU = new(AAGPDUClass(), "AAGPDU", AAGPDU(), sizeof(struct AAGPDU),
+    _AAGPDU = new(AAGPDUClass(), "AAGPDU", __PDU(), sizeof(struct AAGPDU),
                      ctor, "ctor", AAGPDU_ctor,
                      dtor, "dtor", AAGPDU_dtor,
                      (void *) 0);
@@ -2125,7 +2129,7 @@ AAGPDU_status(void *_self, unsigned char *status, size_t size)
     struct AAGPDU *self = cast(AAGPDU(), _self);
     
     char res[COMMANDSIZE];
-    int ret1, ret2, ret = AAOS_ERROR;
+    int ret1, ret2, ret = AAOS_OK;
     uint16_t idx1 = self->serial_index_1, idx2 = self->serial_index_2;
     void *serial = self->serial;
     uint32_t mystatus = 0;
@@ -2177,7 +2181,7 @@ error:
                     status[i] = SWITCH_STATUS_ON;
                 }
             } else {
-                if (mystatus&1>>i) {
+                if (mystatus&(1>>i)) {
                     status[i] = SWITCH_STATUS_ON;
                 } else {
                     status[i] = SWITCH_STATUS_OFF;

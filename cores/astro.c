@@ -63,6 +63,8 @@ static regex_t preg_dms_3;
 static const char *pattern_dms_3 = "^[+-]?([0-9]|[0-8][0-9])[:dD\\*]([0-9]|[0-5][0-9])[:mM]((([0-9]|[0-5][0-9])(\\.[0-9]*)?)|\\.[0-9]+)[sS]?$";
 static regex_t preg_dms_4;
 static const char *pattern_dms_4 = "^[+-]?90(\\.0*)?[dD\\*]?$|^[+-]?90[:dD\\*](0{1,2}(\\.0*)?|\\.0+)[mM]?$|^[+-]?90[:dD\\*]0{1,2}[:mM](0{1,2}(\\.0*)?|\\.0+)[sS]?$";
+static regex_t preg_dms_5;
+static const char *pattern_dms_5 = "^[+]?((3[0-5][0-9])|([0-2]?[0-9]?[0-9]))[dD\\*][0-5]?[0-9][:mM][0-5]?[0-9](\\.[0-9]*[Ss]?)?$";
 
 static regex_t preg_fmt;
 static const char *pattern_fmt = "^%[+-]*[0-9]*\\.[0-9]*[HhMmSsDd]";
@@ -78,7 +80,7 @@ astro_init(void)
     regcomp(&preg_dms_2, pattern_dms_2, REG_EXTENDED | REG_NOSUB);
     regcomp(&preg_dms_3, pattern_dms_3, REG_EXTENDED | REG_NOSUB);
     regcomp(&preg_dms_4, pattern_dms_4, REG_EXTENDED | REG_NOSUB);
-    
+    regcomp(&preg_dms_5, pattern_dms_5, REG_EXTENDED | REG_NOSUB);
     regcomp(&preg_fmt, pattern_fmt, REG_EXTENDED);
 }
 
@@ -93,6 +95,7 @@ astro_destroy(void)
     regfree(&preg_dms_2);
     regfree(&preg_dms_3);
     regfree(&preg_dms_4);
+    regfree(&preg_dms_5);
     regfree(&preg_fmt);
 }
 
@@ -125,6 +128,7 @@ hms2deg_1(const char *string)
 {
     char *buf;
     size_t size = strlen(string);
+    double ret;
     
     if ((buf = (char *) malloc(size + 1)) == NULL) {
         return -1.0;
@@ -140,10 +144,10 @@ hms2deg_1(const char *string)
         default:
             break;
     }
-    
+    ret = atof(buf) * 15.;
     free(buf);
     
-    return atof(buf) * 15.;
+    return ret;
 }
 
 static double
@@ -394,6 +398,10 @@ is_dms_string_legal(const char *string)
         return 4;
     }
     
+    if ((ret = regexec(&preg_dms_5, string, 0, NULL, 0)) == 0) {
+        return 5;
+    }
+    
     return 0;
 }
 
@@ -539,6 +547,7 @@ dms2deg(const char *string)
             return dms2deg_2(string);
             break;
         case 3:
+        case 5:
             return dms2deg_3(string);
             break;
         case 4:
@@ -1675,6 +1684,7 @@ __destructor__(void)
     regfree(&preg_dms_2);
     regfree(&preg_dms_3);
     regfree(&preg_dms_4);
+    regfree(&preg_dms_5);
     regfree(&preg_fmt);
 #ifdef __USE_SOFA__
 #ifdef __USE_GSL__
@@ -1736,5 +1746,6 @@ __constructor__(void)
     regcomp(&preg_dms_2, pattern_dms_2, REG_EXTENDED | REG_NOSUB);
     regcomp(&preg_dms_3, pattern_dms_3, REG_EXTENDED | REG_NOSUB);
     regcomp(&preg_dms_4, pattern_dms_4, REG_EXTENDED | REG_NOSUB);
+    regcomp(&preg_dms_5, pattern_dms_5, REG_EXTENDED | REG_NOSUB);
     regcomp(&preg_fmt, pattern_fmt, REG_EXTENDED);
 }

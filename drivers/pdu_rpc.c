@@ -528,10 +528,10 @@ PDU_execute_status(struct PDU *self)
 {
     void *pdu;
     uint16_t index, channel;
-    uint32_t size;
+    uint32_t size = 0;
     int ret;
     unsigned char *status;
-    
+
     protobuf_get(self, PACKET_INDEX, &index);
     protobuf_get(self, PACKET_CHANNEL, &channel);
     protobuf_get(self, PACKET_U32F0, &size);
@@ -554,6 +554,7 @@ PDU_execute_status(struct PDU *self)
     protobuf_set(self, PACKET_BUF, status, size);
     
     free(status);
+
     return AAOS_OK;
 }
 

@@ -14,6 +14,7 @@
 
 static uint16_t idx = 1;
 static uint16_t chan;
+static bool human_flag;
 static const char *pdu_name, *switch_name;
 static double timeout;
 
@@ -94,7 +95,7 @@ main(int argc, char *argv[])
     void *client, *pdu;
     
     snprintf(address, ADDRSIZE, "localhost");
-    snprintf(port, PORTSIZE, AWS_RPC_PORT);
+    snprintf(port, PORTSIZE, PDU_RPC_PORT);
     
     while ((ch = getopt_long(argc, argv, "c:i:n:p:s:t:v", longopts, NULL)) != -1) {
         switch (ch) {
@@ -267,6 +268,26 @@ main(int argc, char *argv[])
                     printf("Wait for PDU `%d` recovery is timed out or failed\n", idx);
                 }
             }
+        } else if (strcmp(argv[0], "status") == 0) {
+            if (argc < 2) {
+                fprintf(stderr, "Too few args.\n");
+                fprintf(stderr, "Exit...\n");
+                exit(EXIT_FAILURE);
+            }
+            size_t i, size = atoi(argv[1]);
+            unsigned char *status = Malloc(size);
+            pdu_status(pdu, status, size);
+            if (human_flag) {
+                
+            } else {
+                for (i = 0; i < size; i++) {
+                    printf("%u", status[i]);
+                }
+                printf("\n");
+            }
+            free(status);
+            argc--;
+            argv++;
         }
         argc--;
         argv++;

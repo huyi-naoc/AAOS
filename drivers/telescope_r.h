@@ -114,6 +114,13 @@ struct TelescopeParameter {
 	double ra_to;
 	double dec_to;
     
+    double az_from;
+    double alt_from;
+    double az_to;
+    double alt_to;
+    
+    unsigned int mount_type;
+    
     int slew_direction_x;
     int slew_direction_y;
 
@@ -157,6 +164,8 @@ struct TelescopeParameter {
     pthread_rwlock_t detector_rwlock;
     pthread_rwlock_t filter_rwlock;
     pthread_rwlock_t focus_rwlock;
+    
+    pthread_rwlock_t mount_type_rwlock;
 };
 
 struct __Telescope {
@@ -211,6 +220,9 @@ struct __TelescopeClass {
     struct Method get_focus_length;
     struct Method enable_derotator;
     struct Method disable_derotator;
+    
+    struct Method set_mount_type;
+    struct Method get_mount_type;
 
     struct Method switch_filter;
     struct Method switch_instrument;
@@ -281,7 +293,7 @@ struct APMount {
     char *serial_name;
     char *serial_name2;
     void *serial_rpc;
-    
+    pthread_mutex_t mtx;
 };
 
 struct APMountClass {

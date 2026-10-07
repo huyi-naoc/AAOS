@@ -56,6 +56,8 @@ int __telescope_enable_derotator(void *_self);
 int __telescope_disable_derotator(void *_self);
 int __telescope_get_derotator_angle(void *_self, double *angle);
 int __telescope_get_focus_length(void *_self, double *focus_length);
+int __telescope_get_mount_type(void *_self, unsigned int *mount_type);
+int __telescope_set_mount_type(void *_self, unsigned int mount_type);
 
 void __telescope_get(void *_self, ...);
 void __telescope_set(void *_self, ...);

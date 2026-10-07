@@ -62,12 +62,11 @@ fatal_handler(int error, const char *fmt, ...)
         case -1 * AAOS_EPIPE:
             fprintf(stderr, "The serial server is absent.\n");
             break;
-        case -1 * AAOS_ETIMEDOUT:
+        case AAOS_ETIMEDOUT:
             fprintf(stderr, "No response from the serial server.\n");
             break;
         default:
             vfprintf(stderr, fmt, ap);
-            break;
             break;
     }
     
@@ -162,10 +161,11 @@ main(int argc, char *argv[])
                 devpath = optarg;
                 break;
             case 's':
-			    if (Access(optarg, F_OK) == 0) {
+                if (Access(optarg, F_OK) == 0) {
                     snprintf(address, ADDRSIZE, "%s", optarg);
-			    } else {
-					s = strrchr(optarg, ':');
+			
+                } else {
+                    s = strrchr(optarg, ':');
                     if (s == NULL) { //input like "example.com"
                         memset(address, '\0', ADDRSIZE);
                         if (strlen(optarg) >= ADDRSIZE) {
@@ -185,24 +185,24 @@ main(int argc, char *argv[])
                             snprintf(address, PORTSIZE, "%s", s);
                         } else { //input like localhost:8000
                             memset(address, '\0', ADDRSIZE);
-							memset(port, '\0', PORTSIZE);
-							if (s - optarg < ADDRSIZE) {
-								memcpy(address, optarg, s - optarg);
-							} else {
-								fprintf(stderr, "Address is too long.\n");
-								fprintf(stderr, "Exit...\n");
-								exit(EXIT_FAILURE);
-							}
-							if (strlen(s + 1) < PORTSIZE) {
-								snprintf(port, PORTSIZE, "%s", s + 1);
-							} else {
-								fprintf(stderr, "Port is too long.\n");
-								fprintf(stderr, "Exit...\n");
-								exit(EXIT_FAILURE);
-							}
-						}
-					}
-			    }
+                            memset(port, '\0', PORTSIZE);
+                            if (s - optarg < ADDRSIZE) {
+                                memcpy(address, optarg, s - optarg);
+                            } else {
+                                fprintf(stderr, "Address is too long.\n");
+                                fprintf(stderr, "Exit...\n");
+                                exit(EXIT_FAILURE);
+                            }
+                            if (strlen(s + 1) < PORTSIZE) {
+                                snprintf(port, PORTSIZE, "%s", s + 1);
+                            } else {
+                                fprintf(stderr, "Port is too long.\n");
+                                fprintf(stderr, "Exit...\n");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                    }
+                }
                 break;
             case 'r':
                 reg = 1;

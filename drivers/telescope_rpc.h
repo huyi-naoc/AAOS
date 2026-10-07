@@ -54,6 +54,8 @@
 #define TELESCOPE_COMMAND_DISABLE_DEROTATOR     35
 #define TELESCOPE_COMMAND_GET_DEROTATOR_ANGLE   36
 #define TELESCOPE_COMMAND_GET_FOCUS_LENGTH      37
+#define TELESCOPE_COMMAND_GET_MOUNT_TYPE        38
+#define TELESCOPE_COMMAND_SET_MOUNT_TYPE        39
 
 #ifdef __cplusplus
 extern "C" {
@@ -429,6 +431,8 @@ int telescope_disable_derotator(void *_self);
 int telescope_get_derotator_angle(void *_self, double *angle);
 int telescope_info(void *_self, char *res, size_t res_size, size_t *res_len);
 int telescope_get_focus_length(void *_self, double *focus_length);
+int telescope_get_mount_type(void *_self, uint32_t *mount_type);
+int telescope_set_mount_type(void *_self, uint32_t mount_type);
 
 
 extern const void *Telescope(void);

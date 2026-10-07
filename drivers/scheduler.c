@@ -35,8 +35,17 @@ struct TargetInfo {
     uint64_t identifier;
     double ra;
     double dec;
+    int category; // ToO, TD-survey, survey, dark, bias, flat, etc.
+    int mode; //photometric or spectroscopic
     int status;
     int priority;
+    double airmass_limit;
+    double moon_phase_limit;
+    double moon_distance_limit;
+    double sun_altitude_limit;
+    double magnitude_limit;
+    double exptime;
+    unsigned int n_frames;
     char *name;
     char *description; /* JSON */
 };
@@ -3588,6 +3597,22 @@ __Scheduler_register_thread(void *_self, uint64_t identifier, void *thread)
         //threadsafe_list_operate_first_if(self->site_list, site_by_id, global_register_thread, identifier, thread);
     }
     return AAOS_OK;
+}
+
+static int
+__Scheduler_unit_scheduler_load_tasks_from_file(struct __Scheduler *self)
+{
+    
+    
+    
+    
+	return AAOS_OK;
+}
+
+static int
+__Scheduler_unit_scheduler_load_tasks(struct __Scheduler *self)
+{
+	return AAOS_OK;
 }
 
 int

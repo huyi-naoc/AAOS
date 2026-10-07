@@ -94,4 +94,15 @@ struct VirtualDomeClass {
 	struct __DomeClass _;
 };
 
+struct SYSU80Dome {
+	struct __Dome _;
+	char *name;
+	char *address;
+	char *port;
+};
+
+struct SYSU80DomeClass {
+	struct __DomeClass _;
+};
+
 #endif /* dome_r_h */

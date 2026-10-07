@@ -47,16 +47,16 @@ under Ubuntu 22.04,
 
 ## Telescope
 
-* Astro-Physics 1600 GTO
-* Sun Yat-Sen University 80 cm infrared telescope (manufactured by Changcun Institute of Optics, Fine Mechanics and Physics, CAS)
+* Astro-Physics 1600 GTO (tested)
+* Sun Yat-Sen University 80 cm infrared telescope (manufactured by Changcun Institute of Optics, Fine Mechanics and Physics, CAS, tested)
 * Virtual telescope conform to AAOS standard 
 
 ## Detector
 
-* GiGE compatible cameras (linked with ARAVIS library, tested on ImperX, Inc.'s GEV\_B3320M)
-* QHY Cameras (not tested)
-* ZWO ASI series
-* Leadingoe infrared InGaAs detector  
+* GiGE compatible cameras (linked with ARAVIS library, tested on ImperX, Inc.'s GEV\_B3320M, tested) 
+* QHY Cameras (QHY411, tested)
+* ZWO ASI series (ZWO 6200M Pro, tested)
+* Leadingoe infrared InGaAs detector (640x512, tested)  
 * Virtual detector conform to AAOS standard
 
 # License

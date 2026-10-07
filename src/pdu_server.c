@@ -46,7 +46,7 @@ read_daemon(void)
         
     setting = config_lookup(&cfg, "daemon");
     if (setting != NULL) {
-        const char *name = NULL, *username = "   ", *rootdir = "/", *lockfile = NULL;
+        const char *name = NULL, *username = "aaos", *rootdir = "/", *lockfile = NULL;
         int daemonized = 1;
         config_setting_lookup_string(setting, "name", &name);
         config_setting_lookup_string(setting, "rootdir", &rootdir);
@@ -107,7 +107,7 @@ read_configuration(void)
             switches_setting = config_setting_get_member(pdu_setting, "switches");
             n_switches = config_setting_length(switches_setting);
             if (strcmp(type, "AAGPDU") == 0) {
-                config_setting_t *serial_setting;
+                config_setting_t *serial_setting = config_setting_get_member(pdu_setting, "serial");
                 const char *address, *port, *serial1, *inspect1, *serial2, *inspect2;
                 if (config_setting_lookup_string(serial_setting, "address", &address) != CONFIG_TRUE) {
                     address = NULL;
@@ -231,8 +231,16 @@ main(int argc, char *argv[])
     }
     
     config_init(&cfg);
+
+    if(config_read_file(&cfg, config_path) == CONFIG_FALSE) {
+        fprintf(stderr, "fail to read configuration file.\n");
+        fprintf(stderr, "Exit...\n");
+        config_destroy(&cfg);
+        exit(EXIT_FAILURE);
+    }
     
     read_daemon();
+
     if (argc == 0) {
         daemon_start(d);
         init();

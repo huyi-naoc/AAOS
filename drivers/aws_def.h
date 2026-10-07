@@ -20,4 +20,7 @@
 
 #define SENSOR_TYPE_VERSATILE           0
 
+#define AWS_FORMAT_PLAIN				1
+#define AWS_FORMAT_JSON					2
+
 #endif /* aws_def_h */

@@ -1643,6 +1643,516 @@ virtual_dome_virtual_table(void)
     return _virtual_dome_virtual_table;
 }
 
+/*
+ * Dome of SYSU 80cm telescope.
+ */
+
+#include "telescope_rpc.h"
+
+static const void *sysu80_dome_virtual_table(void);
+
+static void *
+SYSU80Dome_ctor(void *_self, va_list *app)
+{
+    struct SYSU80Dome *self = super_ctor(SYSU80Dome(), _self, app);
+    
+	const char *s;
+	
+	s = va_arg(*app, const char *);
+	self->name = Malloc(strlen(s) + 1);
+	snprintf(self->name, strlen(s) + 1, "%s", s);
+	s = va_arg(*app, const char *);
+	self->address = Malloc(strlen(s) + 1);
+	snprintf(self->address, strlen(s) + 1, "%s", s);
+	s = va_arg(*app, const char *);
+	self->port = Malloc(strlen(s) + 1);
+	snprintf(self->port, strlen(s) + 1, "%s", s);
+	
+    self->_.d_state.state = DOME_STATE_UNINITIALIZED;
+  
+    self->_._vtab= sysu80_dome_virtual_table();
+    
+    return (void *) self;
+}
+
+static void *
+SYSU80Dome_dtor(void *_self)
+{
+    struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+    
+	free(self->port);
+	free(self->address);
+	free(self->name);
+	
+    return super_dtor(SYSU80Dome(), _self);
+}
+
+static void *
+SYSU80DomeClass_ctor(void *_self, va_list *app)
+{
+    struct SYSU80DomeClass *self = super_ctor(SYSU80DomeClass(), _self, app);
+	
+    self->_.raw.method = (Method) 0;
+    self->_.init.method = (Method) 0;
+    self->_.status.method = (Method) 0;
+    self->_.open_window.method = (Method) 0;
+	self->_.close_window.method = (Method) 0;
+	self->_.stop_window.method = (Method) 0;
+	self->_.reg.method = (Method) 0;
+	self->_.inspect.method = (Method) 0;
+	self->_.get_window_position.method = (Method) 0;
+	self->_.get_window_open_speed.method = (Method) 0;
+	self->_.set_window_open_speed.method = (Method) 0;
+	self->_.get_window_close_speed.method = (Method) 0;
+	self->_.set_window_close_speed.method = (Method) 0;
+	
+    return self;
+}
+
+static const void *_SYSU80DomeClass;
+
+static void
+SYSU80DomeClass_destroy(void)
+{
+    free((void *) _SYSU80DomeClass);
+}
+
+static void
+SYSU80DomeClass_initialize(void)
+{
+    _SYSU80DomeClass = new(__DomeClass(), "SYSU80DomeClass", __DomeClass(), sizeof(struct SYSU80DomeClass),
+                                ctor, "", SYSU80DomeClass_ctor,
+                                (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SYSU80DomeClass_destroy);
+#endif
+}
+
+const void *
+SYSU80DomeClass(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, SYSU80DomeClass_initialize);
+#endif
+    
+    return _SYSU80DomeClass;
+}
+
+static const void *_SYSU80Dome;
+
+static void
+SYSU80Dome_destroy(void)
+{
+    free((void *)_SYSU80Dome);
+}
+
+static void
+SYSU80Dome_initialize(void)
+{
+    _SYSU80Dome = new(SYSU80DomeClass(), "SYSU80Dome", __Dome(), sizeof(struct SYSU80Dome),
+                      ctor, "ctor", SYSU80Dome_ctor,
+                      dtor, "dtor", SYSU80Dome_dtor,
+                      (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(SYSU80Dome_destroy);
+#endif
+}
+
+const void *
+SYSU80Dome(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, SYSU80Dome_initialize);
+#endif
+
+    return _SYSU80Dome;
+}
+
+static int
+SYSU80Dome_init(void *_self)
+{
+    struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+	
+	unsigned int state;
+    
+    Pthread_mutex_lock(&self->_.d_state.mtx);
+	state = self->_.d_state.state;
+	if (state&DOME_STATE_MALFUNCTION) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		return AAOS_EDEVMAL;
+	}
+	state &= ~DOME_STATE_MALFUNCTION;
+    if (state == DOME_STATE_UNINITIALIZED) {
+        if (self->_.slew_available) {
+            self->_.d_state.state = DOME_STATE_WINDOW_CLOSED | DOME_STATE_PARKED;
+        } else {
+            self->_.d_state.state = DOME_STATE_WINDOW_CLOSED;
+        }
+		self->_.window_position = 0.;
+    }
+    Pthread_mutex_unlock(&self->_.d_state.mtx);
+    
+    return AAOS_OK;
+}
+
+static int
+SYSU80Dome_open_window(void *_self)
+{
+    struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+	
+	int ret = AAOS_OK;
+	char command[COMMANDSIZE], buf[BUFSIZE];
+	void *client, *telescope = NULL;
+	
+	client = new(TelescopeClient(), self->address, self->port);
+	if ((ret = rpc_client_connect(client, &telescope)) != AAOS_OK) {
+		goto error;
+	}
+	if ((ret = telescope_get_index_by_name(telescope, self->name)) != AAOS_OK) {
+		goto error;
+	}
+	
+    Pthread_mutex_lock(&self->_.d_state.mtx);	
+    if (self->_.d_state.state&DOME_STATE_MALFUNCTION) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+		ret = AAOS_EDEVMAL;
+        goto error;
+    }
+	
+	if (self->_.d_state.state&DOME_STATE_WINDOW_CLOSING) {
+	    /*
+	     * stop;
+	     */	
+	}
+	
+	while ((self->_.d_state.state&DOME_STATE_WINDOW_OPENING)) {
+		Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+	}
+	if (self->_.d_state.state&DOME_STATE_WINDOW_OPENED) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		ret = AAOS_OK;
+		goto error;
+	}
+	snprintf(command, COMMANDSIZE, "0x00040000 1");
+	if ((ret = telescope_raw(telescope, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		goto error;
+	}
+	self->_.d_state.state |= DOME_STATE_WINDOW_OPENING;
+	Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+	for (;;) {
+		Pthread_mutex_lock(&self->_.d_state.mtx);
+		if ((self->_.d_state.state&DOME_STATE_WINDOW_CLOSED) || (self->_.d_state.state&DOME_STATE_WINDOW_CLOSING) || (self->_.d_state.state&DOME_STATE_WINDOW_STOPPED)) {
+			ret = AAOS_ECANCELED;
+			Pthread_mutex_unlock(&self->_.d_state.mtx);
+			goto error;
+		}
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		if ((ret = telescope_status(telescope, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		    goto error;
+	    }
+		/*
+		 * check if opened.
+		 */
+		if (true) {
+			Pthread_mutex_lock(&self->_.d_state.mtx);
+			self->_.d_state.state &= ~DOME_STATE_WINDOW_OPENING;
+			self->_.d_state.state |= DOME_STATE_WINDOW_OPENED;
+			Pthread_cond_broadcast(&self->_.d_state.cond);
+			Pthread_mutex_unlock(&self->_.d_state.mtx);
+			break;
+		}
+	}
+	
+error:
+    if (telescope != NULL) {
+		delete(telescope);
+    }
+    delete(client);
+	return ret;
+}
+
+static int
+SYSU80Dome_close_window(void *_self)
+{
+    struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+	
+	int ret = AAOS_OK;
+	char command[COMMANDSIZE], buf[BUFSIZE];
+	void *client, *telescope = NULL;
+	
+	client = new(TelescopeClient(), self->address, self->port);
+	if ((ret = rpc_client_connect(client, &telescope)) != AAOS_OK) {
+		goto error;
+	}
+	if ((ret = telescope_get_index_by_name(telescope, self->name)) != AAOS_OK) {
+		goto error;
+	}
+	
+    Pthread_mutex_lock(&self->_.d_state.mtx);	
+    if (self->_.d_state.state&DOME_STATE_MALFUNCTION) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+		ret = AAOS_EDEVMAL;
+		goto error;
+    }
+	
+	if (self->_.d_state.state&DOME_STATE_WINDOW_OPENING) {
+	    /*
+	     * stop;
+	     */	
+	}
+	while ((self->_.d_state.state&DOME_STATE_WINDOW_CLOSING)) {
+		Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+	}
+	if (self->_.d_state.state&DOME_STATE_WINDOW_CLOSED) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		ret = AAOS_OK;
+		goto error;
+	}
+	snprintf(command, COMMANDSIZE, "0x00040000 2");
+	if ((ret = telescope_raw(telescope, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		goto error;
+	}
+	self->_.d_state.state |= DOME_STATE_WINDOW_CLOSING;
+	Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+	for (;;) {
+		Pthread_mutex_lock(&self->_.d_state.mtx);
+		if ((self->_.d_state.state&DOME_STATE_WINDOW_OPENED) || (self->_.d_state.state&DOME_STATE_WINDOW_OPENING) || (self->_.d_state.state&DOME_STATE_WINDOW_STOPPED)) {
+			ret = AAOS_ECANCELED;
+			Pthread_mutex_unlock(&self->_.d_state.mtx);
+			goto error;
+		}
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		if ((ret = telescope_status(telescope, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		    goto error;
+	    }
+		/*
+		 * check if opened.
+		 */
+		if (true) {
+			Pthread_mutex_lock(&self->_.d_state.mtx);
+			self->_.d_state.state &= ~DOME_STATE_WINDOW_CLOSING;
+			self->_.d_state.state |= DOME_STATE_WINDOW_CLOSED;
+			Pthread_cond_broadcast(&self->_.d_state.cond);
+			Pthread_mutex_unlock(&self->_.d_state.mtx);
+			break;
+		}
+	}
+	
+error:
+    if (telescope != NULL) {
+		delete(telescope);
+    }
+    delete(client);
+	return ret;
+}
+
+static int
+SYSU80Dome_stop_window(void *_self)
+{
+    struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+	
+	int ret = AAOS_OK;
+	char command[COMMANDSIZE], buf[BUFSIZE];
+	void *client, *telescope = NULL;
+	
+	client = new(TelescopeClient(), self->address, self->port);
+	if ((ret = rpc_client_connect(client, &telescope)) != AAOS_OK) {
+		goto error;
+	}
+	if ((ret = telescope_get_index_by_name(telescope, self->name)) != AAOS_OK) {
+		goto error;
+	}
+	
+    Pthread_mutex_lock(&self->_.d_state.mtx);	
+    if (self->_.d_state.state&DOME_STATE_MALFUNCTION) {
+        Pthread_mutex_unlock(&self->_.d_state.mtx);
+        return AAOS_EDEVMAL;
+    }
+	if ((self->_.d_state.state|DOME_STATE_WINDOW_OPENED)||(self->_.d_state.state|DOME_STATE_WINDOW_CLOSED)||(self->_.d_state.state|DOME_STATE_WINDOW_STOPPED)) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		goto error;
+	}
+	snprintf(command, COMMANDSIZE, "0x00040000 0");
+	if ((ret = telescope_raw(telescope, command, strlen(command) + 1, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+		goto error;
+	}
+	self->_.d_state.state |= DOME_STATE_WINDOW_STOPPED;
+	Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+error:
+    if (telescope != NULL) {
+		delete(telescope);
+    }
+    delete(client);
+	return ret;
+}
+
+
+static int
+SYSU80Dome_status(void *_self, void *status_buffer, size_t size, size_t *length)
+{
+    struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+	
+	int ret = AAOS_OK;
+	char buf[BUFSIZE];
+	void *client, *telescope = NULL;
+	
+	client = new(TelescopeClient(), self->address, self->port);
+	if ((ret = rpc_client_connect(client, &telescope)) != AAOS_OK) {
+		goto error;
+	}
+	if ((ret = telescope_get_index_by_name(telescope, self->name)) != AAOS_OK) {
+		goto error;
+	}
+	if ((ret = telescope_status(telescope, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		goto error;    
+	}
+	
+error:
+    return ret;
+}
+
+static int
+SYSU80Dome_get_window_open_speed(void *_self, double *speed)
+{
+	return AAOS_ENOTSUP;
+}
+
+static int
+SYSU80Dome_set_window_open_speed(void *_self, double speed)
+{
+	return AAOS_ENOTSUP;
+}
+
+static int
+SYSU80Dome_get_window_close_speed(void *_self, double *speed)
+{
+	return AAOS_ENOTSUP;
+}
+
+static int
+SYSU80Dome_set_window_close_speed(void *_self, double speed)
+{
+	return AAOS_ENOTSUP;
+}
+
+static int
+SYSU80Dome_get_window_position(void *_self, double *position)
+{
+	return AAOS_ENOTSUP;
+}
+
+static int
+SYSU80Dome_inspect(void *_self)
+{
+	struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+	
+	int ret = AAOS_OK;
+	char buf[BUFSIZE];
+	void *client, *telescope = NULL;
+	
+	client = new(TelescopeClient(), self->address, self->port);
+	if ((ret = rpc_client_connect(client, &telescope)) != AAOS_OK) {
+		goto error;
+	}
+	if ((ret = telescope_get_index_by_name(telescope, self->name)) != AAOS_OK) {
+		goto error;
+	}
+	if ((ret = telescope_status(telescope, buf, BUFSIZE, NULL)) != AAOS_OK) {
+		goto error;    
+	}
+	
+error:
+    if (ret == AAOS_OK) {
+		Pthread_mutex_lock(&self->_.d_state.mtx);
+		if (self->_.d_state.state&DOME_STATE_MALFUNCTION) {
+			self->_.d_state.state &= ~DOME_STATE_MALFUNCTION;
+			Pthread_cond_broadcast(&self->_.d_state.cond);
+		}
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+    } else {
+		Pthread_mutex_lock(&self->_.d_state.mtx);
+		self->_.d_state.state |= DOME_STATE_MALFUNCTION;
+		Pthread_mutex_unlock(&self->_.d_state.mtx);
+    }
+    return ret;
+}
+
+static int
+SYSU80Dome_register(void *_self, double timeout)
+{
+	struct SYSU80Dome *self = cast(SYSU80Dome(), _self);
+	
+	int ret = AAOS_OK;
+	
+	Pthread_mutex_lock(&self->_.d_state.mtx);
+	if (timeout < 0) {
+		while (self->_.d_state.state&DOME_STATE_MALFUNCTION) {
+			Pthread_cond_wait(&self->_.d_state.cond, &self->_.d_state.mtx);
+		}
+	} else {
+		struct timespec tp;
+		tp.tv_sec = floor(timeout);
+		tp.tv_nsec = (timeout - tp.tv_sec) * 1000000000;
+		while (self->_.d_state.state&DOME_STATE_MALFUNCTION) {
+			if ((ret = Pthread_cond_timedwait(&self->_.d_state.cond, &self->_.d_state.mtx, &tp)) != 0) {
+				break;
+			}
+		}
+	}
+	Pthread_mutex_unlock(&self->_.d_state.mtx);
+	
+    return ret;
+}
+
+static const void *_sysu80_dome_virtual_table;
+
+static void
+sysu80_dome_virtual_table_destroy(void)
+{
+    delete((void *) _sysu80_dome_virtual_table);
+}
+
+static void
+sysu80_dome_virtual_table_initialize(void)
+{
+    _sysu80_dome_virtual_table = new(__DomeVirtualTable(),
+                                     __dome_init, "init", SYSU80Dome_init,
+                                     __dome_open_window, "open_window", SYSU80Dome_open_window,
+                                     __dome_close_window, "close_window", SYSU80Dome_close_window,
+                                     __dome_stop_window, "stop_window", SYSU80Dome_stop_window,
+                                     __dome_status, "status", SYSU80Dome_status,
+                                     __dome_get_window_open_speed, "get_window_open_speed", SYSU80Dome_get_window_open_speed,
+                                     __dome_set_window_open_speed, "set_window_open_speed", SYSU80Dome_set_window_open_speed,
+                                     __dome_get_window_close_speed, "get_window_close_speed", SYSU80Dome_get_window_close_speed,
+                                     __dome_set_window_close_speed, "set_window_close_speed", SYSU80Dome_set_window_close_speed,
+                                     __dome_get_window_position, "get_window_position", SYSU80Dome_get_window_position,
+                                     __dome_inspect, "inspect", SYSU80Dome_inspect,
+                                     __dome_register, "register", SYSU80Dome_register,
+                                      (void *) 0);
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    atexit(sysu80_dome_virtual_table_destroy);
+#endif
+}
+
+static const void *
+sysu80_dome_virtual_table(void)
+{
+#ifndef _USE_COMPILER_ATTRIBUTION_
+    static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+    Pthread_once(&once_control, sysu80_dome_virtual_table_initialize);
+#endif
+    
+    return _sysu80_dome_virtual_table;
+}
+
 #ifdef _USE_COMPILER_ATTRIBUTION_
 static void __destructor__(void) __attribute__ ((destructor(_DOME_PRIORITY_)));
 

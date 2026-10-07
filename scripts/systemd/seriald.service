@@ -1,5 +1,7 @@
 [Unit]
 Description=RS232/422/485 serial device daemon of AAOS
+Requires=npreal2.service
+After=npreal2.service
 
 [Service]
 Type=forking

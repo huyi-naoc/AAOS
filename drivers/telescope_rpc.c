@@ -1128,7 +1128,7 @@ telescope_set_option(void *_self, uint16_t option)
     const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
     
     if (isOf(class, TelescopeClass()) && class->set_option.method) {
-        return ((int (*)(void *, uint16_t)) class->set_track_rate.method)(_self, option);
+        return ((int (*)(void *, uint16_t)) class->set_option.method)(_self, option);
     } else {
         int result;
         forward(_self, &result, (Method) telescope_set_option, "set_option", _self, option);
@@ -1147,6 +1147,65 @@ Telescope_set_option(void *_self, uint16_t option)
     
     return rpc_call(self);
 }
+
+int
+telescope_set_mount_type(void *_self, uint32_t mount_type)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->set_mount_type.method) {
+        return ((int (*)(void *, uint32_t)) class->set_mount_type.method)(_self, mount_type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_set_mount_type, "set_mount_type", _self, mount_type);
+        return result;
+    }
+}
+
+static int
+Telescope_set_mount_type(void *_self, uint32_t *mount_type)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    int ret;
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_GET_MOUNT_TYPE);
+    
+    if ((ret = rpc_call(self)) != AAOS_OK) {
+        return ret;
+    }
+    
+    protobuf_get(self, PACKET_DF0, mount_type);
+    
+    return AAOS_OK;
+}
+
+int
+telescope_get_mount_type(void *_self, uint32_t *mount_type)
+{
+    const struct TelescopeClass *class = (const struct TelescopeClass *) classOf(_self);
+    
+    if (isOf(class, TelescopeClass()) && class->set_mount_type.method) {
+        return ((int (*)(void *, uint32_t *)) class->set_mount_type.method)(_self, mount_type);
+    } else {
+        int result;
+        forward(_self, &result, (Method) telescope_set_mount_type, "set_mount_type", _self, mount_type);
+        return result;
+    }
+}
+
+static int
+Telescope_get_mount_type(void *_self, uint32_t *mount_type)
+{
+    struct Telescope *self = cast(Telescope(), _self);
+    
+    protobuf_set(self, PACKET_PROTOCOL, PROTO_TELESCOPE);
+    protobuf_set(self, PACKET_COMMAND, TELESCOPE_COMMAND_SET_MOUNT_TYPE);
+    protobuf_set(self, PACKET_U32F0, mount_type);
+    
+    return rpc_call(self);
+}
+
 
 int
 telescope_inspect(void *_self)
@@ -2287,6 +2346,54 @@ Telescope_execute_get_focus_length(struct Telescope *self)
     return ret;
 }
 
+static int
+Telescope_execute_get_mount_type(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t length;
+    void *telescope;
+    uint32_t mount_type;
+    unsigned int mt;
+    
+    protobuf_get(self, PACKET_LENGTH, &length);
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    ret = __telescope_get_mount_type(telescope, &mt);
+    mount_type = (uint32_t) mt;
+    protobuf_set(self, PACKET_U32F0, mount_type);
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
+static int
+Telescope_execute_set_mount_type(struct Telescope *self)
+{
+    int ret;
+    uint16_t index;
+    uint32_t mount_type;
+    void *telescope;
+
+    protobuf_get(self, PACKET_INDEX, &index);
+    
+    if ((telescope = get_telescope_by_index(index)) == NULL) {
+        return AAOS_ENOTFOUND;
+    }
+    
+    protobuf_get(self, PACKET_U32F0, &mount_type);
+    
+    ret = __telescope_set_mount_type(telescope, mount_type);
+    
+    protobuf_set(self, PACKET_LENGTH, 0);
+    
+    return ret;
+}
+
 
 static int
 Telescope_execute_default(struct Telescope *self)
@@ -2415,6 +2522,12 @@ Telescope_execute(void *_self)
             break;
         case TELESCOPE_COMMAND_GET_FOCUS_LENGTH:
             ret = Telescope_execute_get_focus_length(self);
+            break;
+        case TELESCOPE_COMMAND_GET_MOUNT_TYPE:
+            ret = Telescope_execute_get_mount_type(self);
+            break;
+        case TELESCOPE_COMMAND_SET_MOUNT_TYPE:
+            ret = Telescope_execute_set_mount_type(self);
             break;
         default:
             return Telescope_execute_default(self);
@@ -2751,6 +2864,22 @@ TelescopeClass_ctor(void *_self, va_list *app)
             self->get_focus_length.method = method;
             continue;
         }
+        if (selector == (Method) telescope_get_mount_type) {
+            if (tag) {
+                self->get_mount_type.tag = tag;
+                self->get_mount_type.selector = selector;
+            }
+            self->get_mount_type.method = method;
+            continue;
+        }
+        if (selector == (Method) telescope_set_mount_type) {
+            if (tag) {
+                self->set_mount_type.tag = tag;
+                self->set_mount_type.selector = selector;
+            }
+            self->set_mount_type.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -2841,6 +2970,8 @@ Telescope_initialize(void)
                      telescope_get_derotator_angle, "get_derotator_angle", Telescope_get_derotator_angle,
                      telescope_enable_derotator, "enable_derotator", Telescope_enable_derotator,
                      telescope_disable_derotator, "disable_derotator", Telescope_disable_derotator,
+                     telescope_get_mount_type, "get_mount_type", Telescope_get_mount_type,
+                     telescope_set_mount_type, "set_mount_type", Telescope_set_mount_type,
                      
                      (void *) 0);
     

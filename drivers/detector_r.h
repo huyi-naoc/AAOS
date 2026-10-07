@@ -409,11 +409,13 @@ struct LeadingCameraClass {
 struct QHYCamera {
     struct __Detector _;
     int camera_index;
-    char camera_id[40];
+    char camera_id[32];
     void *camera_handle;
     char *so_path;
     void *dlh;
     int capture_mode;
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
 };
 
 struct QHYCameraClass {
@@ -423,17 +425,22 @@ struct QHYCameraClass {
 #endif
 
 //#ifdef __USE_ARAVIS_CAMERA__
+/*
 struct AravisCamera {
     struct __Detector _;
 
     char *so_path;
     void *camera;
     void *stream;
+    void *dlh;
+    pthread_mutex_t mtx;
+    pthread_cond_t cond;
 };
 
 struct AravisCameraClass {
     struct __DetectorClass _;
 };
+ */
 
 //#endif
 

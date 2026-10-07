@@ -2466,7 +2466,7 @@ static void *
 AAGPDUSerial_ctor(void *_self, va_list *app)
 {
     struct AAGPDUSerial *self = super_ctor(AAGPDUSerial(), _self, app);
-    
+
     self->_._vtab= aag_pdu_serial_virtual_table();
     
     return (void *) self;
@@ -2560,7 +2560,7 @@ AAGPDUSerial_init(void *_self)
     struct __Serial *self = cast(__Serial(), _self);
     struct termios termptr;
     int ibaud = B9600, obaud = B9600;
-    
+
     self->fd = Open(self->path, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (self->fd < 0) {
         if (errno == ENOENT && (self->option&SERIAL_OPTION_WAIT_FOR_READY)) {
@@ -2574,7 +2574,7 @@ AAGPDUSerial_init(void *_self)
     } else {
         self->state = SERIAL_STATE_OK;
     }
-    
+      
     Tcgetattr(self->fd, &termptr);
     Cfsetispeed(&termptr, ibaud);
     Cfsetospeed(&termptr, obaud);
@@ -6039,7 +6039,6 @@ WTGAHRS3Serial_raw(void *_self, void *write_buffer, size_t write_buffer_size, si
             return ret;
         }
     }
-    
     request_size = min(command[5] * 2 + 5, read_buffer_size);
     
     Pthread_mutex_lock(&self->mtx);
@@ -6108,7 +6107,7 @@ WTGAHRS3Serial_validate(const void *_self, const void *command, size_t size)
             return AAOS_EBADCMD;
         }
     } else {
-        if (cmd[3] != 0x00 || cmd[3] != 0x01 || cmd[3] != 0x04 || cmd[3] != 0x1A || cmd[3] != 0x1F || cmd[3] != 0x20 || cmd[3] != 0x21 || cmd[3] != 0x23 || cmd[3] != 0x27 || cmd[3] != 0x30 || cmd[3] != 0x31 || cmd[3] != 0x32 || cmd[3] != 0x33 || cmd[3] != 0x61 || cmd[3] != 0x63 || cmd[3] != 0x69 || cmd[3] != 0x6B || cmd[3] != 0x6E || cmd[3] != 0x6F || cmd[3] != 0x8C) {
+        if (cmd[3] != 0x00 && cmd[3] != 0x01 && cmd[3] != 0x04 && cmd[3] != 0x1A && cmd[3] != 0x1F && cmd[3] != 0x20 && cmd[3] != 0x21 && cmd[3] != 0x23 && cmd[3] != 0x27 && cmd[3] != 0x30 && cmd[3] != 0x31 && cmd[3] != 0x32 && cmd[3] != 0x33 && cmd[3] != 0x61 && cmd[3] != 0x63 && cmd[3] != 0x69 && cmd[3] != 0x6B && cmd[3] != 0x6E && cmd[3] != 0x6F && cmd[3] != 0x8C) {
             return AAOS_EBADCMD;
         }
     }

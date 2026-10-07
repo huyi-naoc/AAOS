@@ -112,7 +112,7 @@ get_index_by_path(const char *path, int *index)
     size_t i;
     const char *s;
     *index = 0;
-    
+
     for (i = 0; i < n_serial; i++) {
         s = __serial_get_path(serials[i]);
         if (strcmp(path, s) == 0) {
@@ -535,7 +535,6 @@ Serial_execute_raw(struct Serial *self)
     uint16_t index;
     uint16_t option;
     uint32_t length;
-    
     /*
      * If payload is zero, just use STR field as the input raw command; otherwise, use payload as the input
      */
@@ -856,7 +855,7 @@ Serial_execute_get_index_by_path(struct Serial *self)
     char *path;
     int index, ret;
     uint32_t length;
-    
+ 
     protobuf_get(protobuf, PACKET_LENGTH, &length);
     if (length == 0) {
         protobuf_get(protobuf, PACKET_STR, &path);
@@ -864,7 +863,6 @@ Serial_execute_get_index_by_path(struct Serial *self)
         protobuf_get(protobuf, PACKET_BUF, &path, NULL);
     }
     if ((ret = get_index_by_path(path, &index)) != AAOS_OK) {
-        
         return ret;
     } else {
         uint16_t idx;
@@ -882,7 +880,7 @@ Serial_execute(void *_self)
 {
     struct Serial *self = cast(Serial(), _self);
     uint16_t command;
-    
+
     if (Serial_protocol_check(self) != AAOS_OK) {
         return AAOS_EPROTOWRONG;
     }

@@ -11,8 +11,8 @@
 
 #include <string.h>
 
-#define SWITCH_STATUS_ON        0
-#define SWITCH_STATUS_OFF       1
+#define SWITCH_STATUS_OFF       0
+#define SWITCH_STATUS_ON        1
 #define SWITCH_STATUS_UNKNOWN   2
 
 #ifdef __cplusplus

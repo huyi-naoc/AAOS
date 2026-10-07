@@ -169,11 +169,37 @@ static const char *
 Sensor_get_field(const void *_self)
 {
     struct Sensor *self = cast(Sensor(), _self);
-    
+ 
     if (self->fields != NULL) {
         return self->fields;
     } else {
         return self->name;
+    }
+}
+
+static size_t
+Sensor_get_fields(const void * _self)
+{
+    struct Sensor *self = cast(Sensor(), _self);
+	
+	if (self->n_field == 0) {
+        return 1;
+	} else {
+        return self->n_field;
+	}
+}
+
+static size_t
+sensor_get_fields(const void *_self)
+{
+    const struct SensorClass *class = (const struct SensorClass *) classOf(_self);
+	
+	if (isOf(class, SensorClass()) && class->get_fields.method) {
+        return ((size_t (*)(const void *)) class->get_fields.method)(_self);
+    } else {
+        size_t result;
+        forward(_self, &result, (Method) sensor_get_fields, "get_fields", _self);
+        return result;
     }
 }
 
@@ -325,17 +351,32 @@ Sensor_format_put(void *_self, FILE *fp)
 {
     struct Sensor *self = cast(Sensor(), _self);
     
-    double data;
+    double *data;
+    size_t i, n_field = self->n_field;
+	
+    if (n_field == 0) {
+        n_field = 1;		
+    }
     
-    sensor_read_data(_self, &data, 1);
+    data = (double *) Malloc(n_field * sizeof(double));	
+    sensor_read_data(_self, data, n_field);
     
     if (self->format == NULL) {
-        fprintf(fp, "%.2f", data);
+        fprintf(fp, "%.2f", data[0]);
     } else {
-        fprintf(fp, self->format, data);
+        fprintf(fp, self->format, data[0]);
     }
-}
+	
+    for (i = 1; i < n_field; i++) {
+        if (self->format == NULL) {
+            fprintf(fp, " %.2f", data[0]);
+        } else {
+            fputc(' ', fp);
+            fprintf(fp, self->format, data[0]);
+        }
+    }
 
+}
 
 int
 sensor_read_data(void *_self, double *data, size_t size)
@@ -562,6 +603,14 @@ SensorClass_ctor(void *_self, va_list *app)
             self->get_field.method = method;
             continue;
         }
+        if (selector == (Method) sensor_get_fields) {
+            if (tag) {
+                self->get_fields.tag = tag;
+                self->get_fields.selector = selector;
+            }
+            self->get_fields.method = method;
+            continue;
+        }
     }
     
 #ifdef va_copy
@@ -624,6 +673,8 @@ Sensor_initialize(void)
                   sensor_get_type, "get_type", Sensor_get_type,
                   sensor_set_type, "set_type", Sensor_set_type,
                   sensor_format_put, "format_put", Sensor_format_put,
+                  sensor_get_field, "get_field", Sensor_get_field,
+                  sensor_get_fields, "get_fields", Sensor_get_fields,
                   (void *) 0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(Sensor_destroy);
@@ -1033,7 +1084,7 @@ PT100_read_data(void *_self, double *data, size_t size)
     }
     protobuf_set(serial, PACKET_INDEX, index);
     
-    if ((ret = serial_raw(serial, self->command, strlen(self->command), buf, BUFSIZE, NULL)) == AAOS_OK) {
+    if ((ret = serial_raw(serial, self->command, strlen(self->command) + 1, buf, BUFSIZE, NULL)) == AAOS_OK) {
         const char *s = buf + 1;
         data[0] = atof(s);
         struct PT100 *myself = cast(PT100(), _self);
@@ -3018,6 +3069,7 @@ SkyQualityMonitorClass_ctor(void *_self, va_list *app)
     
     self->_.read_data.method = (Method) 0;
     self->_.read_raw_data.method = (Method) 0;
+    self->_.format_put.method = (Method) 0;
     
     return self;
 }
@@ -3193,6 +3245,26 @@ SkyQualityMonitor_read_raw_data(void *_self, void *data, size_t size)
     return ret;
 }
 
+static void
+SkyQuailityMonitor_format_put(void *_self, FILE *fp)
+{
+    struct Sensor *self = cast(Sensor(), _self);
+    
+    double data[5];
+    
+    sensor_read_data(_self, data, 5);
+    
+    fprintf(fp, "%d ", (int) data[0]);
+    if (self->format == NULL) {
+        fprintf(fp, "%.2f ", data[1]);
+        fprintf(fp, "%.2f", data[2]);
+    } else {
+        fprintf(fp, self->format, data[1]);
+        fputc(' ', fp);
+        fprintf(fp, self->format, data[2]);
+    }
+}
+
 static const void *_sky_quality_monitor_virtual_table;
 
 static void
@@ -3206,9 +3278,10 @@ static void
 sky_quality_monitor_virtual_table_initialize(void)
 {
     _sky_quality_monitor_virtual_table = new(SensorVirtualTable(),
-                                    sensor_read_data, "read_data", SkyQualityMonitor_read_data,
-                                    sensor_read_raw_data, "read_raw_data", SkyQualityMonitor_read_raw_data,
-                                    (void *)0);
+                                             sensor_read_data, "read_data", SkyQualityMonitor_read_data,
+                                             sensor_read_raw_data, "read_raw_data", SkyQualityMonitor_read_raw_data,
+                                             sensor_format_put, "format_put", SkyQuailityMonitor_format_put,
+                                             (void *)0);
 #ifndef _USE_COMPILER_ATTRIBUTION_
     atexit(sky_quality_monitor_virtual_table_destroy);
 #endif
@@ -5159,6 +5232,14 @@ __aws_data_log(void *_self, FILE *fp)
 }
 
 static void
+__AWS_data_log_json(void *_self, FILE *fp)
+{
+    struct __AWS *self = cast(__AWS(), _self);
+	
+	size_t i, n_sensors = self->n_sensors;
+}
+
+static void
 __AWS_data_log(void *_self, FILE *fp)
 {
     struct __AWS *self = cast(__AWS(), _self);
@@ -5198,7 +5279,7 @@ __AWS_data_field(void *_self, FILE *fp)
     struct __AWS *self = cast(__AWS(), _self);
     
     size_t i;
-        
+
     fprintf(fp, "%s", sensor_get_field(self->sensors[0]));
     
     for (i = 1; i < self->n_sensors; i++) {

@@ -97,9 +97,10 @@ Commands:\n\
     try_slew    RA DEC\n\
     timed_slew  RA DEC TIMEOUT\n\
     get         NAME\n\
-                NAME can be move_speed, slew_speed, track_rate, or\n\
+                NAME can be mount_type, move_speed, slew_speed, track_rate, or\n\
                 derotator_angle\n\
     set         NAME VALUE1 ... \n\
+                mount_type parameter has one value\n\
                 move_speed parameter has one value\n\
                 slew_speed and track_rate have two values\n\
     focus       ABSOLUTE STEP\n\
@@ -930,6 +931,16 @@ main(int argc, char *argv[])
                 printf("angle\t: %.2f\n", angle);
                 goto label_get;
             }
+            if (strcmp(argv[1], "mount_type") == 0) {
+                uint32_t mount_type;
+                ret = telescope_get_mount_type(telescope, &mount_type);
+                if (mount_type == TELESCOPE_MOUNT_TYPE_EQUATORIAL) {
+                    printf("mount_type\t: equatorial");
+                } else {
+                    printf("mount_type\t: horizontal");
+                }
+                goto label_get;
+            }
             if (strcmp(argv[1], "move_speed") == 0) {
                 double move_speed;
                 ret = telescope_get_move_speed(telescope, &move_speed);
@@ -1056,6 +1067,8 @@ main(int argc, char *argv[])
                 ret =telescope_switch_detector(telescope, argv[2]);
             } else if (strcmp(argv[1], "filter") == 0) {
                 ret =telescope_switch_filter(telescope, argv[2]);
+            } else if (strcmp(argv[1], "mount_type") == 0) {
+                ret =telescope_set_mount_type(telescope, atoi(argv[2]));
             } else {
                 fprintf(stderr, "Unsupported type device: %s.\n", argv[1]);
                 goto label_switch;
